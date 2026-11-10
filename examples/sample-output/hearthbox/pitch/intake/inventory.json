@@ -1,0 +1,81 @@
+{
+  "root": "cwd",
+  "root_note": "file paths below are relative to the startup folder; the absolute path is not stored so this file is safe to share",
+  "generated_at": "2026-11-10T22:37:03",
+  "file_count": 4,
+  "by_type": {
+    "markdown": 3,
+    "text": 1
+  },
+  "confidential": [],
+  "sensitive": [],
+  "contains_sensitive_terms": [
+    "notes/ask.md"
+  ],
+  "stale": [],
+  "skipped": [],
+  "files": [
+    {
+      "path": "README.md",
+      "name": "README.md",
+      "size": 1449,
+      "type": "markdown",
+      "ext": ".md",
+      "modified": "2026-11-10T22:19:13",
+      "name_date": null,
+      "confidentiality": "normal",
+      "confidentiality_reasons": [],
+      "sensitive_terms": [],
+      "stale": false,
+      "stale_reason": null,
+      "superseded_by": null
+    },
+    {
+      "path": "notes/ask.md",
+      "name": "ask.md",
+      "size": 738,
+      "type": "markdown",
+      "ext": ".md",
+      "modified": "2026-11-10T22:19:13",
+      "name_date": null,
+      "confidentiality": "normal",
+      "confidentiality_reasons": [],
+      "sensitive_terms": [
+        "valuation cap"
+      ],
+      "stale": false,
+      "stale_reason": null,
+      "superseded_by": null
+    },
+    {
+      "path": "notes/bom-estimate.md",
+      "name": "bom-estimate.md",
+      "size": 1538,
+      "type": "markdown",
+      "ext": ".md",
+      "modified": "2026-11-10T22:19:13",
+      "name_date": null,
+      "confidentiality": "normal",
+      "confidentiality_reasons": [],
+      "sensitive_terms": [],
+      "stale": false,
+      "stale_reason": null,
+      "superseded_by": null
+    },
+    {
+      "path": "notes/waitlist.txt",
+      "name": "waitlist.txt",
+      "size": 602,
+      "type": "text",
+      "ext": ".txt",
+      "modified": "2026-11-10T22:19:13",
+      "name_date": null,
+      "confidentiality": "normal",
+      "confidentiality_reasons": [],
+      "sensitive_terms": [],
+      "stale": false,
+      "stale_reason": null,
+      "superseded_by": null
+    }
+  ]
+}

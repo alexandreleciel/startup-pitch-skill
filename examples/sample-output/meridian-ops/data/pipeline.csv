@@ -1,0 +1,19 @@
+deal_id,company,country,sites,stage,acv_eur,owner,expected_close,notes
+P-041,Hanse Cargo Logistik,DE,4,Negotiation,38400,Lena,2026-11,waiting on legal review of DPA
+P-043,Alpenfracht AG,AT,3,Proposal,28800,Lena,2026-12,CFO wants annual prepay discount
+P-044,Flandria Transport NV,BE,2,Demo done,19200,Lena,2027-01,
+P-046,Westfalen Umschlag GmbH,DE,6,Qualified,57600,Lena,2027-02,big one. 6 sites. needs SSO
+P-047,Lagerhaus Donau,AT,1,Qualified,9600,Jonas,2026-12,small but reference in Austria
+P-048,Dreyer & Söhne Spedition,DE,2,Proposal,19200,Lena,2026-11,
+P-049,Polar Freight Oy,FI,2,Demo done,21600,Lena,2027-01,first Nordic lead. inbound
+P-050,Mosel Logistik,DE,1,Demo done,9600,Jonas,2026-12,
+P-051,Cargolux Terminals,LU,3,Qualified,33600,Lena,2027-03,referral from Vantrex
+P-052,Ruhrport Services,DE,5,Negotiation,48000,Lena,2026-11,verbal yes. contract out
+P-053,Nordzucker Logistik (3PL arm),DE,2,Proposal,21600,Lena,2027-01,seasonal volume
+P-054,Van Dijk Groep,NL,4,Qualified,38400,Lena,2027-02,
+P-055,Sachsen Umschlag,DE,2,Demo done,19200,Jonas,2027-01,
+P-056,Bergamo Trasporti,IT,3,Qualified,28800,Lena,2027-03,inbound. no Italian support yet
+P-057,Ostsee Spedition,DE,1,Proposal,9600,Jonas,2026-12,
+P-058,Elbe Container Depot,DE,2,Demo done,24000,Lena,2027-01,container flow like Vantrex
+P-059,Transalpin Logistik,CH,2,Qualified,26400,Lena,2027-02,CHF pricing question
+P-060,Hessen Kühlketten,DE,3,Negotiation,33600,Lena,2026-12,cold chain. slot timing is critical for them

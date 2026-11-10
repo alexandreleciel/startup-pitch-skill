@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 860" width="420" height="860" role="img" aria-label="Meridian booking screen, mock">
+  <!-- Fictional product mock for the sample deck: a phone-sized booking screen -->
+  <rect x="0" y="0" width="420" height="860" rx="48" fill="#F3F4F6"/>
+  <rect x="14" y="14" width="392" height="832" rx="38" fill="#FFFFFF"/>
+  <rect x="150" y="30" width="120" height="10" rx="5" fill="#D9DBE0"/>
+  <text x="40" y="110" font-family="Helvetica, Arial, sans-serif" font-size="30" font-weight="700" fill="#1F2429">Book a dock slot</text>
+  <text x="40" y="146" font-family="Helvetica, Arial, sans-serif" font-size="18" fill="#6B7178">Nordfracht Hamburg, gate 3</text>
+  <text x="40" y="206" font-family="Helvetica, Arial, sans-serif" font-size="16" fill="#6B7178">Today, 14 Nov</text>
+  <g font-family="Helvetica, Arial, sans-serif" font-size="20" fill="#1F2429">
+    <rect x="40" y="226" width="340" height="64" rx="12" fill="#F3F4F6"/><text x="60" y="266">08:00 to 08:30</text><text x="300" y="266" fill="#6B7178" font-size="16">full</text>
+    <rect x="40" y="300" width="340" height="64" rx="12" fill="#F3F4F6"/><text x="60" y="340">08:30 to 09:00</text><text x="290" y="340" fill="#6B7178" font-size="16">2 left</text>
+    <rect x="40" y="374" width="340" height="64" rx="12" fill="#2E6BE6"/><text x="60" y="414" fill="#FFFFFF">09:00 to 09:30</text><text x="270" y="414" fill="#FFFFFF" font-size="16">selected</text>
+    <rect x="40" y="448" width="340" height="64" rx="12" fill="#F3F4F6"/><text x="60" y="488">09:30 to 10:00</text><text x="290" y="488" fill="#6B7178" font-size="16">4 left</text>
+    <rect x="40" y="522" width="340" height="64" rx="12" fill="#F3F4F6"/><text x="60" y="562">10:00 to 10:30</text><text x="290" y="562" fill="#6B7178" font-size="16">4 left</text>
+  </g>
+  <text x="40" y="640" font-family="Helvetica, Arial, sans-serif" font-size="16" fill="#6B7178">Truck plate</text>
+  <rect x="40" y="652" width="340" height="56" rx="12" fill="#FFFFFF" stroke="#D9DBE0" stroke-width="2"/>
+  <text x="60" y="688" font-family="Helvetica, Arial, sans-serif" font-size="20" fill="#1F2429">HH-MR 4821</text>
+  <rect x="40" y="740" width="340" height="68" rx="14" fill="#1F2429"/>
+  <text x="210" y="783" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF">Confirm slot</text>
+</svg>

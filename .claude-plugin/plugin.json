@@ -1,0 +1,22 @@
+{
+  "name": "startup-pitch",
+  "version": "0.9.0",
+  "description": "Investor pitch, Q&A preparation and deck generation from a startup's own folder, with a sourced fact ledger and a 300+ real pitch deck library.",
+  "author": {
+    "name": "Alexandre Leciel"
+  },
+  "homepage": "https://github.com/alexandreleciel/startup-pitch-skill",
+  "keywords": [
+    "pitch deck",
+    "fundraising",
+    "investor",
+    "startup",
+    "seed",
+    "series a",
+    "presentation"
+  ],
+  "skills": [
+    "./skills/startup-pitch"
+  ],
+  "license": "MIT"
+}

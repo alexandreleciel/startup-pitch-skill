@@ -1,0 +1,323 @@
+# Meridian fact ledger. Every figure in pitch/START-HERE.md and pitch/deck/deck.json traces to an entry here.
+# Check with: python3 $SKILL/scripts/pitch.py check
+# Founder answers of 2026-11-10 are applied: see the notes on arr_current, mrr_yoy_multiple,
+# runway_post_raise_pnl and round_profile.
+
+company: Meridian
+currency: EUR
+as_of: 2026-10-31              # the date the numbers describe, not today's date
+
+facts:
+  # ---- Revenue and growth (metrics export) ----
+  - id: mrr_series
+    label: MRR by month, January 2025 to October 2026
+    value: [4100, 4900, 6200, 7400, 9800, 11600, 13200, 14100, 16800, 19200, 21500, 22400, 24900, 27300, 29100, 31600, 32200, 34800, 36500, 38100, 39700, 41200]
+    unit: EUR/month
+    kind: fact
+    status: confirmed
+    source: data/metrics-2026-10.csv#column=mrr_eur
+    note: 22 monthly rows; first is 2025-01 (4,100), the 2025-10 row is 19,200, last is 2026-10
+
+  - id: mrr_current
+    label: MRR, October 2026
+    value: 41200
+    unit: EUR/month
+    kind: fact
+    status: confirmed
+    source: data/metrics-2026-10.csv#row=2026-10
+    definition: monthly recurring revenue from paying customers, last full month in the export
+    note: README and the financial model (Assumptions!B6) state the same figure
+
+  - id: arr_current
+    label: ARR run-rate, October 2026
+    value: 494400
+    unit: EUR/year
+    kind: fact
+    status: confirmed
+    derived_from: mrr_current * 12
+    note: confirmed by the founder on 2026-11-10. The November memo stated 520,000 because it counted one contract that is signed but not live until December 2026; a signed contract is a booking, not recurring revenue, until it is live.
+
+  - id: mrr_yoy_multiple
+    label: MRR growth, October 2025 to October 2026
+    value: 2.15
+    unit: x
+    kind: fact
+    status: confirmed
+    derived_from: mrr_current / 19200
+    series: mrr_series
+    window: 12
+    note: confirmed by the founder on 2026-11-10. The memo's "3.4x year on year" compared June 2025 with October 2026, a 16-month window, and is no longer used. 19,200 is the 2025-10 row.
+
+  - id: mrr_growth_multiple
+    label: MRR growth, January 2025 to October 2026 (21 months)
+    value: 10.05
+    unit: x
+    kind: fact
+    status: confirmed
+    derived_from: mrr_current / 4100
+    series: mrr_series
+    note: 4,100 is the 2025-01 row of the same export
+
+  - id: arpa_current
+    label: Average MRR per customer, October 2026
+    value: 1288
+    unit: EUR/month
+    kind: fact
+    status: confirmed
+    source: data/metrics-2026-10.csv#row=2026-10
+    definition: arpa_eur in the export, which is MRR divided by paying customers at month end
+    note: per customer, not per site; customers run one to several sites
+
+  # ---- Customers and retention ----
+  - id: customers_current
+    label: Paying customers, end of October 2026
+    value: 32
+    unit: customers
+    kind: fact
+    status: confirmed
+    source: data/metrics-2026-10.csv#row=2026-10
+    definition: customers_end_of_month in the export; paying accounts only
+    note: README, founder memo and the model (Assumptions!B7) agree
+
+  - id: logo_churn_count
+    label: Customers lost, January 2025 to October 2026 (22 months)
+    value: 3
+    unit: customers
+    kind: fact
+    status: confirmed
+    source: data/metrics-2026-10.csv#column=churned_customers
+    computed: true
+    method: sum of churned_customers over all 22 rows (2025-08, 2025-12, 2026-05); the memo states the same count
+    window: 22 months
+    n: 3
+
+  - id: new_customers_actual
+    label: New customers per month, average January 2025 to October 2026
+    value: 1.5
+    unit: customers/month
+    kind: fact
+    status: confirmed
+    source: data/metrics-2026-10.csv#column=new_customers
+    computed: true
+    method: 33 new customers summed over 22 monthly rows, divided by 22; the last six months also average 1.5
+    window: 22 months
+
+  # ---- Cash and the round ----
+  - id: cash
+    label: Cash in bank, 31 October 2026
+    value: 380000
+    unit: EUR
+    kind: fact
+    status: confirmed
+    source: data/financial-model-v3.xlsx#Assumptions!B9
+    note: single source, the founder's model; no bank statement in the folder
+
+  - id: net_burn
+    label: Net burn per month, October 2026
+    value: 53800
+    unit: EUR/month
+    kind: fact
+    status: confirmed
+    derived_from: 95000 - mrr_current
+    source: data/financial-model-v3.xlsx#Assumptions!B19
+    note: 95,000 is total monthly opex (Assumptions!B18), the "around EUR 95k a month all-in" in the memo
+
+  - id: runway_months
+    label: Runway at current net burn, from 31 October 2026
+    value: 7.1
+    unit: months
+    kind: fact
+    status: confirmed
+    derived_from: cash / net_burn
+    source: data/financial-model-v3.xlsx#Assumptions!B20
+    note: the memo says "about 7 months"
+
+  - id: ask
+    label: Seed round size
+    value: 3000000
+    unit: EUR
+    kind: fact
+    status: confirmed
+    source: README.md#Status
+    note: founder memo and the model (Assumptions!B34) state the same figure
+
+  - id: use_of_funds_gtm_pct
+    label: Use of funds, go-to-market (4 account executives, 1 SDR, 1 marketing lead)
+    value: 60
+    unit: percent
+    kind: assumption
+    status: confirmed
+    source: notes/founder-memo-nov-2026.md#What the money does
+    method: founder's plan; the model allocates 1,800,000 of 3,000,000 (Assumptions!B31)
+
+  - id: use_of_funds_product_pct
+    label: Use of funds, product and engineering (3 engineers, 1 designer)
+    value: 30
+    unit: percent
+    kind: assumption
+    status: confirmed
+    source: notes/founder-memo-nov-2026.md#What the money does
+    method: founder's plan; the model allocates 900,000 of 3,000,000 (Assumptions!B32)
+
+  - id: use_of_funds_ops_pct
+    label: Use of funds, operations and buffer
+    value: 10
+    unit: percent
+    kind: assumption
+    status: confirmed
+    source: notes/founder-memo-nov-2026.md#What the money does
+    method: founder's plan; the model allocates 300,000 of 3,000,000 (Assumptions!B33)
+
+  - id: runway_post_raise_pnl
+    label: Runway after a January 2027 close, on the model's own P&L losses
+    value: 18.9
+    unit: months
+    kind: projection
+    status: confirmed
+    derived_from: 12 + (cash - 2 * net_burn + ask - 1923000) / (2356000 / 12)
+    source: data/financial-model-v3.xlsx#P&L 2026-2029!C14:D14
+    assumes: [ask, cash, net_burn]
+    note: confirmed by the founder on 2026-11-10 ("use about 19 months, I will fix the model"). The model's Assumptions sheet stated 26 months (B37, typed in); that figure is no longer used. Method: cash at 31 Oct less two months of net burn, plus the round, less the 2027 EBITDA loss (1,923,000), then the 2028 loss (2,356,000) spread evenly; cash runs out around July 2028.
+
+  - id: arr_target_2028
+    label: ARR target, end of 2028
+    value: 2500000
+    unit: EUR/year
+    kind: projection
+    status: unverified
+    source: data/financial-model-v3.xlsx#Assumptions!B36
+    assumes: [new_customers_2027_model]
+    note: the memo says "EUR 2.5M ARR and a repeatable sales motion in 24 months". End 2028 is later than the 18.9 months the round lasts; the founder is revising the model.
+
+  - id: new_customers_2027_model
+    label: New customers per month assumed for 2027 in the model
+    value: 4
+    unit: customers/month
+    kind: assumption
+    status: unverified
+    source: data/financial-model-v3.xlsx#Assumptions!B23
+    method: model input; rests on account executives hired from the round closing deals without a founder
+
+  # ---- Unit economics ----
+  - id: gross_margin_model
+    label: Gross margin in the financial model
+    value: 0.82
+    unit: ratio
+    kind: assumption
+    status: unverified
+    source: data/financial-model-v3.xlsx#Assumptions!B28
+    method: model input; the model's 2026 P&L line (10 months actual, 2 forecast) gives 81.9 percent. No accounts in the folder.
+
+  # ---- Market ----
+  - id: market_companies
+    label: Companies in the target size band, DACH and Benelux
+    value: 14000
+    unit: companies
+    kind: assumption
+    status: unverified
+    source: notes/founder-memo-nov-2026.md#What we believe that others do not
+    method: founder desk research on Destatis and Eurostat counts (NACE 49.41, 52.1, 52.29), companies with 2+ sites, per old/pitch-notes-2025.md (June 2025); the research file is not in the folder
+
+  - id: sam_bottom_up
+    label: Serviceable market, DACH and Benelux, at today's average revenue per customer
+    value: 216384000
+    unit: EUR/year
+    kind: assumption
+    status: unverified
+    derived_from: market_companies * arpa_current * 12
+    method: 14,000 companies x EUR 1,288 average MRR per customer (October 2026) x 12
+
+  - id: icp_min_movements_readme
+    label: Smallest target customer, truck movements per day (README)
+    value: 50
+    unit: movements/day
+    kind: fact
+    status: conflicting
+    source: README.md#Who buys it
+    conflicts_with: icp_min_movements_memo
+
+  - id: icp_min_movements_memo
+    label: Smallest target customer, truck movements per day (founder memo)
+    value: 150
+    unit: movements/day
+    kind: fact
+    status: conflicting
+    source: notes/founder-memo-nov-2026.md#Who we are targeting
+    conflicts_with: icp_min_movements_readme
+    note: conservative side (smaller market, lower churn risk); the interview notes put the churn threshold near 120
+
+  - id: competitor_grid
+    label: How the alternatives compare (who they are built for, time to go live, who pays, integrations)
+    value: Enterprise yard systems are built for large shippers and take about six months; slot-booking marketplaces charge carriers per booking; phone, WhatsApp and Excel are free; Meridian has no TMS integrations yet
+    unit: text
+    kind: assumption
+    status: unverified
+    source: notes/competitors.md
+    method: founder's notes from prospects, a churned customer and trade shows, July 2026; competitor facts are "what we heard", not verified against public pages
+
+  # ---- Customer proof (one site) ----
+  - id: case_wait_minutes
+    label: Nordfracht Hamburg main site, average dock wait per truck, before and after
+    value: [94, 65]
+    unit: minutes
+    kind: fact
+    status: confirmed
+    source: docs/Meridian-customer-case-study-Nordfracht.pdf#page=1
+    cite_as: published customer case study, 2025
+    n: 1
+    window: March to May 2025 against March to May 2024
+    note: one site, first three months after go-live, from the customer's own gate logs. Published June 2025.
+
+  - id: case_wait_reduction_pct
+    label: Nordfracht Hamburg main site, fewer dock wait minutes
+    value: 31
+    unit: percent
+    kind: fact
+    status: confirmed
+    source: docs/Meridian-customer-case-study-Nordfracht.pdf#page=1
+    cite_as: published customer case study, 2025
+    n: 1
+    window: March to May 2025 against March to May 2024
+    note: (94 - 65) / 94; one customer, one site, three months. Not a company-wide metric.
+
+  - id: case_waiting_fees
+    label: Waiting fees paid at the Nordfracht Hamburg main site, 2024
+    value: 38000
+    unit: EUR/year
+    kind: fact
+    status: confirmed
+    source: docs/Meridian-customer-case-study-Nordfracht.pdf#page=1
+    cite_as: published customer case study, 2025
+    n: 1
+    note: "approximately EUR 38,000"; one site, one year; also in docs/customer-interviews-notes.md
+
+  - id: case_go_live_days
+    label: Working days from start to go-live at the first customer site
+    value: 11
+    unit: working days
+    kind: fact
+    status: confirmed
+    source: docs/Meridian-customer-case-study-Nordfracht.pdf#page=1
+    cite_as: published customer case study, 2025
+    n: 1
+    note: Hamburg main site, 2025; one site
+
+  # ---- Sales ----
+  - id: pipeline_open_deals
+    label: Open deals in the pipeline, all owned by a founder
+    value: 18
+    unit: deals
+    kind: fact
+    status: confirmed
+    source: data/pipeline.csv#column=owner
+    computed: true
+    method: count of rows; owner column is Lena on 14 and Jonas on 4, none owned by the account executive. By stage, 3 negotiation, 4 proposal, 5 demo done, 6 qualified.
+
+  # ---- Round and investor ----
+  - id: round_profile
+    label: Stage and target investor
+    value: Seed round; German seed funds first; priced equity round; a reading deck sent ahead and a presenting deck for the meeting
+    unit: text
+    kind: assumption
+    status: confirmed
+    method: founder answer, 2026-11-10 ("German seed funds first, priced round, yes"). The deck mode is still the core.md default.

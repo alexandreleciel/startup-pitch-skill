@@ -1,0 +1,223 @@
+# Deliberately broken test ledger for the Meridian fixture. Expected: ledger_check.py exits 1.
+# Planted errors, one per check:
+#   (a) customers_current has no unit; nrr_memo has kind: guess and status: maybe; duplicate id pipeline_deals
+#       round_profile has a string value but unit EUR instead of text (warning)
+#   (b) ask is kind: fact with neither source nor derived_from
+#   (c) arr_current is 520000 but derived_from mrr_current * 12 = 492000; mrr_cmgr is 0.25 but its ^ expression gives 0.116
+#   (d) arr_memo has conflicts_with but status confirmed
+#   (e) use of funds percentages sum to 110; amounts sum to 3.2M against a 3M ask; runway 12 months vs 7.1;
+#       sam larger than tam; mrr_yoy_multiple 3.4 against a series that gives 2.15
+#   (f) tam sourced from old/pitch-notes-2025.md (warning)
+#   (g) with meridian-deck-good.json: the deck references fact:customers_current and fact:logo_churn_count,
+#       and logo_churn_count is missing here
+#   (h) cash sourced to a file that does not exist; mrr_current value 41000 which is not in the CSV;
+#       pipeline_acv_total is a hand-computed sum without computed: true (warning that says to add it)
+
+company: Meridian
+currency: EUR
+as_of: 2026-10-31
+
+facts:
+  - id: mrr_current
+    label: MRR, October 2026
+    value: 41000
+    unit: EUR/month
+    kind: fact
+    status: confirmed
+    source: data/metrics-2026-10.csv#row=2026-10
+
+  - id: arr_current
+    label: ARR
+    value: 520000
+    unit: EUR/year
+    kind: fact
+    status: confirmed
+    derived_from: mrr_current * 12
+
+  - id: arr_memo
+    label: ARR as stated in the founder memo
+    value: 520000
+    unit: EUR/year
+    kind: fact
+    status: confirmed
+    source: notes/founder-memo-nov-2026.md
+    conflicts_with: arr_current
+
+  - id: customers_current
+    label: Paying customers
+    value: 32
+    kind: fact
+    status: confirmed
+    source: data/metrics-2026-10.csv#row=2026-10
+
+  - id: mrr_series
+    label: MRR by month, January 2025 to October 2026
+    value: [4100, 4900, 6200, 7400, 9800, 11600, 13200, 14100, 16800, 19200, 21500, 22400,
+            24900, 27300, 29100, 31600, 32200, 34800, 36500, 38100, 39700, 41200]
+    unit: EUR/month
+    kind: fact
+    status: confirmed
+    source: data/metrics-2026-10.csv#column=mrr_eur
+
+  - id: mrr_yoy_multiple
+    label: MRR growth year on year
+    value: 3.4
+    unit: x
+    kind: fact
+    status: confirmed
+    source: notes/founder-memo-nov-2026.md
+    series: mrr_series
+    window: 12
+
+  - id: nrr_memo
+    label: Net revenue retention
+    value: 112
+    unit: percent
+    kind: guess
+    status: maybe
+    source: notes/founder-memo-nov-2026.md
+
+  - id: cash
+    label: Cash in bank
+    value: 380000
+    unit: EUR
+    kind: fact
+    status: confirmed
+    source: data/financial-model-v4.xlsx#Assumptions!B9
+
+  - id: gross_burn
+    label: Monthly operating cost
+    value: 95000
+    unit: EUR/month
+    kind: fact
+    status: confirmed
+    source: data/financial-model-v3.xlsx#Assumptions!B18
+
+  - id: net_burn
+    label: Net burn per month
+    value: 53800
+    unit: EUR/month
+    kind: fact
+    status: confirmed
+    source: data/financial-model-v3.xlsx#Assumptions!B19
+
+  - id: runway_months
+    label: Runway
+    value: 12
+    unit: months
+    kind: fact
+    status: confirmed
+    source: notes/founder-memo-nov-2026.md
+
+  - id: ask
+    label: Seed round size
+    value: 3000000
+    unit: EUR
+    kind: fact
+    status: confirmed
+
+  - id: use_of_funds_gtm_pct
+    label: Use of funds, go-to-market
+    value: 60
+    unit: percent
+    kind: assumption
+    status: confirmed
+    source: notes/founder-memo-nov-2026.md
+
+  - id: use_of_funds_product_pct
+    label: Use of funds, product
+    value: 30
+    unit: percent
+    kind: assumption
+    status: confirmed
+    source: notes/founder-memo-nov-2026.md
+
+  - id: use_of_funds_ops_pct
+    label: Use of funds, ops and buffer
+    value: 20
+    unit: percent
+    kind: assumption
+    status: confirmed
+    source: notes/founder-memo-nov-2026.md
+
+  - id: use_of_funds_gtm_amount
+    label: Use of funds, go-to-market
+    value: 1800000
+    unit: EUR
+    kind: fact
+    status: confirmed
+    source: data/financial-model-v3.xlsx#Assumptions!B31
+
+  - id: use_of_funds_product_amount
+    label: Use of funds, product
+    value: 900000
+    unit: EUR
+    kind: fact
+    status: confirmed
+    source: data/financial-model-v3.xlsx#Assumptions!B32
+
+  - id: use_of_funds_ops_amount
+    label: Use of funds, ops
+    value: 500000
+    unit: EUR
+    kind: fact
+    status: confirmed
+    source: data/financial-model-v3.xlsx#Assumptions!B33
+
+  - id: pipeline_deals
+    label: Open pipeline deals
+    value: 18
+    unit: deals
+    kind: fact
+    status: confirmed
+    source: data/pipeline.csv
+
+  - id: pipeline_deals
+    label: Open pipeline deals (duplicate id)
+    value: 18
+    unit: deals
+    kind: fact
+    status: confirmed
+    source: data/pipeline.csv
+
+  - id: tam
+    label: Serviceable market, DACH and Benelux
+    value: 2.1e8
+    unit: EUR/year
+    kind: assumption
+    status: unverified
+    source: old/pitch-notes-2025.md
+    method: 14,000 companies x EUR 15k ACV
+
+  - id: sam
+    label: Europe-wide market
+    value: 1.05e9
+    unit: EUR/year
+    kind: assumption
+    status: unverified
+    source: old/pitch-notes-2025.md
+    method: five times DACH and Benelux
+
+  - id: mrr_cmgr
+    label: Compound monthly MRR growth
+    value: 0.25
+    unit: ratio
+    kind: fact
+    status: confirmed
+    derived_from: (41200 / 4100) ^ (1 / 21) - 1
+
+  - id: pipeline_acv_total
+    label: Open pipeline, total ACV
+    value: 487200
+    unit: EUR/year
+    kind: fact
+    status: confirmed
+    source: data/pipeline.csv
+
+  - id: round_profile
+    label: Stage and target investor
+    value: Seed round, European B2B SaaS funds
+    unit: EUR
+    kind: assumption
+    status: unverified
+    method: inferred from the founder memo

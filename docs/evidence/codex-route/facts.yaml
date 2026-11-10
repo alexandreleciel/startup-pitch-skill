@@ -1,0 +1,626 @@
+# Phase 2 only. Based on scripts/facts_template.yaml; example company data removed.
+# Open questions come first because the founder is unavailable in this run.
+open_questions:
+  - "Is the pre-seed ask $750k or $1m, and what costed plan, current cash and monthly burn support the Q3 2027 shipment target?"
+  - "Can the November 8 waitlist and Stripe exports substantiate 2,140 signups, 312 outstanding refundable deposits and $15,288 collected after refunds, duplicates and fees?"
+  - "What measured performance, repeat use and safety results do the six prototypes show, and what remains before production and UL/FCC testing?"
+  - "What evidence supports the $299 device price, fully loaded landed cost, $12/month subscription, 40%+ attach rate and 90%+ subscription margin?"
+  - "Which investor types and geographies are first, and where is Hearthbox incorporated?"
+
+company: Hearthbox
+currency: USD
+as_of: 2026-11-08
+prepared_on: 2026-11-10
+scope: "Phases 1 through 3 only; founder unavailable; no narrative, investor Q&A or deck."
+date_basis: "Latest dated operating snapshot is 'nov 8' in notes/waitlist.txt. The year 2026 is inferred from the explicitly dated October 2026 BOM and this run, not confirmed by the snapshot itself. Undated documents retain undated status."
+currency_basis: "USD is a working assumption from dollar-denominated notes, Austin prototypes and the reported US audience; the documents do not spell out the currency code."
+evidence_policy: "Counts without underlying lists are assumptions, following references/metrics.md. Other documented observations can be facts with status unverified. Neither classification implies independent verification. Missing values remain [needs number]; no missing actual is set to zero."
+
+facts:
+  - id: product_description
+    label: Product described by the founder
+    value: "Countertop fermentation appliance with guided phone recipes and temperature, humidity and airflow control"
+    unit: claim
+    kind: fact
+    status: unverified
+    source: README.md
+    note: "Description of the intended product; no measured control-performance or food-safety evidence supplied. 'First', 'actually works', 'no mold' and health claims are not validated claims."
+
+  - id: round_stage
+    label: Stated fundraising stage
+    value: pre-seed
+    unit: stage
+    kind: fact
+    status: confirmed
+    source: notes/ask.md
+    note: "Confirmed as the stage stated in the file, not evidence of product-market fit or revenue."
+
+  - id: evidence_stage
+    label: Working assessment of company maturity
+    value: "Prototype and refundable-deposit validation; repeatable sales and production readiness unproven"
+    unit: stage
+    kind: assumption
+    status: unverified
+    source: README.md
+    method: "Combine the prototype report with the deposit summary in notes/waitlist.txt. No shipment, billing, retention or production-test exports are present."
+
+  - id: prototypes_reported
+    label: Founder-reported hand-built prototypes in Austin kitchens
+    value: 6
+    unit: prototypes
+    kind: assumption
+    status: unverified
+    source: README.md
+    method: "README says 'six hand-built prototypes'; no prototype roster or test logs. This is not six independently verified customers or kitchens."
+
+  - id: prototype_start_reported
+    label: Reported prototype deployment start
+    value: March
+    unit: month
+    kind: fact
+    status: unverified
+    source: README.md
+    note: "The year is absent. Do not infer deployment duration, retention or continuous use from this phrase."
+
+  - id: first_batch_units
+    label: Planned first production batch
+    value: 1000
+    unit: devices
+    kind: projection
+    status: unverified
+    source: README.md
+    assumes: [ask, tooling_estimate, bom_quoted_total]
+    note: "Production target, not shipped units, orders or deposit count. Requires final design, certification, working capital and manufacturer confirmation."
+
+  - id: first_ship_target
+    label: Desired first shipment timing
+    value: "Q3 2027"
+    unit: calendar quarter
+    kind: projection
+    status: unverified
+    source: notes/ask.md
+    assumes: [ask, tooling_estimate, use_of_funds_certification_amount, first_batch_units]
+    note: "Founder aspiration, not an evidenced schedule. No dated tooling, certification, validation or logistics plan supplied."
+
+  - id: waitlist_signups_reported
+    label: Reported total waitlist signups, November 8
+    value: 2140
+    unit: signups
+    kind: assumption
+    status: unverified
+    as_of: 2026-11-08
+    source: notes/waitlist.txt
+    definition: "Total landing-page signups in the founder's summary; unique, subscribed and reachable populations are not reconciled."
+    method: "Summary says it was pulled from the landing-page database; no underlying export supplied. Year inferred as described at the top of this ledger."
+
+  - id: depositors_reported
+    label: Reported people who paid refundable deposits, November 8
+    value: 312
+    unit: depositors
+    kind: assumption
+    status: unverified
+    as_of: 2026-11-08
+    source: notes/waitlist.txt
+    definition: "Reported depositors for the hardware only; outstanding deposits, unique payers and refunds are not independently reconciled. Not delivered-device customers or subscribers."
+    method: "Founder summary without a payer list, order export or Stripe export."
+
+  - id: deposit_price
+    label: Reported refundable deposit amount
+    value: 49
+    unit: USD/deposit
+    kind: fact
+    status: unverified
+    as_of: 2026-11-08
+    source: notes/waitlist.txt
+    definition: "Refundable hardware reservation payment, not the device selling price or subscription fee."
+
+  - id: deposit_cash_reported
+    label: Founder-reported deposit collections held in Stripe
+    value: 15288
+    unit: USD
+    kind: fact
+    status: unverified
+    as_of: 2026-11-08
+    source: notes/waitlist.txt
+    definition: "Reported collections from refundable deposits; gross versus net of fees/refunds is unspecified. Not recognised revenue, ARR, unrestricted bank cash or runway funding."
+
+  - id: deposit_cash_recomputed
+    label: Depositor count multiplied by refundable deposit amount
+    value: 15288
+    unit: USD
+    kind: assumption
+    status: unverified
+    derived_from: depositors_reported * deposit_price
+    note: "Arithmetic matches the reported collection amount exactly; the underlying transaction population remains unverified."
+
+  - id: deposit_conversion_reported
+    label: Reported signup-to-deposit conversion
+    value: 14.6
+    unit: percent
+    kind: assumption
+    status: unverified
+    as_of: 2026-11-08
+    source: notes/waitlist.txt
+    definition: "Reported depositors divided by reported cumulative signups, not a dated acquisition cohort or full-price purchase conversion."
+    method: "Rounded founder summary; raw numerator, denominator, refunds and unsubscribes require reconciliation."
+
+  - id: deposit_conversion_recomputed
+    label: Signup-to-deposit conversion from reported counts
+    value: 14.5794392523
+    unit: percent
+    kind: assumption
+    status: unverified
+    derived_from: depositors_reported / waitlist_signups_reported * 100
+    definition: "312 divided by 2,140; rounds to the reported 14.6%. The arithmetic does not verify demand or cohort comparability."
+
+  - id: us_audience_share_reported
+    label: Approximate US share reported in waitlist note
+    value: 68
+    unit: percent
+    kind: assumption
+    status: unverified
+    as_of: 2026-11-08
+    source: notes/waitlist.txt
+    method: "Approximate founder summary; the denominator is not explicitly specified and no geographic export is supplied."
+
+  - id: viral_source_signups_reported
+    label: Approximate signups attributed to one Reddit post and one TikTok
+    value: 1400
+    unit: signups
+    kind: assumption
+    status: unverified
+    as_of: 2026-11-08
+    source: notes/waitlist.txt
+    method: "Combined founder attribution, not separately reconciled channels. Spend, dates and repeatability are absent."
+
+  - id: video_views_reported
+    label: Reported TikTok views
+    value: 900000
+    unit: views
+    kind: assumption
+    status: unverified
+    as_of: 2026-11-08
+    source: notes/waitlist.txt
+    method: "Founder summary says 900k; no analytics export. Views are not unique people, customers or repeatable acquisition evidence."
+
+  - id: bom_model_volume
+    label: Volume underlying current BOM estimate
+    value: 1000
+    unit: devices
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "October 2026 v2 estimate at this planned volume; not actual manufacturing history."
+
+  - id: manufacturers_reported
+    label: Contract manufacturers reportedly consulted
+    value: 2
+    unit: manufacturers
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "Founder reports two Shenzhen manufacturers plus Digikey electronics pricing; quote documents, dates, validity and terms are absent."
+
+  - id: bom_enclosure
+    label: Estimated enclosure and glass door cost
+    value: 21
+    unit: USD/device
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "Component of the rough October 2026 BOM at bom_model_volume."
+  - id: bom_thermal
+    label: Estimated Peltier, heatsinks and fans cost
+    value: 18.5
+    unit: USD/device
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "Component of the rough October 2026 BOM at bom_model_volume."
+  - id: bom_humidity
+    label: Estimated humidity-control cost
+    value: 6.2
+    unit: USD/device
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "Component of the rough October 2026 BOM at bom_model_volume."
+  - id: bom_board
+    label: Estimated assembled main-board cost
+    value: 11.4
+    unit: USD/device
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "Component of the rough October 2026 BOM at bom_model_volume."
+  - id: bom_sensors
+    label: Estimated sensor cost
+    value: 7.8
+    unit: USD/device
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "Component of the rough October 2026 BOM at bom_model_volume."
+  - id: bom_power
+    label: Estimated power-supply cost
+    value: 5.1
+    unit: USD/device
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "Component of the rough October 2026 BOM at bom_model_volume."
+  - id: bom_interior
+    label: Estimated jars and rack cost
+    value: 9.6
+    unit: USD/device
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "Component of the rough October 2026 BOM at bom_model_volume."
+  - id: bom_display
+    label: Estimated touch-display cost
+    value: 4.7
+    unit: USD/device
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "Component of the rough October 2026 BOM at bom_model_volume."
+  - id: bom_packaging
+    label: Estimated packaging and manual cost
+    value: 3.9
+    unit: USD/device
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "Component of the rough October 2026 BOM at bom_model_volume."
+  - id: bom_assembly
+    label: Estimated assembly and test cost
+    value: 7.8
+    unit: USD/device
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "Component of the rough October 2026 BOM at bom_model_volume."
+
+  - id: bom_quoted_total
+    label: Total current per-device BOM estimate
+    value: 96
+    unit: USD/device
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "Rough component, packaging, assembly and test estimate at bom_model_volume. Shipping and duties are additional; final design, yield and warranty costs are unconfirmed."
+
+  - id: bom_recomputed_total
+    label: Sum of the ten listed BOM components
+    value: 96
+    unit: USD/device
+    kind: assumption
+    status: unverified
+    derived_from: bom_enclosure + bom_thermal + bom_humidity + bom_board + bom_sensors + bom_power + bom_interior + bom_display + bom_packaging + bom_assembly
+    note: "Matches bom_quoted_total; arithmetic validity does not validate supplier quotations."
+
+  - id: tooling_estimate
+    label: Estimated one-time injection-mold tooling
+    value: 85000
+    unit: USD
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "Rough one-time tooling estimate; ownership, payment schedule, second mold set and quote scope are unconfirmed."
+
+  - id: retail_price_target
+    label: Target direct-to-consumer device retail price
+    value: 299
+    unit: USD/device
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "Pricing thought, not realised ASP or validated full-price willingness to pay. Taxes and discounts are unspecified."
+
+  - id: landed_cost_estimate
+    label: Estimated per-device landed cost including shipping and duties
+    value: 118
+    unit: USD/device
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "Founder estimate; freight/duties split, warranty, returns, payment fees, fulfilment and support scope are not evidenced."
+
+  - id: hardware_margin_estimate_reported
+    label: Approximate direct-sales hardware gross margin in notes
+    value: 60
+    unit: percent
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "Approximation using the target price and estimated landed cost, not measured hardware gross margin or contribution margin. Retail-channel economics are unspecified."
+
+  - id: hardware_margin_recomputed
+    label: Indicative hardware margin from target price and estimated landed cost
+    value: 60.5351170569
+    unit: percent
+    kind: assumption
+    status: unverified
+    derived_from: (retail_price_target - landed_cost_estimate) / retail_price_target * 100
+    note: "Consistent with the rounded approximately 60% statement. Cost coverage remains incomplete, so this is not an achieved margin."
+
+  - id: subscription_price_target
+    label: Proposed recipe and community subscription price
+    value: 12
+    unit: USD/subscriber/month
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "Proposed price; deposits were for the box only. No paid subscriber or billing evidence."
+
+  - id: subscription_margin_hypothesis_floor
+    label: Lower bound of founder's subscription margin hypothesis
+    value: 90
+    unit: percent
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "File says '90%+' without a cost build. Creator/content, hosting, support, payments and community costs are not modelled. This is a hypothesis, not an observed margin."
+
+  - id: subscription_attach_hypothesis_floor
+    label: Lower bound of hoped-for subscription attach rate
+    value: 40
+    unit: percent
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "File hopes for '40%+' and explicitly says there is no data; not a measured rate and not applied to depositors as if they were subscribers."
+
+  - id: scale_case_volume
+    label: Volume case for lower future BOM
+    value: 5000
+    unit: devices
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "Hypothetical future volume, not orders, committed capacity or shipped units."
+
+  - id: scale_case_bom
+    label: Hoped-for per-device BOM at higher volume
+    value: 78
+    unit: USD/device
+    kind: projection
+    status: unverified
+    source: notes/bom-estimate.md
+    assumes: [scale_case_volume, bom_quoted_total]
+    note: "No higher-volume quote, yield evidence or cost-down plan. Cannot replace the current-volume cost estimate."
+
+  - id: sensor_removal_saving_estimate
+    label: Possible unit saving from dropping the CO2 sensor
+    value: 4
+    unit: USD/device
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: "Unapproved design option; excluded from current BOM and margin calculations."
+
+  - id: ask
+    label: Lower pre-seed raise option
+    value: 750000
+    unit: USD
+    kind: assumption
+    status: conflicting
+    source: notes/ask.md
+    conflicts_with: ask_expanded
+    method: "Use the smaller option as a conservative working case, not as a founder-approved decision. Certification and second-mold timing drive the choice."
+
+  - id: ask_expanded
+    label: Alternative larger pre-seed raise option
+    value: 1000000
+    unit: USD
+    kind: assumption
+    status: conflicting
+    source: notes/ask.md
+    conflicts_with: ask
+    method: "Alternative in the same planning note, not a second confirmed round. Do not average these options."
+
+  - id: use_of_funds_tooling_amount
+    label: Draft raise allocation for tooling
+    value: 85000
+    unit: USD
+    kind: assumption
+    status: unverified
+    source: notes/ask.md
+    method: "Rough allocation matching tooling_estimate; second mold scope unresolved."
+  - id: use_of_funds_first_batch_amount
+    label: Draft raise allocation for first batch before shipping
+    value: 96000
+    unit: USD
+    kind: assumption
+    status: unverified
+    source: notes/ask.md
+    derived_from: first_batch_units * bom_quoted_total
+    note: "The note explicitly adds shipping separately. This is a cost budget, not sales."
+  - id: use_of_funds_certification_amount
+    label: Draft raise allocation for certification
+    value: 25000
+    unit: USD
+    kind: assumption
+    status: unverified
+    source: notes/ask.md
+    method: "Rough allowance; notes/bom-estimate.md says UL/FCC have not been done. No scope, quotations or schedule."
+  - id: use_of_funds_people_amount
+    label: Draft personnel budget for founder, firmware engineer and part-time designer
+    value: 320000
+    unit: USD
+    kind: assumption
+    status: unverified
+    source: notes/ask.md
+    method: "Combined planned personnel cost, not current headcount, payroll or net burn. Nadia's possible role is not costed separately."
+  - id: people_budget_duration
+    label: Duration covered by draft personnel budget
+    value: 12
+    unit: months
+    kind: assumption
+    status: unverified
+    source: notes/ask.md
+    method: "Applies only to the personnel line; does not establish company runway."
+  - id: use_of_funds_content_amount
+    label: Draft recipe content and creator partnership budget
+    value: 60000
+    unit: USD
+    kind: assumption
+    status: unverified
+    source: notes/ask.md
+    method: "Rough content and partnership allowance; not signed creator agreements."
+  - id: planned_creator_partnerships
+    label: Creator partnerships contemplated in draft budget
+    value: 3
+    unit: partnerships
+    kind: projection
+    status: unverified
+    source: notes/ask.md
+    assumes: [use_of_funds_content_amount, ask]
+    note: "README reports conversations with three fermenters. No signed partnerships, licensed content or permission to use names/logos is supplied."
+  - id: use_of_funds_marketing_amount
+    label: Draft launch marketing budget
+    value: 50000
+    unit: USD
+    kind: assumption
+    status: unverified
+    source: notes/ask.md
+    method: "Rough future allocation; not historical acquisition spend or evidence of CAC."
+
+  - id: draft_allocations_subtotal
+    label: Sum of all six quantified draft use-of-funds lines
+    value: 636000
+    unit: USD
+    kind: assumption
+    status: unverified
+    derived_from: use_of_funds_tooling_amount + use_of_funds_first_batch_amount + use_of_funds_certification_amount + use_of_funds_people_amount + use_of_funds_content_amount + use_of_funds_marketing_amount
+    note: "Shipping is additional and buffer is unquantified. This is intentionally an incomplete allocation, not a complete use-of-funds plan."
+
+  - id: lower_raise_unallocated_remainder
+    label: Unallocated remainder of the lower raise option
+    value: 114000
+    unit: USD
+    kind: assumption
+    status: unverified
+    derived_from: ask - draft_allocations_subtotal
+    note: "Not a confirmed buffer allocation. Must cover or reconcile shipping, duties, omitted costs, contingencies and any scope change. Not runway."
+
+  - id: expanded_raise_unallocated_remainder
+    label: Unallocated remainder of the larger raise option
+    value: 364000
+    unit: USD
+    kind: assumption
+    status: unverified
+    derived_from: ask_expanded - draft_allocations_subtotal
+    note: "Larger-case incremental scope has not been costed. Not a confirmed buffer allocation or runway."
+
+  - id: safe_cap_tentative
+    label: Tentative SAFE cap in founder note
+    value: 6000000
+    unit: USD
+    kind: assumption
+    status: unverified
+    source: notes/ask.md
+    method: "Question-marked proposal, not agreed terms, a priced-round valuation or a verified market benchmark. Pre-money versus post-money SAFE, discount and other rights are unspecified."
+
+  - id: safe_cap_hearsay_range
+    label: Unverified cap range attributed to friends
+    value: [5000000, 8000000]
+    unit: USD
+    kind: assumption
+    status: unverified
+    source: notes/ask.md
+    method: "Hearsay range only. No comparable transactions or dated benchmark evidence; excluded as proof of normal terms. No external verification performed in this intake run."
+
+  - id: team_confirmed_description
+    label: Named founder in supplied materials
+    value: "Dev is identified as founder; founder-market fit and current staffing are undocumented"
+    unit: claim
+    kind: fact
+    status: unverified
+    source: README.md
+    note: "No total headcount, founder biography, relevant prior outcomes or IP ownership record inferred from the signature."
+
+  - id: cofounder_candidate_status
+    label: Status of potential operations cofounder
+    value: "Candidate in discussion, would join full time at close, explicitly not confirmed"
+    unit: hiring status
+    kind: fact
+    status: unverified
+    source: notes/ask.md
+    note: "Do not present as a committed cofounder, employee or available execution capacity."
+
+  - id: investor_profile_default
+    label: Provisional investor audience when no target list exists
+    value: "Financial investors: angels plus a seed fund as potential lead, assessed at pre-seed stage"
+    unit: investor profile
+    kind: assumption
+    status: unverified
+    method: "Default from references/investor-types.md section 1; no target list, meeting brief or investor commitments in this folder."
+    note: "Working geography US from Austin activity and reported audience; investor geography and company incorporation require confirmation. Default later format would be reading material before a live meeting, but no narrative or deck is created."
+
+  - id: company_incorporation
+    label: Company legal entity and jurisdiction
+    value: "[needs answer]"
+    unit: jurisdiction
+    kind: assumption
+    status: unverified
+    method: "No entity documents supplied. Austin testing and a proposed SAFE do not establish incorporation or domicile."
+
+  - id: cash
+    label: Unrestricted current cash balance
+    value: "[needs number]"
+    unit: USD
+    kind: assumption
+    status: unverified
+    method: "Need bank cash, Stripe restrictions, refundable obligations and existing liabilities. Do not substitute deposit_cash_reported."
+  - id: net_burn
+    label: Current monthly net cash burn
+    value: "[needs number]"
+    unit: USD/month
+    kind: assumption
+    status: unverified
+    method: "Need actual recent cash-in and cash-out records. Draft personnel budget is not net burn."
+  - id: runway_months
+    label: Current runway at actual net burn
+    value: "[needs number]"
+    unit: months
+    kind: assumption
+    status: unverified
+    method: "Cannot compute without cash and net_burn. No numerical derived_from expression until the inputs are available."
+  - id: recognised_revenue
+    label: Actual recognised revenue
+    value: "[needs number]"
+    unit: USD/period
+    kind: assumption
+    status: unverified
+    method: "No accounting or shipment records. Revenue is unknown, not zero; refundable deposits are not classified as earned revenue in this intake."
+  - id: subscription_mrr
+    label: Actual subscription MRR
+    value: "[needs number]"
+    unit: USD/month
+    kind: assumption
+    status: unverified
+    method: "No subscriber/billing export. Do not multiply depositors by a hoped-for attach rate and call the result actual MRR or ARR."
+  - id: tam
+    label: Bottom-up total addressable market
+    value: "[needs number]"
+    unit: USD/year
+    kind: assumption
+    status: unverified
+    source: README.md
+    method: "README contains '$XXB', a placeholder. Need sourced eligible buyer/household count, geography, purchase frequency and a separate subscription attach/retention model."
+  - id: sam
+    label: Serviceable market for launch geography and channels
+    value: "[needs number]"
+    unit: USD/year
+    kind: assumption
+    status: unverified
+    method: "Launch geography, buyer segment and reachable household count require evidence. Dollar hardware sales and recurring subscription revenue must remain distinct."
+  - id: som
+    label: Obtainable market at a stated horizon
+    value: "[needs number]"
+    unit: USD/year
+    kind: assumption
+    status: unverified
+    method: "Need horizon, production capacity and distribution/acquisition evidence. First-batch production target is not an achieved market share."

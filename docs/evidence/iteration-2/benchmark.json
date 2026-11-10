@@ -1,0 +1,69 @@
+{
+  "rows": [
+    {
+      "case": "meridian-ops",
+      "step": "quick run",
+      "minutes": 7.3,
+      "tokens": 152433,
+      "ledger_entries": 29,
+      "check": "PASS",
+      "traps": "8/8"
+    },
+    {
+      "case": "hearthbox",
+      "step": "quick run",
+      "minutes": 5.4,
+      "tokens": 127438,
+      "ledger_entries": 27,
+      "check": "WARN (1, a real founder question)",
+      "traps": "9/9"
+    },
+    {
+      "case": "kestrel-health",
+      "step": "quick run",
+      "minutes": 9.4,
+      "tokens": 168524,
+      "ledger_entries": 32,
+      "check": "WARN (1, staleness)",
+      "traps": "10/10"
+    },
+    {
+      "case": "meridian-ops",
+      "step": "founder answers + deck",
+      "minutes": 10.4,
+      "tokens_cumulative": 311037,
+      "deck": "12 slides + 1 sources page; 3 builds; 0 capacity warnings and 0 QA issues on every build",
+      "check": "PASS",
+      "traps": "8/8"
+    },
+    {
+      "case": "hearthbox",
+      "step": "founder answers + narrative + Q&A",
+      "minutes": 10.2,
+      "tokens_cumulative": 231202,
+      "words": {
+        "narrative.md": 2314,
+        "investor-qa.md": 3694
+      },
+      "check": "PASS",
+      "traps": "9/9"
+    },
+    {
+      "case": "kestrel-health",
+      "step": "founder answers + deck",
+      "minutes": 13.5,
+      "tokens_cumulative": 356686,
+      "deck": "16 slides + 1 sources page; 2 builds; 0 capacity warnings and 0 QA issues on every build",
+      "check": "PASS",
+      "traps": "10/10"
+    },
+    {
+      "case": "hearthbox (Codex CLI, plain request, skill not named)",
+      "step": "quick run",
+      "minutes": 6.4,
+      "check": "skill selected automatically; START-HERE.md written",
+      "traps": "not graded"
+    }
+  ],
+  "note": "tokens_cumulative includes the quick run of the same agent"
+}

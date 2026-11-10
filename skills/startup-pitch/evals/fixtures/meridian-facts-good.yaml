@@ -1,0 +1,311 @@
+# Test ledger for the Meridian fixture (fixtures/meridian-ops). Hand-written from the extracted corpus.
+# Expected: ledger_check.py exits 0. One WARN is intended (the market size lives only in old/pitch-notes-2025.md).
+# It also exercises ^ in derived_from, computed: true and unit: text.
+#
+# Run from the skill folder:
+#   python3 scripts/ledger_check.py evals/fixtures/meridian-facts-good.yaml \
+#       --root ../../../fixtures/meridian-ops --corpus <corpus folder from extract.py> \
+#       --deck evals/fixtures/meridian-deck-good.json
+
+company: Meridian
+currency: EUR
+as_of: 2026-10-31
+
+facts:
+  # --- Traction ---
+  - id: mrr_current
+    label: MRR, October 2026
+    value: 41200
+    unit: EUR/month
+    kind: fact
+    status: confirmed
+    source: data/metrics-2026-10.csv#row=2026-10
+    note: last full month in the metrics export; matches the financial model (Assumptions!B6)
+
+  - id: arr_current
+    label: ARR, run-rate from October MRR
+    value: 494400
+    unit: EUR/year
+    kind: fact
+    status: conflicting
+    derived_from: mrr_current * 12
+    conflicts_with: arr_memo
+    note: the conservative value; used in the deck until the founder confirms
+
+  - id: arr_memo
+    label: ARR as stated in the founder memo
+    value: 520000
+    unit: EUR/year
+    kind: fact
+    status: conflicting
+    source: notes/founder-memo-nov-2026.md
+    conflicts_with: arr_current
+    note: memo says EUR 520k, metrics export implies EUR 494k (about 5 percent apart). Founder to confirm.
+
+  - id: customers_current
+    label: Paying customers, end of October 2026
+    value: 32
+    unit: customers
+    kind: fact
+    status: confirmed
+    source: data/metrics-2026-10.csv#row=2026-10
+
+  - id: mrr_series
+    label: MRR by month, January 2025 to October 2026
+    value: [4100, 4900, 6200, 7400, 9800, 11600, 13200, 14100, 16800, 19200, 21500, 22400,
+            24900, 27300, 29100, 31600, 32200, 34800, 36500, 38100, 39700, 41200]
+    unit: EUR/month
+    kind: fact
+    status: confirmed
+    source: data/metrics-2026-10.csv#column=mrr_eur
+
+  - id: mrr_yoy_multiple
+    label: MRR growth, October 2025 to October 2026
+    value: 2.15
+    unit: x
+    kind: fact
+    status: conflicting
+    derived_from: 41200 / 19200
+    series: mrr_series
+    window: 12
+    conflicts_with: yoy_multiple_memo
+    note: computed from the metrics export (19.2k to 41.2k)
+
+  - id: yoy_multiple_memo
+    label: Year-on-year growth as stated in the founder memo
+    value: 3.4
+    unit: x
+    kind: fact
+    status: conflicting
+    source: notes/founder-memo-nov-2026.md
+    conflicts_with: mrr_yoy_multiple
+    note: the export supports about 2.1x, not 3.4x. Ask what period the memo compares.
+
+  - id: mrr_growth_multiple
+    label: MRR growth since January 2025
+    value: 10.05
+    unit: x
+    kind: fact
+    status: confirmed
+    derived_from: 41200 / 4100
+    series: mrr_series
+
+  - id: nrr_memo
+    label: Net revenue retention, founder-stated
+    value: 112
+    unit: percent
+    kind: fact
+    status: unverified
+    source: notes/founder-memo-nov-2026.md
+    note: appears only in the memo, no cohort data in the folder
+
+  - id: logo_churn_count
+    label: Customers churned, January 2025 to October 2026
+    value: 3
+    unit: customers
+    kind: fact
+    status: confirmed
+    source: data/metrics-2026-10.csv#column=churned_customers
+    note: three rows with churned_customers = 1 (Aug 2025, Dec 2025, May 2026); memo says the same
+
+  - id: dock_wait_reduction_pct
+    label: Fewer dock wait minutes at Nordfracht Hamburg, March to May 2025 vs 2024
+    value: 31
+    unit: percent
+    kind: fact
+    status: confirmed
+    source: docs/Meridian-customer-case-study-Nordfracht.pdf#page=1
+    note: one site, three months, before and after from the customer's gate logs. Quote with that scope.
+
+  - id: dock_wait_before_minutes
+    label: Average dock wait per truck at Nordfracht before Meridian
+    value: 94
+    unit: minutes
+    kind: fact
+    status: confirmed
+    source: docs/Meridian-customer-case-study-Nordfracht.pdf#page=1
+
+  # --- Finances (financial model v3, last updated 2026-10-28) ---
+  - id: cash
+    label: Cash in bank, 31 October 2026
+    value: 380000
+    unit: EUR
+    kind: fact
+    status: confirmed
+    source: data/financial-model-v3.xlsx#Assumptions!B9
+
+  - id: gross_burn
+    label: Monthly operating cost
+    value: 95000
+    unit: EUR/month
+    kind: fact
+    status: confirmed
+    source: data/financial-model-v3.xlsx#Assumptions!B18
+
+  - id: net_burn
+    label: Net burn per month
+    value: 53800
+    unit: EUR/month
+    kind: fact
+    status: confirmed
+    derived_from: gross_burn - mrr_current
+    note: memo rounds this to EUR 54k
+
+  - id: runway_months
+    label: Runway at current burn
+    value: 7.1
+    unit: months
+    kind: fact
+    status: confirmed
+    derived_from: cash / net_burn
+
+  - id: headcount
+    label: Team size, November 2026
+    value: 7
+    unit: people
+    kind: fact
+    status: confirmed
+    source: README.md
+
+  - id: avg_cost_per_head
+    label: Average loaded cost per person
+    value: 8714
+    unit: EUR/month
+    kind: fact
+    status: confirmed
+    derived_from: 61000 / headcount
+    note: 61000 is salaries including employer costs for 7 FTE (financial-model-v3.xlsx, Assumptions!B12)
+
+  - id: gross_margin
+    label: Gross margin assumption in the model
+    value: 0.82
+    unit: fraction
+    kind: assumption
+    status: unverified
+    source: data/financial-model-v3.xlsx#Assumptions!B28
+    method: model assumption; 2026 P&L implies 0.819
+
+  # --- The round ---
+  - id: ask
+    label: Seed round size
+    value: 3000000
+    unit: EUR
+    kind: fact
+    status: confirmed
+    source: data/financial-model-v3.xlsx#Assumptions!B34
+    note: also in README.md and the founder memo
+
+  - id: use_of_funds_gtm_pct
+    label: Use of funds, go-to-market
+    value: 60
+    unit: percent
+    kind: assumption
+    status: confirmed
+    source: notes/founder-memo-nov-2026.md
+
+  - id: use_of_funds_product_pct
+    label: Use of funds, product
+    value: 30
+    unit: percent
+    kind: assumption
+    status: confirmed
+    source: notes/founder-memo-nov-2026.md
+
+  - id: use_of_funds_ops_pct
+    label: Use of funds, ops and buffer
+    value: 10
+    unit: percent
+    kind: assumption
+    status: confirmed
+    source: notes/founder-memo-nov-2026.md
+
+  - id: use_of_funds_gtm_amount
+    label: Use of funds, go-to-market
+    value: 1800000
+    unit: EUR
+    kind: fact
+    status: confirmed
+    source: data/financial-model-v3.xlsx#Assumptions!B31
+
+  - id: use_of_funds_product_amount
+    label: Use of funds, product and engineering
+    value: 900000
+    unit: EUR
+    kind: fact
+    status: confirmed
+    source: data/financial-model-v3.xlsx#Assumptions!B32
+
+  - id: use_of_funds_ops_amount
+    label: Use of funds, ops, legal, buffer
+    value: 300000
+    unit: EUR
+    kind: fact
+    status: confirmed
+    source: data/financial-model-v3.xlsx#Assumptions!B33
+
+  # --- Entries that exercise ^ in derived_from, computed: true and unit: text ---
+  - id: mrr_cmgr
+    label: Compound monthly MRR growth, January 2025 to October 2026
+    value: 0.116
+    unit: ratio
+    kind: fact
+    status: confirmed
+    derived_from: (mrr_current / 4100) ^ (1 / 21) - 1
+    note: 4100 is the January 2025 MRR in the same export; 21 monthly steps
+
+  - id: pipeline_acv_total
+    label: Open pipeline, total ACV across 18 deals
+    value: 487200
+    unit: EUR/year
+    kind: fact
+    status: confirmed
+    source: data/pipeline.csv#column=acv_eur
+    computed: true
+    method: sum of acv_eur over all 18 rows
+
+  - id: round_profile
+    label: Stage and target investor
+    value: Seed round, European B2B SaaS funds, priced equity
+    unit: text
+    kind: assumption
+    status: unverified
+    method: inferred from the founder memo; confirm with the founder
+
+  # --- Pipeline ---
+  - id: pipeline_deals
+    label: Open pipeline deals
+    value: 18
+    unit: deals
+    kind: fact
+    status: confirmed
+    source: data/pipeline.csv
+    note: 18 data rows in the export
+
+  # --- Market (only source is the 2025 notes) ---
+  - id: tam
+    label: Serviceable market, DACH and Benelux operators with 2+ sites
+    value: 2.1e8
+    unit: EUR/year
+    kind: assumption
+    status: unverified
+    source: old/pitch-notes-2025.md
+    method: about 14,000 companies (Destatis and Eurostat NACE 49.41, 52.1, 52.29) x EUR 15k ACV. Needs refreshing.
+
+  # --- Projections ---
+  - id: arr_target_2028
+    label: ARR target, end of 2028
+    value: 2500000
+    unit: EUR/year
+    kind: projection
+    status: unverified
+    source: data/financial-model-v3.xlsx#Assumptions!B36
+    assumes: [tam, gross_margin]
+
+  - id: revenue_2028_model
+    label: Revenue 2028 in the model
+    value: 2310000
+    unit: EUR/year
+    kind: projection
+    status: unverified
+    source: data/financial-model-v3.xlsx#P&L 2026-2029!D4
+    assumes: [gross_margin]

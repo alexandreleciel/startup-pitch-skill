@@ -1,0 +1,14 @@
+{
+  "name": "startup-pitch-skill",
+  "owner": { "name": "Alexandre Leciel" },
+  "metadata": { "description": "Marketplace for the startup-pitch skill", "version": "0.9.0" },
+  "plugins": [
+    {
+      "name": "startup-pitch",
+      "source": "./",
+      "description": "Investor pitch, Q&A preparation and deck generation from a startup's own folder.",
+      "version": "0.9.0",
+      "category": "productivity"
+    }
+  ]
+}

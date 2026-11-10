@@ -1,0 +1,87 @@
+# facts.yaml template. Copy to pitch/facts.yaml, replace the entries, keep the field names.
+# All matching rules in 40 lines: python3 scripts/ledger_check.py --explain
+#
+# What to record
+#   1. Only numbers and claims an output (narrative, Q&A, deck) will cite, plus BOTH sides of every conflict.
+#   2. No helper entries that exist only to feed derived_from: put the literal in the expression, name it in note.
+#   3. The ask is one `fact` when the founder's files state one figure, two `conflicting` entries when they state two.
+#
+# Fields
+#   id            letters, digits, underscores; decks cite it as fact:<id>
+#   value         a number, a list of numbers (a series), or a string when unit is text
+#   unit          EUR/month, percent, ratio, x, months, customers, text ...
+#   kind          fact (in a file) | assumption (founder belief today) | projection (from a model)
+#   status        confirmed | unverified | conflicting (both sides of a conflicts_with pair)
+#   source        file path relative to the startup folder, optional #locator (row, sheet!cell, page)
+#   derived_from  ids, numeric literals, + - * / ^ and parentheses; recomputed within 1 percent
+#   computed      true when you computed the value from the source (sum, count, average); say how in method
+#   note, method, assumes, role, series, window    optional
+#
+# Conventional ids switch on identity checks: mrr_current and arr_current, cash / net_burn / runway_months,
+# ask with use_of_funds_<bucket>_pct, tam / sam / som, <metric>_yoy_multiple with series. Other ids are left alone.
+
+company: Example Co
+currency: EUR
+as_of: 2026-10-31              # the date the numbers describe, not today's date
+
+facts:
+  - id: mrr_current             # a number read straight from a file
+    label: MRR, October 2026
+    value: 41200
+    unit: EUR/month
+    kind: fact
+    status: confirmed
+    source: data/metrics-2026-10.csv#row=2026-10
+
+  - id: arr_current             # derived, and the conservative side of a conflict
+    label: ARR, run-rate
+    value: 494400
+    unit: EUR/year
+    kind: fact
+    status: conflicting
+    derived_from: mrr_current * 12
+    conflicts_with: arr_memo
+
+  - id: arr_memo                # the other side; the founder resolves it, not the skill
+    label: ARR as stated in the founder memo
+    value: 520000
+    unit: EUR/year
+    kind: fact
+    status: conflicting
+    source: notes/founder-memo-nov-2026.md
+    conflicts_with: arr_current
+
+  - id: mrr_cmgr                # literals in the expression instead of helper entries
+    label: Compound monthly MRR growth, January 2025 to October 2026
+    value: 0.116
+    unit: ratio
+    kind: fact
+    status: confirmed
+    derived_from: (mrr_current / 4100) ^ (1 / 21) - 1
+    note: 4100 is the January 2025 MRR in the same export; 21 monthly steps
+
+  - id: pipeline_acv_total      # computed by hand from a file
+    label: Open pipeline, total ACV across 18 deals
+    value: 487200
+    unit: EUR/year
+    kind: fact
+    status: confirmed
+    source: data/pipeline.csv#column=acv_eur
+    computed: true
+    method: sum of acv_eur over all 18 rows
+
+  - id: ask                     # one figure in the files, so one fact
+    label: Seed round size
+    value: 3000000
+    unit: EUR
+    kind: fact
+    status: confirmed
+    source: README.md
+
+  - id: round_profile           # a qualitative entry
+    label: Stage and target investor
+    value: Seed round, European B2B SaaS funds, priced equity
+    unit: text
+    kind: assumption
+    status: unverified
+    method: inferred from the founder memo; confirm with the founder

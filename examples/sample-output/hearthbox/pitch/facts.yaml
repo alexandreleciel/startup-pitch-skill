@@ -1,0 +1,323 @@
+# Hearthbox fact ledger. Every figure in pitch/START-HERE.md, narrative.md, investor-qa.md and gaps.md traces to an entry here.
+# Founder-facing file. Deal terms (SAFE cap) are deliberately not recorded: they stay out of investor material.
+
+company: Hearthbox
+currency: USD
+as_of: 2026-11-08              # date of the waitlist pull, the newest data in the folder
+
+facts:
+  # ---- Demand evidence -------------------------------------------------------------
+  - id: deposits_paid
+    label: Paid refundable deposits, 8 November 2026
+    value: 312
+    unit: deposits
+    kind: fact
+    status: confirmed
+    source: notes/waitlist.txt#line=4
+    definition: people who paid the refundable deposit for the box only; not orders, not revenue
+    note: pulled from the landing page database on 8 Nov 2026; refunds requested so far are not stated
+
+  - id: deposit_amount
+    label: Deposit per person (refundable)
+    value: 49
+    unit: USD
+    kind: fact
+    status: confirmed
+    source: notes/waitlist.txt#line=4
+
+  - id: deposits_collected
+    label: Deposit money held in Stripe, 8 November 2026
+    value: 15288
+    unit: USD
+    kind: fact
+    status: confirmed
+    source: notes/waitlist.txt#line=5
+    derived_from: deposits_paid * deposit_amount
+    note: refundable, so a liability and not revenue
+
+  - id: waitlist_signups
+    label: Waitlist signups, gross, 8 November 2026
+    value: 2140
+    unit: signups
+    kind: fact
+    status: confirmed
+    source: notes/waitlist.txt#line=3
+    definition: every signup since launch, including people who have since unsubscribed
+    note: founder confirmed on 2026-11-10 that this is the gross figure; the net figure does not exist yet
+
+  - id: signup_to_deposit_pct
+    label: Share of gross waitlist signups who paid a deposit, 8 November 2026
+    value: 14.6
+    unit: percent
+    kind: fact
+    status: confirmed
+    source: notes/waitlist.txt#line=8
+    derived_from: deposits_paid / waitlist_signups * 100
+    n: 2140
+    note: on the gross signup count; removing unsubscribes can only raise it
+
+  - id: signups_from_two_posts
+    label: Signups traced to one Reddit post and one TikTok (approximate)
+    value: 1400
+    unit: signups
+    kind: fact
+    status: unverified
+    source: notes/waitlist.txt#line=7
+    note: the file says "~1,400"; no export by channel in the folder
+
+  - id: prototypes_in_use
+    label: Hand-built prototypes running in Austin kitchens since March
+    value: 6
+    unit: prototypes
+    kind: fact
+    status: confirmed
+    source: README.md
+    n: 6
+    note: the README does not give the year of "March", the number of households, or any usage data
+
+  - id: creators_in_talks
+    label: Fermenters in conversation about recipe content (none signed)
+    value: 3
+    unit: creators
+    kind: fact
+    status: unverified
+    source: README.md
+    note: "talking to three"; conversations, not agreements. notes/ask.md budgets 3 creator partnerships
+
+  # ---- Unit economics (all estimates, nothing manufactured yet) ---------------------
+  - id: bom_unit_1000
+    label: Bill of materials per unit at 1,000 units (v2 estimate, October 2026)
+    value: 96
+    unit: USD/unit
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: quotes from 2 Shenzhen contract manufacturers plus Digikey list prices, ten lines summed; the founder labels it "rough"
+
+  - id: landed_cost_unit
+    label: Landed cost per unit with shipping and duties (estimate)
+    value: 118
+    unit: USD/unit
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: founder estimate ("probably ~$118"); no freight or duty quote in the folder
+
+  - id: target_price
+    label: Target retail price of the box
+    value: 299
+    unit: USD
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: founder target; the folder does not say whether deposit holders saw this price
+
+  - id: hardware_gross_margin_pct
+    label: Hardware gross margin if sold direct (estimate)
+    value: 60
+    unit: percent
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    derived_from: (target_price - landed_cost_unit) / target_price * 100
+    method: target price minus estimated landed cost; excludes payment fees, returns, warranty and delivery to the customer
+
+  - id: subscription_price
+    label: Planned recipe subscription price
+    value: 12
+    unit: USD/month
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: founder plan; nobody has been offered the subscription, deposits were for the box only
+
+  - id: subscription_attach_hope_pct
+    label: Share of buyers the founder hopes will subscribe
+    value: 40
+    unit: percent
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: a hope with no data behind it (the file says so); listed under "do not use yet"
+
+  # ---- The round ---------------------------------------------------------------------
+  - id: ask
+    label: Pre-seed round size
+    value: 750000
+    unit: USD
+    kind: fact
+    status: confirmed
+    source: notes/ask.md
+    note: confirmed by the founder on 2026-11-10. notes/ask.md also floated "maybe $1M" (1,000,000 USD, formerly entry ask_high), tied to doing UL cert and a second mold set now; the founder chose 750,000
+
+  - id: use_of_funds_tooling_amount
+    label: Use of funds, injection mold tooling (one-time)
+    value: 85000
+    unit: USD
+    kind: assumption
+    status: unverified
+    source: notes/ask.md
+    method: founder estimate ("~$85k"), same figure in notes/bom-estimate.md; one mold set
+
+  - id: use_of_funds_units_amount
+    label: Use of funds, first 1,000 units at BOM cost, before shipping
+    value: 96000
+    unit: USD
+    kind: assumption
+    status: unverified
+    source: notes/ask.md
+    derived_from: bom_unit_1000 * 1000
+    method: 1,000 units at the BOM estimate; the note adds "+ shipping" with no figure
+
+  - id: use_of_funds_certs_amount
+    label: Use of funds, UL and FCC certification
+    value: 25000
+    unit: USD
+    kind: assumption
+    status: unverified
+    source: notes/ask.md
+    method: founder budget ("~$25k"); no test-lab quote in the folder
+
+  - id: use_of_funds_team_amount
+    label: Use of funds, 12 months of founder, 1 firmware engineer, 1 part-time industrial designer
+    value: 320000
+    unit: USD
+    kind: assumption
+    status: unverified
+    source: notes/ask.md
+    method: founder estimate ("~$320k") for the three roles together
+
+  - id: use_of_funds_content_amount
+    label: Use of funds, recipe content and 3 creator partnerships
+    value: 60000
+    unit: USD
+    kind: assumption
+    status: unverified
+    source: notes/ask.md
+    method: founder estimate ("~$60k")
+
+  - id: use_of_funds_marketing_amount
+    label: Use of funds, launch marketing
+    value: 50000
+    unit: USD
+    kind: assumption
+    status: unverified
+    source: notes/ask.md
+    method: founder estimate ("~$50k")
+
+  - id: use_of_funds_uncosted_amount
+    label: Part of the round with no costed use yet (shipping, buffer and anything the new budget adds)
+    value: 114000
+    unit: USD
+    kind: assumption
+    status: unverified
+    source: notes/ask.md
+    derived_from: ask - (use_of_funds_tooling_amount + use_of_funds_units_amount + use_of_funds_certs_amount + use_of_funds_team_amount + use_of_funds_content_amount + use_of_funds_marketing_amount)
+    method: remainder, not a budget line. notes/ask.md lists "shipping" and "buffer" with no figure. The founder said on 2026-11-10 that the whole budget is being redone, so every use_of_funds line is a draft and this question stays open in START-HERE.md
+
+  - id: first_run_units
+    label: Size of the first production run
+    value: 1000
+    unit: units
+    kind: assumption
+    status: unverified
+    source: README.md
+    method: founder plan, stated in README.md and notes/ask.md
+
+  - id: ship_target
+    label: Target date for first units shipped
+    value: Q3 2027
+    unit: text
+    kind: projection
+    status: unverified
+    source: notes/ask.md
+    assumes: [ask, use_of_funds_tooling_amount, use_of_funds_certs_amount]
+    note: depends on the round closing, the molds being cut and UL and FCC passing; no schedule in the folder
+
+  - id: round_profile
+    label: Stage and target investor
+    value: Pre-seed, pre-production hardware; US angels first; SAFE; presenting deck for the meeting, reading deck to forward
+    unit: text
+    kind: assumption
+    status: confirmed
+    method: founder answer of 2026-11-10 ("US angels first"; was the core.md default, US angels plus a pre-seed fund as lead). Pre-seed and SAFE are in notes/ask.md. Country of incorporation still not stated; US inferred from the Austin prototypes and USD figures.
+
+  # ---- Founder statements of 2026-11-10 (no file in the folder backs these yet) ------
+  - id: deposit_refund_requests
+    label: Deposit holders who have asked for a refund so far
+    value: 4
+    unit: requests
+    kind: assumption
+    status: unverified
+    method: founder statement, 2026-11-10 (in chat, recorded verbatim in pitch/run-log.md); no Stripe export in the folder. Not stated whether the 312 and the 15,288 USD are before or after these refunds
+
+  - id: deposit_price_shown
+    label: Whether deposit holders saw the retail price before paying
+    value: Every deposit holder saw the 299 USD price before paying the deposit
+    unit: text
+    kind: assumption
+    status: unverified
+    method: founder statement, 2026-11-10 (in chat, recorded verbatim in pitch/run-log.md); no landing page screenshot or checkout record in the folder
+
+  - id: founder_hardware_years
+    label: Founder's years as a hardware engineer at a thermostat company
+    value: 9
+    unit: years
+    kind: assumption
+    status: unverified
+    method: founder statement, 2026-11-10 (in chat, recorded verbatim in pitch/run-log.md); employer name, role and shipped products not in the folder
+
+  - id: founder_profile
+    label: Founder, commitment and what he built
+    value: Dev Patel, sole founder; full time on Hearthbox since March 2026; built the six prototypes himself
+    unit: text
+    kind: assumption
+    status: unverified
+    method: founder statement, 2026-11-10 (in chat, recorded verbatim in pitch/run-log.md). The possible co-founder in notes/ask.md is still not confirmed and stays out of investor material
+
+  # ---- Added for the narrative and the investor Q&A --------------------------------------
+  - id: waitlist_us_share_pct
+    label: Share of waitlist signups in the United States (approximate)
+    value: 68
+    unit: percent
+    kind: fact
+    status: unverified
+    source: notes/waitlist.txt#line=6
+    n: 2140
+    note: the file says "~68% US, rest mostly CA/UK/DE/AU"; no export by country in the folder
+
+  - id: tiktok_views
+    label: Views of the TikTok that drove signups
+    value: 900000
+    unit: views
+    kind: fact
+    status: unverified
+    source: notes/waitlist.txt#line=7
+    note: the file says "900k views"; no link or date, and not stated whether any reach was paid
+
+  - id: bom_unit_5000
+    label: Bill of materials per unit at 5,000 units (estimate)
+    value: 78
+    unit: USD/unit
+    kind: assumption
+    status: unverified
+    source: notes/bom-estimate.md
+    method: founder estimate ("probably drops to ~$78"); no quote at this volume in the folder
+
+  - id: alt_crock_price
+    label: Price of the cheap alternative today, a fermentation crock (founder's read)
+    value: 30
+    unit: USD
+    kind: assumption
+    status: unverified
+    source: README.md
+    method: founder's read of what is on sale; no product list, links or dates in the folder
+
+  - id: alt_incubator_price
+    label: Price of the expensive alternative today, a lab incubator (founder's read)
+    value: 4000
+    unit: USD
+    kind: assumption
+    status: unverified
+    source: README.md
+    method: founder's read of what is on sale; no product list, links or dates in the folder

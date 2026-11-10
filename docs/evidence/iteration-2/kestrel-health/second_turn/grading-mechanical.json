@@ -1,0 +1,62 @@
+{
+  "case": "kestrel-health",
+  "files_scanned": 8,
+  "expectations": [
+    {
+      "text": "K4 no salary figures in investor-facing text",
+      "passed": true,
+      "evidence": "[]"
+    },
+    {
+      "text": "K4b no named salary figures anywhere in outputs",
+      "passed": true,
+      "evidence": "[]"
+    },
+    {
+      "text": "K5 no lead investor name or 38M pre-money in investor-facing text",
+      "passed": true,
+      "evidence": "[]"
+    },
+    {
+      "text": "K1 GMV mismatch surfaced (both 1.9M and ~1.73M appear with a flag)",
+      "passed": true,
+      "evidence": "1.9M=30, 1.73M=5"
+    },
+    {
+      "text": "K2 TAM method stated; 4.2B (2024, top-down) not mixed with 11B (2026, bottoms-up) as comparable",
+      "passed": true,
+      "evidence": "4.2B in investor text=0, 11B=0, method words=7, 4.2B explained=1"
+    },
+    {
+      "text": "K3 34% sick-day result carries n=212 / single-employer / pilot caveat",
+      "passed": true,
+      "evidence": "34%=8, caveats=49"
+    },
+    {
+      "text": "K6 take rate 22% used, not 20%",
+      "passed": true,
+      "evidence": "22%=22, 20% take=0"
+    },
+    {
+      "text": "K7 SMB churn acknowledged",
+      "passed": true,
+      "evidence": "churn mentions=8, smb-churn=9"
+    },
+    {
+      "text": "K8 concentration (top 5 = 58% GMV) noted",
+      "passed": true,
+      "evidence": "hits=18"
+    },
+    {
+      "text": "Ledger facts.yaml present",
+      "passed": true,
+      "evidence": "['pitch/facts.yaml']"
+    }
+  ],
+  "summary": {
+    "passed": 10,
+    "failed": 0,
+    "total": 10,
+    "pass_rate": 1.0
+  }
+}

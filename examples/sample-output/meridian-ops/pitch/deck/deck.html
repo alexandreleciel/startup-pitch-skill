@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en" data-theme="paper" data-variant="read">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meridian: Dock scheduling and driver messaging for mid-size freight forwarders</title>
+<meta name="generator" content="startup-pitch build_deck.js">
+<meta name="slide-count" content="13">
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* startup-pitch deck themes
+ *
+ * Four named themes as CSS custom property sets. build_deck.js reads this file,
+ * inlines it into deck.html and parses the tokens for the PPTX renderer, so
+ * this file is the single source of truth for colours and fonts.
+ *
+ * Token contract (every theme defines all of these):
+ *   --bg          slide background
+ *   --ink         primary type colour
+ *   --muted       secondary type, captions, axis labels
+ *   --accent      the one hot colour (meta.accent overrides it)
+ *   --accent-2    a second, quieter accent for charts and small marks
+ *   --surface     a tinted panel colour for cards, table headers, image frames
+ *   --rule        hairline and gridline colour
+ *   --font-display, --font-body       web font stacks
+ *   --chart-1 .. --chart-5            categorical chart palette, in order
+ *   --pptx-display, --pptx-body       safe fonts written into the PPTX
+ *   --gfonts      Google Fonts families to load, "Family:wght@400;700|Family2:wght@400"
+ *
+ * Keep hex values as 6-digit #RRGGBB: the PPTX renderer strips the hash and
+ * pptxgenjs rejects 8-digit alpha hex.
+ */
+
+/* graphite: near-black, warm off-white type, editorial serif display.
+ * For premium and deep-tech companies. */
+[data-theme="graphite"] {
+  --bg: #23252B;
+  --ink: #F2EDE4;
+  --muted: #A9A49A;
+  --accent: #A9BBFF;
+  --accent-2: #D5A54A;
+  --surface: #2E3138;
+  --rule: #3B3E46;
+  --font-display: "Newsreader", "Newsreader Fallback", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-body: "Hanken Grotesk", "Hanken Grotesk Fallback", "Helvetica Neue", Arial, sans-serif;
+  --chart-1: #A9BBFF;
+  --chart-2: #D5A54A;
+  --chart-3: #6E7FC2;
+  --chart-4: #8E897E;
+  --chart-5: #E6DFD2;
+  --pptx-display: Cambria;
+  --pptx-body: Calibri;
+  --gfonts: "Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400|Hanken Grotesk:wght@400;500;600";
+  --display-weight: 400;
+  --display-tracking: -0.015em;
+}
+
+/* paper: warm light background, dark ink, humanist sans, one restrained accent.
+ * For B2B SaaS. */
+[data-theme="paper"] {
+  --bg: #F6F4EF;
+  --ink: #1F2429;
+  --muted: #6B7178;
+  --accent: #1F6F5B;
+  --accent-2: #B8862B;
+  --surface: #ECE8DF;
+  --rule: #D8D3C8;
+  --font-display: "Albert Sans", "Albert Sans Fallback", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Albert Sans", "Albert Sans Fallback", "Helvetica Neue", Arial, sans-serif;
+  --chart-1: #1F6F5B;
+  --chart-2: #B8862B;
+  --chart-3: #6FA392;
+  --chart-4: #9A9A93;
+  --chart-5: #CFC9BC;
+  --pptx-display: Calibri;
+  --pptx-body: Calibri;
+  --gfonts: "Albert Sans:wght@400;500;600;700";
+  --display-weight: 600;
+  --display-tracking: -0.025em;
+}
+
+/* signal: white, bold grotesk display, one hot accent, large numerals.
+ * For consumer and marketplace companies. */
+[data-theme="signal"] {
+  --bg: #FFFFFF;
+  --ink: #1C1E24;
+  --muted: #70737B;
+  --accent: #FF4A1C;
+  --accent-2: #1C1E24;
+  --surface: #F3F3F1;
+  --rule: #DEDEDA;
+  --font-display: "Archivo", "Archivo Fallback", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Figtree", "Figtree Fallback", "Helvetica Neue", Arial, sans-serif;
+  --chart-1: #FF4A1C;
+  --chart-2: #1C1E24;
+  --chart-3: #FFA98C;
+  --chart-4: #8E9097;
+  --chart-5: #D4D4D0;
+  --pptx-display: Arial;
+  --pptx-body: Calibri;
+  --gfonts: "Archivo:wdth,wght@100,500;100,800|Figtree:wght@400;500;600";
+  --display-weight: 800;
+  --display-tracking: -0.03em;
+}
+
+/* midnight: deep navy, ice type, geometric sans.
+ * For fintech and infrastructure companies. */
+[data-theme="midnight"] {
+  --bg: #0F1B33;
+  --ink: #E8F0FA;
+  --muted: #94A7C2;
+  --accent: #6FB8FF;
+  --accent-2: #FFC857;
+  --surface: #182747;
+  --rule: #263859;
+  --font-display: "Sora", "Sora Fallback", "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", "IBM Plex Sans Fallback", "Helvetica Neue", Arial, sans-serif;
+  --chart-1: #6FB8FF;
+  --chart-2: #FFC857;
+  --chart-3: #3C7CC4;
+  --chart-4: #7C8BA3;
+  --chart-5: #C9D7EA;
+  --pptx-display: Arial;
+  --pptx-body: Calibri;
+  --gfonts: "Sora:wght@500;600|IBM Plex Sans:wght@400;500;600";
+  --display-weight: 600;
+  --display-tracking: -0.02em;
+}
+
+/* Offline fallbacks: local faces size-adjusted toward the web font so a deck
+ * opened without network keeps roughly the same line breaks. */
+@font-face { font-family: "Newsreader Fallback"; src: local("Iowan Old Style"), local("Georgia"); size-adjust: 96%; }
+@font-face { font-family: "Hanken Grotesk Fallback"; src: local("Helvetica Neue"), local("Arial"); size-adjust: 98%; }
+@font-face { font-family: "Albert Sans Fallback"; src: local("Helvetica Neue"), local("Arial"); size-adjust: 99%; }
+@font-face { font-family: "Archivo Fallback"; src: local("Helvetica Neue Bold"), local("Arial Bold"), local("Arial"); size-adjust: 101%; }
+@font-face { font-family: "Figtree Fallback"; src: local("Helvetica Neue"), local("Arial"); size-adjust: 99%; }
+@font-face { font-family: "Sora Fallback"; src: local("Avenir Next"), local("Helvetica Neue"), local("Arial"); size-adjust: 104%; }
+@font-face { font-family: "IBM Plex Sans Fallback"; src: local("Helvetica Neue"), local("Arial"); size-adjust: 100%; }
+
+:root[data-theme]{--accent:#0F4C5C;--chart-1:#0F4C5C;--font-display:"Space Grotesk", "Albert Sans Fallback", "Helvetica Neue", Arial, sans-serif;--font-body:"Inter", "Albert Sans Fallback", "Helvetica Neue", Arial, sans-serif;}
+
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;background:#000}
+body{font-family:var(--font-body);font-synthesis:none;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+.viewport{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#000}
+.stage{position:relative;width:1920px;height:1080px;flex:none;transform-origin:center center}
+.slide{position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;padding:96px 120px 120px;background:var(--bg);color:var(--ink);visibility:hidden;opacity:0;pointer-events:none;transition:opacity .22s ease;font-size:30px;line-height:1.4}
+.slide.active{visibility:visible;opacity:1;pointer-events:auto}
+.slide{display:flex;flex-direction:column}
+.head{flex:none}
+.body{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-start}
+.s-solution .body,.s-insight .body,.s-two_column .body,.s-go_to_market .body,.s-roadmap .body,.s-team .body,.s-business_model .body,.s-market .body,.s-statement .body{justify-content:center;padding-bottom:48px}
+html.noscale .viewport{position:static;display:block;overflow:hidden;width:1920px;height:1080px}
+html.noscale .slide{transition:none}
+html.noscale .hud{display:none}
+img{max-width:100%}
+
+/* type scale, fixed in px for the 1920x1080 stage */
+.kicker{font-size:24px;line-height:1.3;color:var(--accent);margin:0 0 20px;font-weight:500}
+.title{font-family:var(--font-display);font-weight:var(--display-weight);letter-spacing:var(--display-tracking);font-size:64px;line-height:1.08;margin:0;max-width:1440px;text-wrap:balance}
+.subtitle{font-size:30px;line-height:1.4;color:var(--muted);margin:24px 0 0;max-width:1240px}
+.head{margin:0 0 56px}
+.side-label{font-size:22px;color:var(--muted);margin:0 0 20px;font-weight:500}
+
+.points{list-style:none;margin:0;padding:0;font-size:30px;line-height:1.4}
+.points li{position:relative;padding:22px 0 22px 44px;border-top:1px solid var(--rule)}
+.points li:first-child{border-top:0;padding-top:0}
+.points li::before{content:"";position:absolute;left:0;top:calc(22px + .55em);width:12px;height:12px;background:var(--accent)}
+.points li:first-child::before{top:.55em}
+.points.compact{font-size:26px}
+.points.compact li{padding:16px 0 16px 36px}
+.points.compact li:first-child{padding-top:0}
+.points.compact li::before{top:calc(16px + .5em);width:10px;height:10px}
+.points.compact li:first-child::before{top:.5em}
+.points.under{margin-top:48px;max-width:1200px}
+
+.stats{display:grid;gap:40px}
+.stats.column{grid-template-columns:1fr;gap:44px}
+.stats.small .stat-v{font-size:64px}
+.stats.grid-2-stats{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-content:start}
+.stat-v{font-family:var(--font-display);font-weight:var(--display-weight);letter-spacing:var(--display-tracking);font-size:96px;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stat-l{font-size:26px;line-height:1.3;color:var(--muted);margin-top:12px}
+.stat-s{font-size:20px;line-height:1.3;color:var(--muted);margin-top:6px;opacity:.85}
+.stats.big .stat-v{font-size:168px}
+.stats.big.two{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:48px}
+.stats.big.two .stat-v{font-size:120px}
+.stats.dense{gap:28px}
+.stats.dense .stat-v{font-size:72px}
+.stats.dense .stat-l{font-size:22px;margin-top:8px}
+.stats.row-1,.stats.row-2,.stats.row-3,.stats.row-4{grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:72px;align-items:start}
+.stats.row-4 .stat-v{font-size:80px}
+.stats.under{margin-top:72px;max-width:1100px}
+.stats.ask-stats{margin-top:16px}
+.body-text{font-size:28px;line-height:1.45;margin:28px 0 0;max-width:1240px}
+.slide-source{position:absolute;left:120px;right:120px;bottom:100px;margin:0;font-size:20px;line-height:1.3;color:var(--muted)}
+sup.fn{font-size:.6em;line-height:0;vertical-align:.5em;color:var(--muted);margin-left:.15em;font-variant-numeric:tabular-nums}
+html[data-variant="read"] .points{font-size:27px}
+html[data-variant="read"] .points li{padding-top:18px;padding-bottom:18px}
+html[data-variant="read"] .points.compact{font-size:25px}
+html[data-variant="read"] .points.compact li{padding-top:14px;padding-bottom:14px}
+html[data-variant="read"] .points li:first-child{padding-top:0}
+html[data-variant="read"] .title{font-size:58px}
+
+.needs{display:inline-block;padding:0 .35em;border:3px dashed #E0A100;color:#B57A00;background:rgba(224,161,0,.10);border-radius:6px;font-weight:600;font-size:.72em;line-height:1.5;white-space:nowrap;vertical-align:.1em;font-family:var(--font-body);letter-spacing:0}
+.warn-badge{position:absolute;top:24px;right:120px;background:#E0A100;color:#1A1A1A;font-size:20px;line-height:1;padding:10px 14px;border-radius:4px;font-weight:600;z-index:2}
+
+.foot{position:absolute;left:120px;right:120px;bottom:48px;display:flex;justify-content:space-between;align-items:center;font-size:20px;line-height:1;color:var(--muted)}
+.foot-l{display:flex;align-items:center;gap:16px}
+.foot-logo{height:26px;width:auto;opacity:.85}
+.foot-r{font-variant-numeric:tabular-nums}
+
+.chart-wrap{flex:0 1 auto;min-height:0;display:flex;flex-direction:column}
+.chart-wrap svg{display:block;flex:0 1 auto;min-height:0;width:100%;height:auto}
+.chart-source{flex:none;font-size:20px;line-height:1.3;color:var(--muted);margin:16px 0 0}
+
+/* cover and closing */
+.s-cover,.s-closing{padding:0}
+.cover-logo{position:absolute;left:120px;top:96px;height:72px;width:auto}
+.cover-mark{position:absolute;left:120px;top:96px;font-family:var(--font-display);font-weight:var(--display-weight);font-size:36px;line-height:1}
+.cover-main{position:absolute;left:120px;right:200px;bottom:200px}
+.cover-title{font-family:var(--font-display);font-weight:var(--display-weight);letter-spacing:var(--display-tracking);font-size:148px;line-height:.98;margin:0;max-width:1560px;text-wrap:balance}
+.cover-sub{font-size:40px;line-height:1.3;color:var(--muted);margin:40px 0 0;max-width:1240px}
+.cover-main.has-facts{bottom:168px}
+.cover-main.has-facts .cover-title{font-size:128px}
+.cover-facts{display:flex;gap:96px;margin-top:64px;padding-top:40px;border-top:1px solid var(--rule)}
+.cover-facts .stat-v{font-size:56px}
+.cover-facts .stat-l{font-size:22px;margin-top:8px}
+.closing{position:absolute;left:120px;right:120px;top:96px;bottom:160px;display:flex;flex-direction:column;justify-content:flex-end}
+.closing .cover-logo{top:0;left:0}
+.closing .cover-title{font-size:104px}
+.closing .hero-facts{margin-top:72px}
+.closing .hero-facts .pt{font-size:28px;padding-top:28px}
+.closing .hero-facts .pt .mark{margin-bottom:20px}
+.contact{font-size:28px;line-height:1.5;color:var(--muted);margin:64px 0 0}
+
+/* problem */
+.grid-2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:120px;align-items:start}
+.grid-2.narrow{gap:96px}
+.grid-2.fill{flex:1;min-height:0;grid-template-rows:minmax(0,1fr);align-items:stretch}
+.grid-2 .col.wide{grid-column:1 / -1;max-width:1100px}
+.grid-2.problem{align-items:center;flex:1;min-height:0}
+.frame.fillh{height:auto;min-height:0}
+
+/* solution columns */
+.cols{display:grid;gap:72px;align-items:start}
+.cols-1{grid-template-columns:1fr;max-width:1100px}.cols-2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.cols .pt{font-size:32px;line-height:1.4;padding-top:36px;border-top:1px solid var(--rule);position:relative}
+.cols .pt .mark{display:block;width:16px;height:16px;background:var(--accent);margin-bottom:28px}
+
+/* product */
+.prod{display:grid;grid-template-columns:600px 1fr;gap:96px;align-items:stretch;flex:1;min-height:0;grid-template-rows:minmax(0,1fr)}
+.frame{background:var(--surface);border:1px solid var(--rule);border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;height:600px;padding:24px}
+.frame .fit{max-width:100%;max-height:100%;object-fit:contain}
+.frame-empty{font-size:26px;color:var(--muted)}
+
+/* statement and insight */
+.statement{position:absolute;left:120px;right:160px;top:50%;transform:translateY(-50%);padding-bottom:40px}
+.statement-title{font-family:var(--font-display);font-weight:var(--display-weight);letter-spacing:var(--display-tracking);font-size:96px;line-height:1.04;margin:0;max-width:1560px;text-wrap:balance}
+.statement-sub{font-size:34px;line-height:1.4;color:var(--muted);margin:40px 0 0;max-width:1300px}
+.insight-title{font-family:var(--font-display);font-weight:var(--display-weight);letter-spacing:var(--display-tracking);font-size:72px;line-height:1.08;margin:0;max-width:1600px;text-wrap:balance}
+.insight-body{display:grid;grid-template-columns:1fr;gap:120px;margin-top:64px;align-items:start}
+.insight-body.with-stat{grid-template-columns:1fr 440px}
+.insight-body .stats{padding-top:8px}
+.team-note{font-size:24px;line-height:1.4;color:var(--muted);margin:56px 0 0}
+.tl-proves{font-size:22px;line-height:1.4;color:var(--muted);margin-top:10px}
+.src-tbl{width:100%;border-collapse:collapse;table-layout:fixed;font-size:19px;line-height:1.3;font-variant-numeric:tabular-nums}
+.src-tbl col.c-n{width:4%}.src-tbl col.c-id{width:19%}.src-tbl col.c-l{width:23%}.src-tbl col.c-v{width:15%}.src-tbl col.c-k{width:8%}.src-tbl col.c-d{width:9%}.src-tbl col.c-f{width:22%}
+.src-tbl th{text-align:left;font-weight:600;padding:10px 14px;border-bottom:2px solid var(--ink);color:var(--ink)}
+.src-tbl td{padding:9px 14px;border-bottom:1px solid var(--rule);vertical-align:top}
+.src-tbl.files{font-size:22px}
+.src-tbl.files td{padding:11px 14px}
+.src-note{font-size:22px;line-height:1.4;color:var(--muted);margin:0 0 28px;max-width:1300px}
+.src-tbl .src-n{color:var(--muted)}
+.src-tbl .src-id{font-weight:600;overflow-wrap:anywhere}
+.src-tbl .num{white-space:nowrap}
+.src-tbl .file{color:var(--muted);font-size:17px;overflow-wrap:anywhere}
+.src-tbl .src-m{display:block;font-size:16px;color:var(--muted);opacity:.85}
+
+/* market */
+.market{display:grid;grid-template-columns:1fr;gap:96px;align-items:start}
+.market.with-points{grid-template-columns:1fr 520px}
+.steps{display:flex;flex-direction:column;gap:16px}
+.step{min-width:440px;min-height:150px;background:var(--surface);padding:20px 36px;display:flex;flex-direction:column;justify-content:center;border-radius:6px}
+.step .stat-v{font-size:60px}
+.step .stat-l{font-size:22px;margin-top:6px}
+.step-m{font-size:20px;line-height:1.3;color:var(--muted);margin-top:6px}
+.step-focus{background:var(--accent);color:var(--bg)}
+.step-focus .stat-l,.step-focus .step-m{color:var(--bg);opacity:.85}
+
+/* traction and financials */
+.trac,.fin{display:grid;grid-template-columns:1fr 440px;gap:100px;align-items:stretch;flex:1;min-height:0;grid-template-rows:minmax(0,1fr)}
+.fin{grid-template-columns:1fr 500px}
+.chart-col{min-width:0;min-height:0;display:flex;flex-direction:column}
+.side{min-width:0;align-self:start}
+.side .stats{margin-bottom:40px}
+.side .points + .stats{margin-top:36px}
+
+/* flow (go to market) */
+.flow{display:grid;gap:56px;align-items:start}
+.flow-1{grid-template-columns:1fr;max-width:1000px}.flow-2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.flow-3{grid-template-columns:repeat(3,minmax(0,1fr))}.flow-4{grid-template-columns:repeat(4,minmax(0,1fr))}.flow-5{grid-template-columns:repeat(5,minmax(0,1fr))}
+.flow-n{font-family:var(--font-display);font-weight:var(--display-weight);font-size:72px;line-height:1;color:var(--muted)}
+.flow-t{font-size:28px;line-height:1.4;margin-top:24px;padding-top:24px;border-top:1px solid var(--rule)}
+.flow-4 .flow-t,.flow-5 .flow-t{font-size:26px}
+
+/* tables */
+.tbl{width:100%;border-collapse:collapse;font-size:26px;line-height:1.3;font-variant-numeric:tabular-nums}
+.tbl th{text-align:left;font-weight:600;padding:16px 24px;border-bottom:2px solid var(--ink);color:var(--ink);vertical-align:bottom}
+.tbl td{padding:18px 24px;border-bottom:1px solid var(--rule);vertical-align:middle}
+.tbl td.c{text-align:center}
+.tbl th:not(:first-child){text-align:center}
+.tbl .rowhead{font-weight:500}
+.tbl .us{background:var(--surface)}
+.tbl .us .rowhead{font-weight:700}
+.tbl .ck{color:var(--accent);vertical-align:middle}
+.tbl .no{color:var(--muted)}
+
+/* team */
+.team{display:grid;gap:0}
+.team-2{grid-template-columns:minmax(0,1fr) minmax(0,1fr);max-width:1300px}.team-3{grid-template-columns:repeat(3,minmax(0,1fr))}.team-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.member{padding:0 48px;border-left:1px solid var(--rule)}
+.member:first-child{border-left:0;padding-left:0}
+.avatar{width:160px;height:160px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:var(--display-weight);font-size:56px;line-height:1;color:var(--accent);overflow:hidden}
+.avatar .photo{width:100%;height:100%;object-fit:cover}
+.m-name{font-size:34px;line-height:1.2;font-weight:600;margin-top:36px}
+.m-role{font-size:24px;line-height:1.3;color:var(--muted);margin-top:8px}
+.m-bio{font-size:22px;line-height:1.45;color:var(--muted);margin-top:20px}
+.team-4 .m-bio{font-size:20px}
+
+/* ask */
+.ask .amount{font-family:var(--font-display);font-weight:var(--display-weight);letter-spacing:var(--display-tracking);font-size:128px;line-height:1;margin:0;text-wrap:balance}
+.ask .amount.medium{font-size:96px}
+.ask .amount.long{font-size:64px;line-height:1.08;max-width:1500px}
+.ask .subtitle{margin-top:28px}
+.stats.ask-stats .stat-v{font-size:72px}
+.ask-body{display:grid;grid-template-columns:1fr 520px;gap:120px;margin-top:72px;align-items:start}
+.funds{display:flex;height:84px;width:100%;gap:4px;border-radius:6px;overflow:hidden}
+.seg{display:flex;align-items:center;justify-content:center;color:var(--bg);font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;min-width:0}
+.funds-legend{display:flex;flex-wrap:wrap;gap:20px 40px;margin-top:24px;font-size:24px;line-height:1.3}
+.leg i{display:inline-block;width:16px;height:16px;margin-right:12px;vertical-align:-1px;border-radius:2px}
+.funds-col .points{margin-top:48px}
+.ms{list-style:none;margin:0;padding:0;font-size:26px;line-height:1.4}
+.ms li{padding:14px 0;border-top:1px solid var(--rule)}
+.ms li:first-child{border-top:0;padding-top:0}
+.ms-when{color:var(--muted);margin-right:16px;font-variant-numeric:tabular-nums}
+
+/* roadmap */
+.timeline{position:relative;display:grid;gap:48px;padding-top:48px;margin-top:40px}
+.tl-1{grid-template-columns:1fr;max-width:900px}.tl-2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.tl-3{grid-template-columns:repeat(3,minmax(0,1fr))}.tl-4{grid-template-columns:repeat(4,minmax(0,1fr))}.tl-5{grid-template-columns:repeat(5,minmax(0,1fr))}.tl-6{grid-template-columns:repeat(6,minmax(0,1fr))}
+.timeline::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--rule)}
+.tl-node{position:relative}
+.tl-node::before{content:"";position:absolute;left:0;top:-58px;width:20px;height:20px;border-radius:50%;background:var(--accent)}
+.tl-when{font-size:24px;line-height:1.3;color:var(--muted);font-variant-numeric:tabular-nums}
+.tl-what{font-size:28px;line-height:1.4;margin-top:12px}
+.tl-5 .tl-what,.tl-6 .tl-what{font-size:24px}
+
+/* sources */
+.src{columns:2;column-gap:96px;list-style:none;margin:0;padding:0;font-size:22px;line-height:1.45}
+.src li{break-inside:avoid;padding:12px 0;border-bottom:1px solid var(--rule);display:flex;gap:20px;align-items:baseline}
+.src-n{color:var(--muted);min-width:48px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.src-id{font-weight:600;white-space:nowrap}
+.src-t{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* two column */
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:120px;align-items:start}
+.two h2{font-family:var(--font-display);font-weight:var(--display-weight);font-size:40px;line-height:1.15;margin:0 0 28px;text-wrap:balance}
+.two-body{font-size:28px;line-height:1.45;margin:0 0 24px;color:var(--ink)}
+
+/* custom html */
+.custom{position:relative}
+
+/* viewer chrome, outside the stage */
+.hud{position:fixed;right:18px;bottom:14px;font:14px/1 -apple-system,system-ui,sans-serif;color:#fff;opacity:.55;pointer-events:none;font-variant-numeric:tabular-nums}
+.notes{position:fixed;left:0;right:0;bottom:0;max-height:42vh;overflow:auto;background:rgba(18,18,20,.95);color:#ECECEC;font:18px/1.55 -apple-system,system-ui,sans-serif;padding:20px 32px 28px;z-index:10;white-space:pre-wrap;border-top:1px solid rgba(255,255,255,.12)}
+.notes[hidden]{display:none}
+.notes .notes-h{font-size:12px;letter-spacing:.02em;color:#9A9A9A;margin-bottom:10px}
+
+@media (prefers-reduced-motion: reduce){.slide{transition:none}}
+@page{size:1920px 1080px;margin:0}
+@media print{
+html,body{background:#fff;height:auto;overflow:visible}
+.viewport{position:static;display:block;overflow:visible;background:none;width:1920px}
+.stage{transform:none !important;width:1920px;height:auto}
+.slide{position:relative;inset:auto;visibility:visible;opacity:1;transition:none;break-after:page;page-break-after:always}
+.slide:last-child{break-after:auto;page-break-after:auto}
+.hud,.notes{display:none !important}
+*{animation:none !important;transition:none !important}
+}
+html.print html,html.print body{background:#fff;height:auto;overflow:visible}
+html.print .viewport{position:static;display:block;overflow:visible;background:none;width:1920px}
+html.print .stage{transform:none !important;width:1920px;height:auto}
+html.print .slide{position:relative;inset:auto;visibility:visible;opacity:1;transition:none;break-after:page;page-break-after:always}
+html.print .slide:last-child{break-after:auto;page-break-after:auto}
+html.print .hud,html.print .notes{display:none !important}
+html.print *{animation:none !important;transition:none !important}
+
+</style>
+</head>
+<body>
+<div class="viewport"><div class="stage" id="stage">
+<section class="slide s-cover active" data-index="1" data-type="cover" aria-label="Slide 1"><div class="cover-wrap"><img class="cover-logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMjAgOTYiIHdpZHRoPSIzMjAiIGhlaWdodD0iOTYiPgogIDx0aXRsZT5NZXJpZGlhbjwvdGl0bGU+CiAgPGNpcmNsZSBjeD0iNDgiIGN5PSI0OCIgcj0iMzYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPGxpbmUgeDE9IjYiIHkxPSI0OCIgeDI9IjkwIiB5Mj0iNDgiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSI2NiIgY3k9IjM0IiByPSI3IiBmaWxsPSIjRTM2NDE0Ii8+CiAgPHRleHQgeD0iMTEyIiB5PSI2MCIgZm9udC1mYW1pbHk9IlNwYWNlIEdyb3Rlc2ssIEludGVyLCBBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSI0MCIgZm9udC13ZWlnaHQ9IjYwMCIgZmlsbD0iIzFCMUYyMyIgbGV0dGVyLXNwYWNpbmc9IjEiPk1lcmlkaWFuPC90ZXh0Pgo8L3N2Zz4K" alt="Meridian logo"><div class="cover-main has-facts"><p class="kicker">Seed round, November 2026</p><h1 class="cover-title">Meridian</h1><p class="cover-sub">Dock scheduling and driver messaging for mid-size freight forwarders</p><div class="cover-facts"><div class="stat"><div class="stat-v">EUR 41.2k</div><div class="stat-l">MRR, October 2026</div></div><div class="stat"><div class="stat-v">32</div><div class="stat-l">paying customers</div></div><div class="stat"><div class="stat-v">EUR 3M</div><div class="stat-l">raising, priced equity round</div></div></div></div></div><div class="foot"><span class="foot-l">Meridian Operations GmbH, confidential, November 2026</span><span class="foot-r"></span></div></section>
+<section class="slide s-problem" data-index="2" data-type="problem" aria-label="Slide 2"><header class="head"><h1 class="title">Trucks waited 94 minutes at one Hamburg site in 2024, and carriers sent the bill</h1></header><div class="body"><div class="grid-2 problem"><div class="col"><div class="stats big"><div class="stat"><div class="stat-v" style="font-size:139px">EUR 38,000</div><div class="stat-l">waiting fees paid at that one site in 2024</div><div class="stat-s">published customer case study, 2025</div></div></div></div><div class="col"><ul class="points"><li>Dispatchers run the yard with phones, WhatsApp groups and a paper notebook</li><li>Most trucks arrive in the morning peak; the docks sit idle in the afternoon</li><li>Carriers used to absorb waiting time. Now they invoice it</li></ul></div></div><p class="slide-source">Source: published customer case study, 2025</p></div><div class="foot"><span class="foot-l"><img class="foot-logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMjAgOTYiIHdpZHRoPSIzMjAiIGhlaWdodD0iOTYiPgogIDx0aXRsZT5NZXJpZGlhbjwvdGl0bGU+CiAgPGNpcmNsZSBjeD0iNDgiIGN5PSI0OCIgcj0iMzYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPGxpbmUgeDE9IjYiIHkxPSI0OCIgeDI9IjkwIiB5Mj0iNDgiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSI2NiIgY3k9IjM0IiByPSI3IiBmaWxsPSIjRTM2NDE0Ii8+CiAgPHRleHQgeD0iMTEyIiB5PSI2MCIgZm9udC1mYW1pbHk9IlNwYWNlIEdyb3Rlc2ssIEludGVyLCBBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSI0MCIgZm9udC13ZWlnaHQ9IjYwMCIgZmlsbD0iIzFCMUYyMyIgbGV0dGVyLXNwYWNpbmc9IjEiPk1lcmlkaWFuPC90ZXh0Pgo8L3N2Zz4K" alt="">Meridian Operations GmbH, confidential, November 2026</span><span class="foot-r">2</span></div></section>
+<section class="slide s-solution" data-index="3" data-type="solution" aria-label="Slide 3"><header class="head"><h1 class="title">Carriers book a dock slot through a link: no app, no login</h1></header><div class="body"><div class="cols cols-3"><div class="pt"><span class="mark"></span>Drivers get slot changes by SMS or WhatsApp in German, English, Polish or Romanian</div><div class="pt"><span class="mark"></span>The gatehouse checks trucks in and out on a tablet; dispatchers see one inbox instead of six phones</div><div class="pt"><span class="mark"></span>At the first customer's Hamburg site, dock wait per truck fell from 94 to 65 minutes in the first three months (one site, March to May 2025)</div></div><p class="slide-source">Source: published customer case study, 2025</p></div><div class="foot"><span class="foot-l"><img class="foot-logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMjAgOTYiIHdpZHRoPSIzMjAiIGhlaWdodD0iOTYiPgogIDx0aXRsZT5NZXJpZGlhbjwvdGl0bGU+CiAgPGNpcmNsZSBjeD0iNDgiIGN5PSI0OCIgcj0iMzYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPGxpbmUgeDE9IjYiIHkxPSI0OCIgeDI9IjkwIiB5Mj0iNDgiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSI2NiIgY3k9IjM0IiByPSI3IiBmaWxsPSIjRTM2NDE0Ii8+CiAgPHRleHQgeD0iMTEyIiB5PSI2MCIgZm9udC1mYW1pbHk9IlNwYWNlIEdyb3Rlc2ssIEludGVyLCBBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSI0MCIgZm9udC13ZWlnaHQ9IjYwMCIgZmlsbD0iIzFCMUYyMyIgbGV0dGVyLXNwYWNpbmc9IjEiPk1lcmlkaWFuPC90ZXh0Pgo8L3N2Zz4K" alt="">Meridian Operations GmbH, confidential, November 2026</span><span class="foot-r">3</span></div></section>
+<section class="slide s-traction" data-index="4" data-type="traction" aria-label="Slide 4"><header class="head"><h1 class="title">MRR grew 2.15x in 12 months to EUR 41.2k in October 2026</h1></header><div class="body"><div class="trac"><div class="chart-col"><div class="chart-wrap"><svg class="chart" viewBox="0 0 1140 600" width="1140" height="600" preserveAspectRatio="xMinYMin meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MRR" style="font-family:var(--font-body);font-variant-numeric:tabular-nums"><text x="110" y="34" font-size="22" style="fill:var(--muted)">EUR k per month</text><line x1="110" y1="536.0" x2="1112" y2="536.0" style="stroke:var(--rule)" stroke-width="1"/><text x="92" y="544.0" text-anchor="end" font-size="22" style="fill:var(--muted)">0</text><line x1="110" y1="442.8" x2="1112" y2="442.8" style="stroke:var(--rule)" stroke-width="1"/><text x="92" y="450.8" text-anchor="end" font-size="22" style="fill:var(--muted)">10</text><line x1="110" y1="349.6" x2="1112" y2="349.6" style="stroke:var(--rule)" stroke-width="1"/><text x="92" y="357.6" text-anchor="end" font-size="22" style="fill:var(--muted)">20</text><line x1="110" y1="256.4" x2="1112" y2="256.4" style="stroke:var(--rule)" stroke-width="1"/><text x="92" y="264.4" text-anchor="end" font-size="22" style="fill:var(--muted)">30</text><line x1="110" y1="163.2" x2="1112" y2="163.2" style="stroke:var(--rule)" stroke-width="1"/><text x="92" y="171.2" text-anchor="end" font-size="22" style="fill:var(--muted)">40</text><line x1="110" y1="70.0" x2="1112" y2="70.0" style="stroke:var(--rule)" stroke-width="1"/><text x="92" y="78.0" text-anchor="end" font-size="22" style="fill:var(--muted)">50</text><text x="172.6" y="576" text-anchor="middle" font-size="22" style="fill:var(--muted)">Jan 25</text><text x="297.9" y="576" text-anchor="middle" font-size="22" style="fill:var(--muted)">Apr 25</text><text x="423.1" y="576" text-anchor="middle" font-size="22" style="fill:var(--muted)">Jul 25</text><text x="548.4" y="576" text-anchor="middle" font-size="22" style="fill:var(--muted)">Oct 25</text><text x="673.6" y="576" text-anchor="middle" font-size="22" style="fill:var(--muted)">Jan 26</text><text x="798.9" y="576" text-anchor="middle" font-size="22" style="fill:var(--muted)">Apr 26</text><text x="924.1" y="576" text-anchor="middle" font-size="22" style="fill:var(--muted)">Jul 26</text><text x="1049.4" y="576" text-anchor="middle" font-size="22" style="fill:var(--muted)">Oct 26</text><rect x="127.5" y="497.8" width="84.2" height="38.2" style="fill:var(--chart-1)"/><text x="169.6" y="485.8" text-anchor="middle" font-size="22" style="fill:var(--ink)">4.1</text><rect x="252.8" y="467.0" width="84.2" height="69.0" style="fill:var(--chart-1)"/><text x="294.9" y="455.0" text-anchor="middle" font-size="22" style="fill:var(--ink)">7.4</text><rect x="378.0" y="413.0" width="84.2" height="123.0" style="fill:var(--chart-1)"/><text x="420.1" y="401.0" text-anchor="middle" font-size="22" style="fill:var(--ink)">13.2</text><rect x="503.3" y="357.1" width="84.2" height="178.9" style="fill:var(--chart-1)"/><text x="545.4" y="345.1" text-anchor="middle" font-size="22" style="fill:var(--ink)">19.2</text><rect x="628.5" y="303.9" width="84.2" height="232.1" style="fill:var(--chart-1)"/><text x="670.6" y="291.9" text-anchor="middle" font-size="22" style="fill:var(--ink)">24.9</text><rect x="753.8" y="241.5" width="84.2" height="294.5" style="fill:var(--chart-1)"/><text x="795.9" y="229.5" text-anchor="middle" font-size="22" style="fill:var(--ink)">31.6</text><rect x="879.0" y="195.8" width="84.2" height="340.2" style="fill:var(--chart-1)"/><text x="921.1" y="183.8" text-anchor="middle" font-size="22" style="fill:var(--ink)">36.5</text><rect x="1004.3" y="152.0" width="84.2" height="384.0" style="fill:var(--chart-1)"/><text x="1046.4" y="140.0" text-anchor="middle" font-size="22" style="fill:var(--ink)">41.2</text><line x1="110" y1="536.0" x2="1112" y2="536.0" style="stroke:var(--muted)" stroke-width="1.5"/></svg><p class="chart-source">Source: data/metrics-2026-10.csv</p></div></div><div class="side"><div class="stats column dense"><div class="stat"><div class="stat-v" style="font-size:72px">EUR 41.2k</div><div class="stat-l">MRR, October 2026</div><div class="stat-s">data/metrics-2026-10.csv</div></div><div class="stat"><div class="stat-v" style="font-size:72px">32</div><div class="stat-l">paying customers, October 2026</div><div class="stat-s">data/metrics-2026-10.csv</div></div><div class="stat"><div class="stat-v" style="font-size:72px">3</div><div class="stat-l">customers lost in 22 months, January 2025 to October 2026</div><div class="stat-s">data/metrics-2026-10.csv</div></div></div></div></div></div><div class="foot"><span class="foot-l"><img class="foot-logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMjAgOTYiIHdpZHRoPSIzMjAiIGhlaWdodD0iOTYiPgogIDx0aXRsZT5NZXJpZGlhbjwvdGl0bGU+CiAgPGNpcmNsZSBjeD0iNDgiIGN5PSI0OCIgcj0iMzYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPGxpbmUgeDE9IjYiIHkxPSI0OCIgeDI9IjkwIiB5Mj0iNDgiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSI2NiIgY3k9IjM0IiByPSI3IiBmaWxsPSIjRTM2NDE0Ii8+CiAgPHRleHQgeD0iMTEyIiB5PSI2MCIgZm9udC1mYW1pbHk9IlNwYWNlIEdyb3Rlc2ssIEludGVyLCBBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSI0MCIgZm9udC13ZWlnaHQ9IjYwMCIgZmlsbD0iIzFCMUYyMyIgbGV0dGVyLXNwYWNpbmc9IjEiPk1lcmlkaWFuPC90ZXh0Pgo8L3N2Zz4K" alt="">Meridian Operations GmbH, confidential, November 2026</span><span class="foot-r">4</span></div></section>
+<section class="slide s-insight" data-index="5" data-type="insight" aria-label="Slide 5"><div class="insight"><h1 class="insight-title">The driver side wins or loses the deal, so we built for the driver first</h1><div class="insight-body with-stat"><ul class="points compact"><li>A customer's head of operations: &quot;I do not need a yard management system. I need the drivers to stop calling me.&quot;</li><li>Everyone builds for the dispatcher. We build for a subcontractor driver in his cab with a cracked phone screen</li><li>Comms is the wedge, scheduling is the lock-in: customers come to stop the phone calls and stay for the schedule</li></ul><div class="stats column"><div class="stat"><div class="stat-v" style="font-size:96px">11 days</div><div class="stat-l">working days to go live at the first customer site, 2025</div><div class="stat-s">published customer case study, 2025</div></div></div></div></div><p class="slide-source">Source: published customer case study, 2025</p><div class="foot"><span class="foot-l"><img class="foot-logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMjAgOTYiIHdpZHRoPSIzMjAiIGhlaWdodD0iOTYiPgogIDx0aXRsZT5NZXJpZGlhbjwvdGl0bGU+CiAgPGNpcmNsZSBjeD0iNDgiIGN5PSI0OCIgcj0iMzYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPGxpbmUgeDE9IjYiIHkxPSI0OCIgeDI9IjkwIiB5Mj0iNDgiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSI2NiIgY3k9IjM0IiByPSI3IiBmaWxsPSIjRTM2NDE0Ii8+CiAgPHRleHQgeD0iMTEyIiB5PSI2MCIgZm9udC1mYW1pbHk9IlNwYWNlIEdyb3Rlc2ssIEludGVyLCBBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSI0MCIgZm9udC13ZWlnaHQ9IjYwMCIgZmlsbD0iIzFCMUYyMyIgbGV0dGVyLXNwYWNpbmc9IjEiPk1lcmlkaWFuPC90ZXh0Pgo8L3N2Zz4K" alt="">Meridian Operations GmbH, confidential, November 2026</span><span class="foot-r">5</span></div></section>
+<section class="slide s-business_model" data-index="6" data-type="business_model" aria-label="Slide 6"><header class="head"><h1 class="title">Customers pay EUR 1,288 a month on average, priced per site</h1></header><div class="body"><div class="stats row-2"><div class="stat"><div class="stat-v" style="font-size:96px">EUR 1,288</div><div class="stat-l">average MRR per customer, October 2026</div><div class="stat-s">data/metrics-2026-10.csv</div></div><div class="stat"><div class="stat-v" style="font-size:96px">82%</div><div class="stat-l">gross margin in our 2026 model (assumption, not yet from the accounts)</div><div class="stat-s">data/financial-model-v3.xlsx</div></div></div><ul class="points compact under"><li>One price unit: a monthly fee per site. Carriers and drivers use it without an account</li><li>Planned for Q4 2027: per-movement pricing for high-volume sites, where per-site pricing undercharges today</li></ul><p class="slide-source">Source: data/metrics-2026-10.csv, data/financial-model-v3.xlsx</p></div><div class="foot"><span class="foot-l"><img class="foot-logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMjAgOTYiIHdpZHRoPSIzMjAiIGhlaWdodD0iOTYiPgogIDx0aXRsZT5NZXJpZGlhbjwvdGl0bGU+CiAgPGNpcmNsZSBjeD0iNDgiIGN5PSI0OCIgcj0iMzYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPGxpbmUgeDE9IjYiIHkxPSI0OCIgeDI9IjkwIiB5Mj0iNDgiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSI2NiIgY3k9IjM0IiByPSI3IiBmaWxsPSIjRTM2NDE0Ii8+CiAgPHRleHQgeD0iMTEyIiB5PSI2MCIgZm9udC1mYW1pbHk9IlNwYWNlIEdyb3Rlc2ssIEludGVyLCBBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSI0MCIgZm9udC13ZWlnaHQ9IjYwMCIgZmlsbD0iIzFCMUYyMyIgbGV0dGVyLXNwYWNpbmc9IjEiPk1lcmlkaWFuPC90ZXh0Pgo8L3N2Zz4K" alt="">Meridian Operations GmbH, confidential, November 2026</span><span class="foot-r">6</span></div></section>
+<section class="slide s-market" data-index="7" data-type="market" aria-label="Slide 7"><header class="head"><h1 class="title">We estimate 14,000 target companies in DACH and Benelux, about EUR 216M a year</h1></header><div class="body"><div class="market with-points"><div class="steps"><div class="step" style="width:100%"><div class="stat-v" style="font-size:60px"><span class="needs" title="Missing, fill in deck.json">needs number</span></div><div class="stat-l">TAM: mid-size logistics operators across Europe; count not yet sourced</div></div><div class="step" style="width:72%"><div class="stat-v" style="font-size:60px">EUR 216M</div><div class="stat-l">SAM: 14,000 companies x EUR 1,288 a month x 12 (assumption)</div><div class="step-m stat-s">notes/founder-memo-nov-2026.md, data/metrics-2026-10.csv</div></div><div class="step step-focus" style="width:50%"><div class="stat-v" style="font-size:60px">EUR 2.5M</div><div class="stat-l">SOM: our ARR target for end 2028 (projection)</div><div class="step-m stat-s">data/financial-model-v3.xlsx</div></div></div><div class="side"><ul class="points compact"><li>Company count: our desk research on Destatis and Eurostat data (2025), freight and warehousing companies with two or more sites</li></ul></div></div><p class="slide-source">Source: notes/founder-memo-nov-2026.md, data/metrics-2026-10.csv, data/financial-model-v3.xlsx</p></div><div class="foot"><span class="foot-l"><img class="foot-logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMjAgOTYiIHdpZHRoPSIzMjAiIGhlaWdodD0iOTYiPgogIDx0aXRsZT5NZXJpZGlhbjwvdGl0bGU+CiAgPGNpcmNsZSBjeD0iNDgiIGN5PSI0OCIgcj0iMzYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPGxpbmUgeDE9IjYiIHkxPSI0OCIgeDI9IjkwIiB5Mj0iNDgiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSI2NiIgY3k9IjM0IiByPSI3IiBmaWxsPSIjRTM2NDE0Ii8+CiAgPHRleHQgeD0iMTEyIiB5PSI2MCIgZm9udC1mYW1pbHk9IlNwYWNlIEdyb3Rlc2ssIEludGVyLCBBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSI0MCIgZm9udC13ZWlnaHQ9IjYwMCIgZmlsbD0iIzFCMUYyMyIgbGV0dGVyLXNwYWNpbmc9IjEiPk1lcmlkaWFuPC90ZXh0Pgo8L3N2Zz4K" alt="">Meridian Operations GmbH, confidential, November 2026</span><span class="foot-r">7</span></div></section>
+<section class="slide s-go_to_market" data-index="8" data-type="go_to_market" aria-label="Slide 8"><header class="head"><h1 class="title">Founder-led sales adds 1.5 customers a month; the round builds a sales team</h1></header><div class="body"><div class="flow flow-3"><div class="flow-step"><div class="flow-n">1</div><div class="flow-t">Beachhead: multi-site freight forwarders, 3PLs and cross-dock operators in DACH and Benelux</div></div><div class="flow-step"><div class="flow-n">2</div><div class="flow-t">Today: both founders sell, through the CEO's network, trade shows and customer referrals</div></div><div class="flow-step"><div class="flow-n">3</div><div class="flow-t">Next: account executives hired from the round close deals without a founder in the room</div></div></div><div class="stats row-2 under"><div class="stat"><div class="stat-v" style="font-size:96px">1.5</div><div class="stat-l">new customers a month, Jan 2025 to Oct 2026</div><div class="stat-s">data/metrics-2026-10.csv</div></div><div class="stat"><div class="stat-v" style="font-size:96px">18</div><div class="stat-l">open deals, all owned by a founder today</div><div class="stat-s">data/pipeline.csv</div></div></div><p class="slide-source">Source: data/metrics-2026-10.csv, data/pipeline.csv</p></div><div class="foot"><span class="foot-l"><img class="foot-logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMjAgOTYiIHdpZHRoPSIzMjAiIGhlaWdodD0iOTYiPgogIDx0aXRsZT5NZXJpZGlhbjwvdGl0bGU+CiAgPGNpcmNsZSBjeD0iNDgiIGN5PSI0OCIgcj0iMzYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPGxpbmUgeDE9IjYiIHkxPSI0OCIgeDI9IjkwIiB5Mj0iNDgiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSI2NiIgY3k9IjM0IiByPSI3IiBmaWxsPSIjRTM2NDE0Ii8+CiAgPHRleHQgeD0iMTEyIiB5PSI2MCIgZm9udC1mYW1pbHk9IlNwYWNlIEdyb3Rlc2ssIEludGVyLCBBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSI0MCIgZm9udC13ZWlnaHQ9IjYwMCIgZmlsbD0iIzFCMUYyMyIgbGV0dGVyLXNwYWNpbmc9IjEiPk1lcmlkaWFuPC90ZXh0Pgo8L3N2Zz4K" alt="">Meridian Operations GmbH, confidential, November 2026</span><span class="foot-r">8</span></div></section>
+<section class="slide s-competition" data-index="9" data-type="competition" aria-label="Slide 9"><header class="head"><h1 class="title">Built for the forwarder's dispatcher and driver, not the shipper's buyer</h1></header><div class="body"><table class="tbl"><thead><tr><th></th><th>Meridian</th><th>Enterprise yard systems</th><th>Slot-booking marketplaces</th><th>Phone, WhatsApp, Excel</th></tr></thead><tbody><tr><td class="rowhead">Built for</td><td>Mid-size forwarders</td><td>Large shippers</td><td>Shippers, retail DCs</td><td>Any small site</td></tr><tr><td class="rowhead">Time to go live</td><td>2 weeks</td><td>6 months</td><td>not known</td><td>none</td></tr><tr><td class="rowhead">Who pays</td><td>Site, per month</td><td>Site, plus setup</td><td>Carrier, per booking</td><td>Nobody</td></tr><tr><td class="rowhead">TMS integrations</td><td>Not yet</td><td>Yes</td><td>not known</td><td>None</td></tr></tbody></table><ul class="points compact under"><li>Where they are ahead: enterprise systems have TMS integrations and we do not yet. A light mid-market product from one of them would hurt</li></ul><p class="slide-source">Source: notes/competitors.md</p></div><div class="foot"><span class="foot-l"><img class="foot-logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMjAgOTYiIHdpZHRoPSIzMjAiIGhlaWdodD0iOTYiPgogIDx0aXRsZT5NZXJpZGlhbjwvdGl0bGU+CiAgPGNpcmNsZSBjeD0iNDgiIGN5PSI0OCIgcj0iMzYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPGxpbmUgeDE9IjYiIHkxPSI0OCIgeDI9IjkwIiB5Mj0iNDgiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSI2NiIgY3k9IjM0IiByPSI3IiBmaWxsPSIjRTM2NDE0Ii8+CiAgPHRleHQgeD0iMTEyIiB5PSI2MCIgZm9udC1mYW1pbHk9IlNwYWNlIEdyb3Rlc2ssIEludGVyLCBBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSI0MCIgZm9udC13ZWlnaHQ9IjYwMCIgZmlsbD0iIzFCMUYyMyIgbGV0dGVyLXNwYWNpbmc9IjEiPk1lcmlkaWFuPC90ZXh0Pgo8L3N2Zz4K" alt="">Meridian Operations GmbH, confidential, November 2026</span><span class="foot-r">9</span></div></section>
+<section class="slide s-team" data-index="10" data-type="team" aria-label="Slide 10"><header class="head"><h1 class="title">Lena ran the customer's job for nine years; Jonas built the first version alone</h1></header><div class="body"><div class="team team-2"><div class="member"><div class="avatar"><span>LO</span></div><div class="m-name">Lena Ostrowski</div><div class="m-role">CEO, sells</div><div class="m-bio">9 years in logistics operations, last as Head of Operations DACH at an 11-site forwarder</div></div><div class="member"><div class="avatar"><span>JH</span></div><div class="m-name">Jonas Hebbel</div><div class="m-role">CTO, writes the code</div><div class="m-bio">11 years in software; led a fleet routing team of about 20 engineers; built carrier messaging at a telco provider</div></div></div><p class="team-note">Team of 7 in Berlin. Lena was a customer of Jonas's previous company; the customer success lead was a dispatcher at a customer site</p></div><div class="foot"><span class="foot-l"><img class="foot-logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMjAgOTYiIHdpZHRoPSIzMjAiIGhlaWdodD0iOTYiPgogIDx0aXRsZT5NZXJpZGlhbjwvdGl0bGU+CiAgPGNpcmNsZSBjeD0iNDgiIGN5PSI0OCIgcj0iMzYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPGxpbmUgeDE9IjYiIHkxPSI0OCIgeDI9IjkwIiB5Mj0iNDgiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSI2NiIgY3k9IjM0IiByPSI3IiBmaWxsPSIjRTM2NDE0Ii8+CiAgPHRleHQgeD0iMTEyIiB5PSI2MCIgZm9udC1mYW1pbHk9IlNwYWNlIEdyb3Rlc2ssIEludGVyLCBBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSI0MCIgZm9udC13ZWlnaHQ9IjYwMCIgZmlsbD0iIzFCMUYyMyIgbGV0dGVyLXNwYWNpbmc9IjEiPk1lcmlkaWFuPC90ZXh0Pgo8L3N2Zz4K" alt="">Meridian Operations GmbH, confidential, November 2026</span><span class="foot-r">10</span></div></section>
+<section class="slide s-ask" data-index="11" data-type="ask" aria-label="Slide 11"><div class="ask"><h1 class="amount long">Raising EUR 3M for about 19 months to make the sale repeat without the founders</h1><p class="subtitle">Priced equity round. About 19 months of runway from a January 2027 close (projection on the model's costs).</p><div class="ask-body"><div class="funds-col"><p class="side-label">Use of funds</p><div class="funds"><div class="seg" style="width:60.00%;background:var(--chart-1)">60%</div><div class="seg" style="width:30.00%;background:var(--chart-2)">30%</div><div class="seg" style="width:10.00%;background:var(--chart-3)">10%</div></div><div class="funds-legend"><span class="leg"><i style="background:var(--chart-1)"></i>Go-to-market: 4 account executives, 1 SDR, 1 marketing lead 60%</span><span class="leg"><i style="background:var(--chart-2)"></i>Product: 3 engineers, 1 designer 30%</span><span class="leg"><i style="background:var(--chart-3)"></i>Operations and buffer 10%</span></div></div><div class="ms-col"><p class="side-label">What it buys</p><ul class="ms"><li>Q1 2027: two more account executives start; carrier scorecards ship</li><li>Q2 2027: connectors to the three TMS products our customers use</li><li>2027: account executives close deals without a founder in the room</li><li>Mid 2028, when the round is spent: ARR of <span class="needs" title="Missing, fill in deck.json">needs number</span> (model being revised)</li></ul></div></div></div><p class="slide-source">Source: README.md, notes/founder-memo-nov-2026.md, data/financial-model-v3.xlsx</p><div class="foot"><span class="foot-l"><img class="foot-logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMjAgOTYiIHdpZHRoPSIzMjAiIGhlaWdodD0iOTYiPgogIDx0aXRsZT5NZXJpZGlhbjwvdGl0bGU+CiAgPGNpcmNsZSBjeD0iNDgiIGN5PSI0OCIgcj0iMzYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPGxpbmUgeDE9IjYiIHkxPSI0OCIgeDI9IjkwIiB5Mj0iNDgiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSI2NiIgY3k9IjM0IiByPSI3IiBmaWxsPSIjRTM2NDE0Ii8+CiAgPHRleHQgeD0iMTEyIiB5PSI2MCIgZm9udC1mYW1pbHk9IlNwYWNlIEdyb3Rlc2ssIEludGVyLCBBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSI0MCIgZm9udC13ZWlnaHQ9IjYwMCIgZmlsbD0iIzFCMUYyMyIgbGV0dGVyLXNwYWNpbmc9IjEiPk1lcmlkaWFuPC90ZXh0Pgo8L3N2Zz4K" alt="">Meridian Operations GmbH, confidential, November 2026</span><span class="foot-r">11</span></div></section>
+<section class="slide s-closing" data-index="12" data-type="closing" aria-label="Slide 12"><div class="closing"><img class="cover-logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMjAgOTYiIHdpZHRoPSIzMjAiIGhlaWdodD0iOTYiPgogIDx0aXRsZT5NZXJpZGlhbjwvdGl0bGU+CiAgPGNpcmNsZSBjeD0iNDgiIGN5PSI0OCIgcj0iMzYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPGxpbmUgeDE9IjYiIHkxPSI0OCIgeDI9IjkwIiB5Mj0iNDgiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSI2NiIgY3k9IjM0IiByPSI3IiBmaWxsPSIjRTM2NDE0Ii8+CiAgPHRleHQgeD0iMTEyIiB5PSI2MCIgZm9udC1mYW1pbHk9IlNwYWNlIEdyb3Rlc2ssIEludGVyLCBBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSI0MCIgZm9udC13ZWlnaHQ9IjYwMCIgZmlsbD0iIzFCMUYyMyIgbGV0dGVyLXNwYWNpbmc9IjEiPk1lcmlkaWFuPC90ZXh0Pgo8L3N2Zz4K" alt="Meridian logo"><h1 class="cover-title">Meridian: dock scheduling and driver messaging for mid-size freight forwarders</h1><div class="hero-facts cols cols-3"><div class="pt"><span class="mark"></span>EUR 41.2k MRR in October 2026, up 2.15x in 12 months</div><div class="pt"><span class="mark"></span>32 paying customers; 3 lost in 22 months</div><div class="pt"><span class="mark"></span>Raising EUR 3M to make the sale repeat without the founders</div></div><p class="contact">Lena Ostrowski, CEO. lena@meridian-ops.example</p></div><div class="foot"><span class="foot-l">Meridian Operations GmbH, confidential, November 2026</span><span class="foot-r">12</span></div></section>
+<section class="slide s-sources" data-index="13" data-type="sources" aria-label="Slide 13"><header class="head"><h1 class="title">Sources</h1></header><div class="body"><p class="src-note">21 figures from 7 source files. Each figure has an entry in the fact ledger (facts.yaml) that names its file and location.</p><table class="src-tbl files"><colgroup><col style="width:46%"><col style="width:10%"><col style="width:24%"><col style="width:20%"></colgroup><thead><tr><th>Source file</th><th>Figures</th><th>Kinds</th><th>Slides</th></tr></thead><tbody><tr><td class="src-id">data/metrics-2026-10.csv</td><td class="num">8</td><td>7 facts, 1 assumption</td><td>1, 4, 6 to 8, 12</td></tr><tr><td class="src-id">README.md</td><td class="num">1</td><td>1 fact</td><td>1, 11, 12</td></tr><tr><td class="src-id">published customer case study, 2025</td><td class="num">3</td><td>3 facts</td><td>2, 3, 5</td></tr><tr><td class="src-id">data/financial-model-v3.xlsx</td><td class="num">3</td><td>1 assumption, 2 projections</td><td>6, 7, 11</td></tr><tr><td class="src-id">notes/founder-memo-nov-2026.md</td><td class="num">5</td><td>5 assumptions</td><td>7, 11</td></tr><tr><td class="src-id">data/pipeline.csv</td><td class="num">1</td><td>1 fact</td><td>8</td></tr><tr><td class="src-id">notes/competitors.md</td><td class="num">1</td><td>1 assumption</td><td>9</td></tr></tbody></table></div><div class="foot"><span class="foot-l"><img class="foot-logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMjAgOTYiIHdpZHRoPSIzMjAiIGhlaWdodD0iOTYiPgogIDx0aXRsZT5NZXJpZGlhbjwvdGl0bGU+CiAgPGNpcmNsZSBjeD0iNDgiIGN5PSI0OCIgcj0iMzYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPGxpbmUgeDE9IjYiIHkxPSI0OCIgeDI9IjkwIiB5Mj0iNDgiIHN0cm9rZT0iIzBGNEM1QyIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSI2NiIgY3k9IjM0IiByPSI3IiBmaWxsPSIjRTM2NDE0Ii8+CiAgPHRleHQgeD0iMTEyIiB5PSI2MCIgZm9udC1mYW1pbHk9IlNwYWNlIEdyb3Rlc2ssIEludGVyLCBBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSI0MCIgZm9udC13ZWlnaHQ9IjYwMCIgZmlsbD0iIzFCMUYyMyIgbGV0dGVyLXNwYWNpbmc9IjEiPk1lcmlkaWFuPC90ZXh0Pgo8L3N2Zz4K" alt="">Meridian Operations GmbH, confidential, November 2026</span><span class="foot-r">13</span></div></section>
+</div></div>
+<div class="hud" id="counter">1 / 13</div>
+<aside class="notes" id="notes" hidden></aside>
+<script type="application/json" id="deck-notes">["Question: What is this, in plain words?\n\nSay: Meridian is how a truck driver gets a dock slot at a mid-size freight forwarder, and how the dispatcher stops taking phone calls. 32 customers pay us EUR 41,200 a month, up from EUR 4,100 in January 2025.\nContext: do not explain the product yet.\nTransition: here is what a yard looks like without it.\nTime: 30","Question: Who hurts, how much, and what do they do about it now?\n\nSay: this is one site, measured from the customer's own gate logs, March to May 2024. After we went live the same site was at 65 minutes; I will come back to that.\nContext: we have this measurement for one site only. Do not present 94 minutes or the fee total as an industry average.\nTransition: the fix has to work for the driver, not only the dispatcher.\nTime: 75","Question: What do you do about it, and for whom?\n\nSay: no app store, no password. The carrier gets a link with the transport order and books. At that Hamburg site that meant 31 percent fewer dock wait minutes in the first three months.\nContext: one customer, one site, three months in 2025, against the same months of 2024. It shows the product works at one site; it is not a company-wide result. Pause here and ask whether an example would help.\nTransition: does it work as a business?\nTime: 75","Question: Is this working, and how fast?\n\nSay: MRR is monthly subscription revenue from paying customers. It went from EUR 19,200 in October 2025 to EUR 41,200 in October 2026, and from EUR 4,100 in January 2025, which is 10.05x in 21 months.\nContext: growth is a straight line, not a curve: we add 1.5 customers a month. One more contract is signed and goes live in December; it is not in these figures. We do not have net revenue retention or CAC payback yet; say so before they ask.\nTransition: the reason sites adopt it is the driver side.\nTime: 120","Question: Why does this work, and why you?\n\nSay: if the driver can use it, the dispatcher's life gets better automatically. That is why multi-language messages mattered more than any dashboard. All 32 customers started with the same request: stop the phone calls.\nContext: 11 working days is one site. The carrier data idea is the long game and is not on this slide on purpose.\nTransition: who pays, and how much.\nTime: 75","Question: Who pays, how much, and does a euro in produce more than a euro out?\n\nSay: one buyer, one price unit. At EUR 1,288 a month across 32 customers that is an ARR run-rate of EUR 494,400.\nContext: the gross margin is a model figure, we assume it; the accounts figure is being prepared. Per-site pricing undercharges our largest customers, which is why pricing v2 is on the roadmap.\nTransition: how many companies like these exist.\nTime: 75","Question: How big can this get, and how do you know?\n\nSay: we size on our own price, not a report. We estimate 14,000 companies in our size band in DACH and Benelux; 32 of them are customers today.\nContext: the count is an estimate from 2025 desk research. The Europe-wide count is not sourced yet, so it is left open on purpose. The end-2028 figure is a target from the model, a projection.\nTransition: how we reach them.\nTime: 60","Question: How do you get customers repeatably, and what does one cost?\n\nSay: of the 18 open deals, 3 are in negotiation. Every one of them is owned by a founder, and that is the thing this round changes.\nContext: nobody has closed a deal without a founder in the room yet. The model assumes 4 new customers a month in 2027 against 1.5 today; that is an assumption until account executives close alone. We have not measured cost per customer.\nTransition: what else a site could buy.\nTime: 60","Question: Why will you win against the obvious alternatives?\n\nSay: most of this market still runs on a whiteboard, a phone and WhatsApp, and that works for a small yard. The enterprise systems are built for large shippers. Our first site was live in 11 working days.\nContext: the competitor columns are what we heard from prospects and at trade shows, an assumption, not checked against their public pages. Name the vendors when asked.\nTransition: the people doing this.\nTime: 60","Question: Why these people, and who writes the code?\n\nSay: I spent years buying yard management systems that never got rolled out. Jonas built the first version alone in 5 months while I sold it to the first 3 customers.\nContext: no advisors and no investors on the slide by design.\nTransition: what the round is for.\nTime: 60","Question: How much, for what, and what will be true when it is spent?\n\nSay: one number, three buckets. EUR 3M, 60 percent of it on go-to-market, to prove that the sale repeats without Lena or Jonas in the room.\nContext: the runway is a projection from the model's own costs, 18.9 months. The ARR the round reaches by then is open until the model is revised. Have today's runway ready: 7.1 months at EUR 53,800 net burn. Price is for the conversation, not the slide.\nTransition: closing summary.\nTime: 90","Question: What should I remember, and how do I reach you?\n\nSay: the three facts again, then stop and take questions.\nContext: nothing new after the ask.\nTransition: questions.\nTime: 20",""]</script>
+<script>
+(function(){
+  var q = location.search;
+  var PRINT = /[?&]print(=|&|$)/.test(q), NOSCALE = PRINT || /[?&]noscale(=|&|$)/.test(q);
+  var html = document.documentElement;
+  if (PRINT) html.classList.add("print");
+  if (NOSCALE) html.classList.add("noscale");
+  var slides = [].slice.call(document.querySelectorAll(".slide"));
+  var stage = document.getElementById("stage");
+  var counter = document.getElementById("counter");
+  var notesEl = document.getElementById("notes");
+  var notes = [];
+  try { notes = JSON.parse(document.getElementById("deck-notes").textContent); } catch (e) {}
+  var n = slides.length, idx = 0;
+  function fit(){
+    if (NOSCALE) { stage.style.transform = "none"; return; }
+    var s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    stage.style.transform = "scale(" + s + ")";
+  }
+  function renderNotes(){
+    if (notesEl.hidden) return;
+    var t = notes[idx] || "";
+    notesEl.innerHTML = "<div class=\"notes-h\">Speaker notes, slide " + (idx + 1) + " of " + n + " (press n to hide)</div>";
+    notesEl.appendChild(document.createTextNode(t || "No notes for this slide."));
+  }
+  function show(i, push){
+    i = Math.max(0, Math.min(n - 1, i));
+    idx = i;
+    for (var k = 0; k < n; k++) slides[k].classList.toggle("active", k === i);
+    if (counter) counter.textContent = (i + 1) + " / " + n;
+    if (push !== false) { try { history.replaceState(null, "", "#" + (i + 1)); } catch (e) {} }
+    renderNotes();
+  }
+  function next(){ show(idx + 1); }
+  function prev(){ show(idx - 1); }
+  document.addEventListener("keydown", function(e){
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    var t = e.target; if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+    switch (e.key) {
+      case "ArrowRight": case "ArrowDown": case "PageDown": case " ": case "Spacebar": next(); break;
+      case "ArrowLeft": case "ArrowUp": case "PageUp": case "Backspace": prev(); break;
+      case "Home": show(0); break;
+      case "End": show(n - 1); break;
+      case "n": case "N": notesEl.hidden = !notesEl.hidden; renderNotes(); break;
+      default: return;
+    }
+    e.preventDefault();
+  });
+  document.querySelector(".viewport").addEventListener("click", function(e){
+    if (PRINT) return;
+    if (e.target.closest("a, button, input, textarea, select, .notes")) return;
+    if (e.clientX < window.innerWidth / 3) prev(); else next();
+  });
+  var tx = null, ty = null;
+  document.addEventListener("touchstart", function(e){ var t = e.changedTouches[0]; tx = t.clientX; ty = t.clientY; }, {passive: true});
+  document.addEventListener("touchend", function(e){
+    if (tx === null) return;
+    var t = e.changedTouches[0], dx = t.clientX - tx, dy = t.clientY - ty; tx = ty = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) { if (dx < 0) next(); else prev(); }
+  }, {passive: true});
+  window.addEventListener("resize", fit);
+  window.addEventListener("hashchange", function(){ var h = parseInt(location.hash.slice(1), 10); if (h) show(h - 1, false); });
+  var start = parseInt(location.hash.slice(1), 10);
+  fit();
+  show(start ? start - 1 : 0, false);
+  window.deck = { go: function(i){ show(i); }, next: next, prev: prev, total: n, get index(){ return idx; } };
+})();
+</script>
+</body>
+</html>

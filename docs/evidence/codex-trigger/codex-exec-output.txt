@@ -1,0 +1,17 @@
+Prepared a revised pitch, 60-second script, investor questions and evidence checklist. The $750k ask remains provisional, and deposit/prototype figures remain unverified. Source and arithmetic checks passed.
+
+Followed the **startup-pitch quick-run skill**, Superpowers skill-selection and verification guides, your **AGENTS.md**, and your communication-style guide. Original files are unchanged.
+
+Files written under [pitch/](<startup-folder>/pitch):
+
+- [START-HERE.md](<startup-folder>/pitch/START-HERE.md) ← read this first
+- `facts.yaml`
+- `gaps.md`
+- `run-log.md`
+- `intake/inventory.json`
+- `intake/corpus/INDEX.md`
+- `intake/corpus/README.md.md`
+- `intake/corpus/notes__ask.md.md`
+- `intake/corpus/notes__bom-estimate.md.md`
+- `intake/corpus/notes__waitlist.txt.md`
+exit=0 seconds=382

@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: seed-saas-contradictions
+expected_outcome: |
+  A pitch narrative, metrics summary and investor Q&A for Meridian that uses the metrics export (MRR 41.2k EUR, Oct 2026, ARR about 494k) rather than the memo's 520k, flags the contradiction, excludes the confidential term sheet (Kaltwasser Ventures, 14M pre-money), ignores the stale 2025 notes and duplicate CSV, scopes the Nordfracht 31% result to one site over three months, checks the memo's 3.4x YoY claim (true value about 2.1x), and records every figure with its source file.
+context:
+  scaffold_script: place-files.sh

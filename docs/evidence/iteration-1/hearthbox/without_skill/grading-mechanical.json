@@ -1,0 +1,57 @@
+{
+  "case": "hearthbox",
+  "files_scanned": 5,
+  "expectations": [
+    {
+      "text": "H2 no dollar-billion market size stated in investor-facing text",
+      "passed": true,
+      "evidence": "[]"
+    },
+    {
+      "text": "H1 missing information marked as needed rather than filled",
+      "passed": true,
+      "evidence": "markers=6"
+    },
+    {
+      "text": "H4 Nadia not presented as confirmed co-founder in investor text",
+      "passed": false,
+      "evidence": "[('pitch/hearthbox-deck.html', 'ight months, built the landing page and waitlist.           Nadia  Co-founder, ops and supply chain  Supply chain at a large outdoor gear')]"
+    },
+    {
+      "text": "H4b no invented founder credentials in investor text",
+      "passed": true,
+      "evidence": "[]"
+    },
+    {
+      "text": "H5 312 deposits used and described as refundable",
+      "passed": true,
+      "evidence": "312 hits=18, refundable=3"
+    },
+    {
+      "text": "H3 ask ambiguity surfaced (750k vs 1M)",
+      "passed": true,
+      "evidence": "hits=7"
+    },
+    {
+      "text": "H3b SAFE cap not in investor-facing text",
+      "passed": false,
+      "evidence": "[('pitch/01-narrative.md', 'e ask  Raising a **$750k pre-seed** on a SAFE (indicatively $6M post-money cap, to confirm), with room up to $1M if UL cert')]"
+    },
+    {
+      "text": "H6 40% subscription attach labelled as target/assumption if used",
+      "passed": true,
+      "evidence": "40% in investor text=1, labelled=4"
+    },
+    {
+      "text": "H1b outputs ask the founder for the missing material (questions or an explicit gap list)",
+      "passed": true,
+      "evidence": "question lines=0, gap markers=12"
+    }
+  ],
+  "summary": {
+    "passed": 7,
+    "failed": 2,
+    "total": 9,
+    "pass_rate": 0.778
+  }
+}

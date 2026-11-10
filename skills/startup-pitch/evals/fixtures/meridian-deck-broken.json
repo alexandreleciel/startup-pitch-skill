@@ -1,0 +1,14 @@
+{
+  "meta": { "company": "Meridian", "theme": "graphite", "accent": "#0F4C5C", "aspect": "16:9" },
+  "slides": [
+    { "type": "cover", "title": "Meridian", "kicker": "Seed round, November 2026" },
+    { "type": "traction", "title": "ARR EUR 520k, up 3.4x year on year",
+      "stats": [{ "value": "EUR 520k", "label": "ARR" }, { "value": "112%", "label": "NRR" }],
+      "notes": "No source anywhere on this slide: every number is untraced." },
+    { "type": "market", "title": "A EUR 210M market in DACH and Benelux",
+      "source": "fact:market_size_dach", "notes": "References an id that is not in the ledger." },
+    { "type": "ask", "title": "Raising EUR 3M",
+      "stats": [{ "value": "27", "label": "paying customers", "source": "fact:customers_current" }],
+      "source": "fact:ask", "notes": "27 does not match the ledger value of 32." }
+  ]
+}

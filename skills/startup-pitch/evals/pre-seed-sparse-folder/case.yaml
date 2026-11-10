@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: pre-seed-sparse-folder
+expected_outcome: |
+  A pre-seed pitch for Hearthbox that works only with the four files present: it uses 312 refundable deposits as the hard traction number, treats margins and the 40% attach rate as targets, does not invent a market size, competitor set, founder bio, co-founder or financial model, surfaces the unclear ask (750k vs 1M) and asks the founder a short list of material questions before or instead of producing a confident 12-slide deck.
+context:
+  scaffold_script: place-files.sh

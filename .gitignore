@@ -1,0 +1,11 @@
+# dependencies installed per machine
+skills/startup-pitch/scripts/node_modules/
+skills/startup-pitch/scripts/.venv/
+# a pitch/ folder produced by running the skill at the repository root or inside a fixture
+/pitch/
+examples/fixtures/*/pitch/
+# QA screenshots and local scratch
+**/qa/
+.DS_Store
+*.log
+__pycache__/

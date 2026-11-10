@@ -1,0 +1,22 @@
+Completed Phases 1–3 only. No narrative or deck was written.
+
+Saved the [fact ledger](<workspace>/hearthbox/pitch/facts.yaml), [gaps.md](<workspace>/hearthbox/pitch/gaps.md), and [full audit report](<workspace>/hearthbox/pitch/intake/run-report.md).
+
+Startup-pitch files read: `SKILL.md`, `references/file-formats.md`, `references/metrics.md`, `references/investor-types.md`, `scripts/facts_template.yaml`, and selected validation sections of `scripts/ledger_check.py`. Also read the standard `using-superpowers/SKILL.md` and its `references/codex-tools.md`.
+
+| Script run | Exit code |
+|---|---:|
+| `inventory.py` | 0 |
+| `extract.py` | 0 |
+| `ledger_check.py` | 0 |
+
+**Checker verdict: WARN (0 FAIL, 3 WARN, 4 PASS).** Warnings cover nonnumeric claims/placeholders, incomplete funding allocations, and source-text formatting matches. Exact commands and checker output are saved in the audit files.
+
+The first five questions recorded in `gaps.md` are:
+
+1. Is the pre-seed ask $750k or $1m, and what costed plan, current cash and monthly burn support the Q3 2027 shipment target?
+2. Can the November 8 waitlist and Stripe exports substantiate 2,140 signups, 312 outstanding refundable deposits and $15,288 collected after refunds, duplicates and fees?
+3. What measured performance, repeat use and safety results do the six prototypes show, and what remains before production and UL/FCC testing?
+4. What evidence supports the $299 device price, fully loaded landed cost, $12/month subscription, 40%+ attach rate and 90%+ subscription margin?
+5. Which investor types and geographies are first, and where is Hearthbox incorporated?
+exit=0 seconds=364

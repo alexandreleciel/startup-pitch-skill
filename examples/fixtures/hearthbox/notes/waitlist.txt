@@ -1,0 +1,13 @@
+waitlist stats (pulled from the landing page db, nov 8)
+
+2,140 waitlist signups total
+312 paid $49 deposits (refundable)
+   -> $15,288 collected, sitting in stripe
+~68% US, rest mostly CA/UK/DE/AU
+~1,400 came from the one reddit post in r/fermentation + the tiktok that did 900k views
+conversion signup -> deposit about 14.6%
+
+top requested ferments from the signup form (free text, I eyeballed it):
+kimchi, kombucha, sourdough, hot sauce, yogurt, miso, tempeh, natto
+
+todo: email the 312 with a prototype video. also figure out if the 2,140 number still counts people who unsubscribed (prob not many)

@@ -1,0 +1,16 @@
+{
+  "name": "startup-pitch-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Build scripts for the startup-pitch skill: deck.json to deck.html and deck.pptx",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "playwright-core": "^1.65.0",
+    "pptxgenjs": "4.0.1"
+  },
+  "scripts": {
+    "build": "node build_deck.js"
+  }
+}

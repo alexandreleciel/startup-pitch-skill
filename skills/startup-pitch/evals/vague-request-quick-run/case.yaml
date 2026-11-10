@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: vague-request-quick-run
+expected_outcome: |
+  A quick run on the Meridian folder: intake, a small sourced ledger, and one start page
+  (pitch/START-HERE.md) with at most five questions for the founder (the ARR and growth
+  contradictions first), the two-sentence and 60-second pitch, three to five numbers with
+  kind and source, the five least-ready investor questions, three red flags and what was
+  kept out. No narrative, Q&A file or deck is written, because the founder did not ask.
+context:
+  scaffold_script: place-files.sh

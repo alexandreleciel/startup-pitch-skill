@@ -1,0 +1,42 @@
+{
+  "meta": {
+    "company": "Meridian",
+    "tagline": "Dock scheduling that carriers actually use",
+    "theme": "graphite",
+    "accent": "#0F4C5C",
+    "font_display": "Space Grotesk",
+    "font_body": "Inter",
+    "logo": "assets/meridian-logo.svg",
+    "footer": "Meridian Operations GmbH, November 2026",
+    "aspect": "16:9"
+  },
+  "slides": [
+    { "type": "cover", "title": "Meridian", "subtitle": "Dock scheduling that carriers actually use",
+      "kicker": "Seed round, November 2026", "notes": "Open with the Nordfracht story." },
+    { "type": "problem", "title": "Trucks wait 94 minutes at a mid-size dock",
+      "points": ["Dispatchers run the yard from six phones and a WhatsApp group",
+                 "Carriers now invoice waiting time",
+                 "Nobody knows which carrier is late most often"],
+      "source": "fact:dock_wait_before_minutes", "notes": "Nordfracht Hamburg before Meridian." },
+    { "type": "traction", "title": "MRR has grown 10x in 21 months",
+      "chart": { "kind": "bar", "series": [{ "name": "MRR (EUR k)", "values": [4.1, 7.4, 13.2, 19.2, 24.9, 31.6, 41.2] }],
+                 "labels": ["Jan 25", "Apr 25", "Jul 25", "Oct 25", "Jan 26", "Apr 26", "Oct 26"],
+                 "y_label": "EUR k / month", "source": "fact:mrr_series" },
+      "stats": [{ "value": "EUR 41.2k", "label": "MRR, Oct 2026", "source": "fact:mrr_current" },
+                { "value": "32", "label": "paying customers", "source": "fact:customers_current" },
+                { "value": "3", "label": "logos churned in 22 months", "source": "fact:logo_churn_count" },
+                { "value": "+11.6%", "label": "compound monthly growth", "source": "fact:mrr_cmgr" },
+                { "value": "EUR 487k", "label": "open pipeline, 18 deals", "source": "fact:pipeline_acv_total" }],
+      "source": "fact:mrr_growth_multiple",
+      "notes": "Year on year the multiple is 2.15x, not the 3.4x in the memo." },
+    { "type": "case_study", "title": "Nordfracht: 31% fewer dock wait minutes",
+      "points": ["Hamburg main site, March to May 2025 vs the same months in 2024",
+                 "Measured from the customer's own gate logs"],
+      "source": ["fact:dock_wait_reduction_pct"], "notes": "Keep the scope on the slide." },
+    { "type": "ask", "title": "Raising EUR 3M to reach EUR 2.5M ARR",
+      "stats": [{ "value": "60%", "label": "go-to-market", "source": "fact:use_of_funds_gtm_pct" },
+                { "value": "30%", "label": "product", "source": "fact:use_of_funds_product_pct" },
+                { "value": "10%", "label": "ops and buffer", "source": "fact:use_of_funds_ops_pct" }],
+      "source": ["fact:ask", "fact:arr_target_2028"], "notes": "Do not name the lead or the valuation." }
+  ]
+}

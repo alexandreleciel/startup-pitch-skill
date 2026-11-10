@@ -1,0 +1,361 @@
+{
+  "meta": {
+    "company": "Meridian",
+    "tagline": "Dock scheduling and driver messaging for mid-size freight forwarders",
+    "variant": "read",
+    "theme": "paper",
+    "accent": "#0F4C5C",
+    "font_display": "Space Grotesk",
+    "font_body": "Inter",
+    "logo": "../../assets/meridian-logo.svg",
+    "footer": "Meridian Operations GmbH, confidential, November 2026",
+    "aspect": "16:9",
+    "sources": "compact"
+  },
+  "slides": [
+    {
+      "type": "cover",
+      "title": "Meridian",
+      "subtitle": "Dock scheduling and driver messaging for mid-size freight forwarders",
+      "kicker": "Seed round, November 2026",
+      "stats": [
+        {
+          "value": "EUR 41.2k",
+          "label": "MRR, October 2026",
+          "source": "fact:mrr_current"
+        },
+        {
+          "value": "32",
+          "label": "paying customers",
+          "source": "fact:customers_current"
+        },
+        {
+          "value": "EUR 3M",
+          "label": "raising, priced equity round",
+          "source": "fact:ask"
+        }
+      ],
+      "question": "What is this, in plain words?",
+      "notes": "Say: Meridian is how a truck driver gets a dock slot at a mid-size freight forwarder, and how the dispatcher stops taking phone calls. 32 customers pay us EUR 41,200 a month, up from EUR 4,100 in January 2025.\nContext: do not explain the product yet.\nTransition: here is what a yard looks like without it.\nTime: 30"
+    },
+    {
+      "type": "problem",
+      "title": "Trucks waited 94 minutes at one Hamburg site in 2024, and carriers sent the bill",
+      "points": [
+        "Dispatchers run the yard with phones, WhatsApp groups and a paper notebook",
+        "Most trucks arrive in the morning peak; the docks sit idle in the afternoon",
+        "Carriers used to absorb waiting time. Now they invoice it"
+      ],
+      "stats": [
+        {
+          "value": "EUR 38,000",
+          "label": "waiting fees paid at that one site in 2024",
+          "source": "fact:case_waiting_fees"
+        }
+      ],
+      "source": [
+        "fact:case_wait_minutes",
+        "fact:case_waiting_fees"
+      ],
+      "question": "Who hurts, how much, and what do they do about it now?",
+      "notes": "Say: this is one site, measured from the customer's own gate logs, March to May 2024. After we went live the same site was at 65 minutes; I will come back to that.\nContext: we have this measurement for one site only. Do not present 94 minutes or the fee total as an industry average.\nTransition: the fix has to work for the driver, not only the dispatcher.\nTime: 75"
+    },
+    {
+      "type": "solution",
+      "title": "Carriers book a dock slot through a link: no app, no login",
+      "points": [
+        "Drivers get slot changes by SMS or WhatsApp in German, English, Polish or Romanian",
+        "The gatehouse checks trucks in and out on a tablet; dispatchers see one inbox instead of six phones",
+        "At the first customer's Hamburg site, dock wait per truck fell from 94 to 65 minutes in the first three months (one site, March to May 2025)"
+      ],
+      "source": [
+        "fact:case_wait_minutes"
+      ],
+      "question": "What do you do about it, and for whom?",
+      "notes": "Say: no app store, no password. The carrier gets a link with the transport order and books. At that Hamburg site that meant 31 percent fewer dock wait minutes in the first three months.\nContext: one customer, one site, three months in 2025, against the same months of 2024. It shows the product works at one site; it is not a company-wide result. Pause here and ask whether an example would help.\nTransition: does it work as a business?\nTime: 75"
+    },
+    {
+      "type": "traction",
+      "title": "MRR grew 2.15x in 12 months to EUR 41.2k in October 2026",
+      "chart": {
+        "kind": "bar",
+        "labels": [
+          "Jan 25",
+          "Apr 25",
+          "Jul 25",
+          "Oct 25",
+          "Jan 26",
+          "Apr 26",
+          "Jul 26",
+          "Oct 26"
+        ],
+        "series": [
+          {
+            "name": "MRR",
+            "values": [
+              4.1,
+              7.4,
+              13.2,
+              19.2,
+              24.9,
+              31.6,
+              36.5,
+              41.2
+            ]
+          }
+        ],
+        "y_label": "EUR k per month",
+        "show_values": true,
+        "source": "fact:mrr_series"
+      },
+      "stats": [
+        {
+          "value": "EUR 41.2k",
+          "label": "MRR, October 2026",
+          "source": "fact:mrr_current"
+        },
+        {
+          "value": "32",
+          "label": "paying customers, October 2026",
+          "source": "fact:customers_current"
+        },
+        {
+          "value": "3",
+          "label": "customers lost in 22 months, January 2025 to October 2026",
+          "source": "fact:logo_churn_count"
+        }
+      ],
+      "source": [
+        "fact:mrr_yoy_multiple"
+      ],
+      "question": "Is this working, and how fast?",
+      "notes": "Say: MRR is monthly subscription revenue from paying customers. It went from EUR 19,200 in October 2025 to EUR 41,200 in October 2026, and from EUR 4,100 in January 2025, which is 10.05x in 21 months.\nContext: growth is a straight line, not a curve: we add 1.5 customers a month. One more contract is signed and goes live in December; it is not in these figures. We do not have net revenue retention or CAC payback yet; say so before they ask.\nTransition: the reason sites adopt it is the driver side.\nTime: 120"
+    },
+    {
+      "type": "insight",
+      "title": "The driver side wins or loses the deal, so we built for the driver first",
+      "points": [
+        "A customer's head of operations: \"I do not need a yard management system. I need the drivers to stop calling me.\"",
+        "Everyone builds for the dispatcher. We build for a subcontractor driver in his cab with a cracked phone screen",
+        "Comms is the wedge, scheduling is the lock-in: customers come to stop the phone calls and stay for the schedule"
+      ],
+      "stats": [
+        {
+          "value": "11 days",
+          "label": "working days to go live at the first customer site, 2025",
+          "source": "fact:case_go_live_days"
+        }
+      ],
+      "source": [
+        "fact:case_go_live_days"
+      ],
+      "question": "Why does this work, and why you?",
+      "notes": "Say: if the driver can use it, the dispatcher's life gets better automatically. That is why multi-language messages mattered more than any dashboard. All 32 customers started with the same request: stop the phone calls.\nContext: 11 working days is one site. The carrier data idea is the long game and is not on this slide on purpose.\nTransition: who pays, and how much.\nTime: 75"
+    },
+    {
+      "type": "business_model",
+      "title": "Customers pay EUR 1,288 a month on average, priced per site",
+      "stats": [
+        {
+          "value": "EUR 1,288",
+          "label": "average MRR per customer, October 2026",
+          "source": "fact:arpa_current"
+        },
+        {
+          "value": "82%",
+          "label": "gross margin in our 2026 model (assumption, not yet from the accounts)",
+          "source": "assumption:gross_margin_model"
+        }
+      ],
+      "points": [
+        "One price unit: a monthly fee per site. Carriers and drivers use it without an account",
+        "Planned for Q4 2027: per-movement pricing for high-volume sites, where per-site pricing undercharges today"
+      ],
+      "source": [
+        "fact:arpa_current",
+        "assumption:gross_margin_model"
+      ],
+      "question": "Who pays, how much, and does a euro in produce more than a euro out?",
+      "notes": "Say: one buyer, one price unit. At EUR 1,288 a month across 32 customers that is an ARR run-rate of EUR 494,400.\nContext: the gross margin is a model figure, we assume it; the accounts figure is being prepared. Per-site pricing undercharges our largest customers, which is why pricing v2 is on the roadmap.\nTransition: how many companies like these exist.\nTime: 75"
+    },
+    {
+      "type": "market",
+      "title": "We estimate 14,000 target companies in DACH and Benelux, about EUR 216M a year",
+      "stats": [
+        {
+          "value": "[needs number]",
+          "label": "TAM: mid-size logistics operators across Europe; count not yet sourced"
+        },
+        {
+          "value": "EUR 216M",
+          "label": "SAM: 14,000 companies x EUR 1,288 a month x 12 (assumption)",
+          "source": "assumption:sam_bottom_up"
+        },
+        {
+          "value": "EUR 2.5M",
+          "label": "SOM: our ARR target for end 2028 (projection)",
+          "source": "projection:arr_target_2028"
+        }
+      ],
+      "points": [
+        "Company count: our desk research on Destatis and Eurostat data (2025), freight and warehousing companies with two or more sites"
+      ],
+      "source": [
+        "assumption:market_companies",
+        "assumption:sam_bottom_up",
+        "projection:arr_target_2028",
+        "fact:arpa_current"
+      ],
+      "question": "How big can this get, and how do you know?",
+      "notes": "Say: we size on our own price, not a report. We estimate 14,000 companies in our size band in DACH and Benelux; 32 of them are customers today.\nContext: the count is an estimate from 2025 desk research. The Europe-wide count is not sourced yet, so it is left open on purpose. The end-2028 figure is a target from the model, a projection.\nTransition: how we reach them.\nTime: 60"
+    },
+    {
+      "type": "go_to_market",
+      "title": "Founder-led sales adds 1.5 customers a month; the round builds a sales team",
+      "points": [
+        "Beachhead: multi-site freight forwarders, 3PLs and cross-dock operators in DACH and Benelux",
+        "Today: both founders sell, through the CEO's network, trade shows and customer referrals",
+        "Next: account executives hired from the round close deals without a founder in the room"
+      ],
+      "stats": [
+        {
+          "value": "1.5",
+          "label": "new customers a month, Jan 2025 to Oct 2026",
+          "source": "fact:new_customers_actual"
+        },
+        {
+          "value": "18",
+          "label": "open deals, all owned by a founder today",
+          "source": "fact:pipeline_open_deals"
+        }
+      ],
+      "source": [
+        "fact:new_customers_actual",
+        "fact:pipeline_open_deals"
+      ],
+      "question": "How do you get customers repeatably, and what does one cost?",
+      "notes": "Say: of the 18 open deals, 3 are in negotiation. Every one of them is owned by a founder, and that is the thing this round changes.\nContext: nobody has closed a deal without a founder in the room yet. The model assumes 4 new customers a month in 2027 against 1.5 today; that is an assumption until account executives close alone. We have not measured cost per customer.\nTransition: what else a site could buy.\nTime: 60"
+    },
+    {
+      "type": "competition",
+      "title": "Built for the forwarder's dispatcher and driver, not the shipper's buyer",
+      "columns": [
+        "",
+        "Meridian",
+        "Enterprise yard systems",
+        "Slot-booking marketplaces",
+        "Phone, WhatsApp, Excel"
+      ],
+      "rows": [
+        [
+          "Built for",
+          "Mid-size forwarders",
+          "Large shippers",
+          "Shippers, retail DCs",
+          "Any small site"
+        ],
+        [
+          "Time to go live",
+          "2 weeks",
+          "6 months",
+          "not known",
+          "none"
+        ],
+        [
+          "Who pays",
+          "Site, per month",
+          "Site, plus setup",
+          "Carrier, per booking",
+          "Nobody"
+        ],
+        [
+          "TMS integrations",
+          "Not yet",
+          "Yes",
+          "not known",
+          "None"
+        ]
+      ],
+      "points": [
+        "Where they are ahead: enterprise systems have TMS integrations and we do not yet. A light mid-market product from one of them would hurt"
+      ],
+      "source": "assumption:competitor_grid",
+      "question": "Why will you win against the obvious alternatives?",
+      "notes": "Say: most of this market still runs on a whiteboard, a phone and WhatsApp, and that works for a small yard. The enterprise systems are built for large shippers. Our first site was live in 11 working days.\nContext: the competitor columns are what we heard from prospects and at trade shows, an assumption, not checked against their public pages. Name the vendors when asked.\nTransition: the people doing this.\nTime: 60"
+    },
+    {
+      "type": "team",
+      "title": "Lena ran the customer's job for nine years; Jonas built the first version alone",
+      "rows": [
+        [
+          "Lena Ostrowski",
+          "CEO, sells",
+          "9 years in logistics operations, last as Head of Operations DACH at an 11-site forwarder"
+        ],
+        [
+          "Jonas Hebbel",
+          "CTO, writes the code",
+          "11 years in software; led a fleet routing team of about 20 engineers; built carrier messaging at a telco provider"
+        ]
+      ],
+      "points": [
+        "Team of 7 in Berlin. Lena was a customer of Jonas's previous company; the customer success lead was a dispatcher at a customer site"
+      ],
+      "question": "Why these people, and who writes the code?",
+      "notes": "Say: I spent years buying yard management systems that never got rolled out. Jonas built the first version alone in 5 months while I sold it to the first 3 customers.\nContext: no advisors and no investors on the slide by design.\nTransition: what the round is for.\nTime: 60"
+    },
+    {
+      "type": "ask",
+      "title": "Raising EUR 3M for about 19 months to make the sale repeat without the founders",
+      "subtitle": "Priced equity round. About 19 months of runway from a January 2027 close (projection on the model's costs).",
+      "use_of_funds": [
+        {
+          "label": "Go-to-market: 4 account executives, 1 SDR, 1 marketing lead",
+          "pct": 60
+        },
+        {
+          "label": "Product: 3 engineers, 1 designer",
+          "pct": 30
+        },
+        {
+          "label": "Operations and buffer",
+          "pct": 10
+        }
+      ],
+      "milestones": [
+        "Q1 2027: two more account executives start; carrier scorecards ship",
+        "Q2 2027: connectors to the three TMS products our customers use",
+        "2027: account executives close deals without a founder in the room",
+        "Mid 2028, when the round is spent: ARR of [needs number] (model being revised)"
+      ],
+      "source": [
+        "fact:ask",
+        "assumption:use_of_funds_gtm_pct",
+        "assumption:use_of_funds_product_pct",
+        "assumption:use_of_funds_ops_pct",
+        "projection:runway_post_raise_pnl"
+      ],
+      "question": "How much, for what, and what will be true when it is spent?",
+      "notes": "Say: one number, three buckets. EUR 3M, 60 percent of it on go-to-market, to prove that the sale repeats without Lena or Jonas in the room.\nContext: the runway is a projection from the model's own costs, 18.9 months. The ARR the round reaches by then is open until the model is revised. Have today's runway ready: 7.1 months at EUR 53,800 net burn. Price is for the conversation, not the slide.\nTransition: closing summary.\nTime: 90"
+    },
+    {
+      "type": "closing",
+      "title": "Meridian: dock scheduling and driver messaging for mid-size freight forwarders",
+      "points": [
+        "EUR 41.2k MRR in October 2026, up 2.15x in 12 months",
+        "32 paying customers; 3 lost in 22 months",
+        "Raising EUR 3M to make the sale repeat without the founders"
+      ],
+      "subtitle": "Lena Ostrowski, CEO. lena@meridian-ops.example",
+      "source": [
+        "fact:mrr_current",
+        "fact:mrr_yoy_multiple",
+        "fact:customers_current",
+        "fact:logo_churn_count",
+        "fact:ask"
+      ],
+      "question": "What should I remember, and how do I reach you?",
+      "notes": "Say: the three facts again, then stop and take questions.\nContext: nothing new after the ask.\nTransition: questions.\nTime: 20"
+    }
+  ]
+}

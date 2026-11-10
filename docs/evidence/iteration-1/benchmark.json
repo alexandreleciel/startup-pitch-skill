@@ -1,0 +1,52 @@
+{
+  "rows": [
+    {
+      "case": "meridian-ops",
+      "condition": "without_skill",
+      "passed": 7,
+      "total": 8,
+      "tokens": 121230,
+      "minutes": 10.2
+    },
+    {
+      "case": "meridian-ops",
+      "condition": "with_skill",
+      "passed": 8,
+      "total": 8,
+      "tokens": 264724,
+      "minutes": 20.3
+    },
+    {
+      "case": "hearthbox",
+      "condition": "without_skill",
+      "passed": 7,
+      "total": 9,
+      "tokens": 185106,
+      "minutes": 12.6
+    },
+    {
+      "case": "hearthbox",
+      "condition": "with_skill",
+      "passed": 9,
+      "total": 9,
+      "tokens": 337789,
+      "minutes": 20.5
+    },
+    {
+      "case": "kestrel-health",
+      "condition": "without_skill",
+      "passed": 9,
+      "total": 10,
+      "tokens": 200103,
+      "minutes": 18.7
+    },
+    {
+      "case": "kestrel-health",
+      "condition": "with_skill",
+      "passed": 10,
+      "total": 10,
+      "tokens": 438226,
+      "minutes": 33.8
+    }
+  ]
+}
