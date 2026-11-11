@@ -20,6 +20,21 @@ Contact and permissions are handled by the maintainer; this file records facts o
 
 Ideas referenced for QA and review, no code taken: carnot-tech/jinba-consulting-pptx-skill (https://github.com/carnot-tech/jinba-consulting-pptx-skill, 60affb5, LICENSE "MIT License"): real-render layout checks (overflow, overlap, empty canvas) behind `build_deck.js --check`. Gabberflast/academic-pptx-skill (https://github.com/Gabberflast/academic-pptx-skill, 9f2b703, LICENSE "MIT License"): "read the action titles alone" content gate. garrytan/gstack design-review and design-consultation (see section 2 row for gstack): hard-rule and anti-pattern lists consulted for `references/design.md` section 6.
 
+### Visual upgrade (2026-11-11)
+
+The art directions, layouts and diagram vocabulary of the deck builder were designed after rendering and studying the sources below. Techniques were re-implemented in our own code; no template or stylesheet was copied. Icons are the one embedded third-party asset.
+
+| Component | Creator | Repository | Commit | What informed our work | Where it appears | Copied or re-synthesised | License file in clone |
+|---|---|---|---|---|---|---|---|
+| Lucide icons (74 icons embedded) | Lucide contributors | https://github.com/lucide-icons/lucide (package `lucide-static` 1.71.0) | 03eae6069e | Icon paths addressable through `icon` in deck.json | `assets/deck-template/icons.json` | Copied (icon path data), ISC license text upstream | `LICENSE` (ISC) |
+| beautiful-html-templates (`neo-grid-bold`, `emerald-editorial`, `stencil-tablet`, `pink-script`, `soft-editorial`) | Zara Zhang (zarazhangrui) | https://github.com/zarazhangrui/beautiful-html-templates | e5e204f | Mosaic grid with unequal cells, colour-block splits with giant numerals, tone rhythm, serif numerals with mono marginalia | `scripts/build_deck.js` layouts, `themes.css` | Re-synthesised | see row above in this section |
+| tahta | zcag | https://github.com/zcag/tahta | 39e9440 | One spec rendered through swappable variant tokens; stat layout | theme token design | Re-synthesised | `LICENSE` (MIT) |
+| ppt-agent-skill | Akxan | https://github.com/Akxan/ppt-agent-skill | 01825de | Range of art directions; cover compositions | `THEMES.md` art directions | Re-synthesised | `LICENSE` (MIT) |
+| deck-factory | gongnyang | https://github.com/gongnyang/deck-factory | 11d4563 | Dark slides with one off-centre glow, numerals with small units | dark tones | Re-synthesised | `LICENSE` (MIT) |
+| guizang-ppt-skill | op7418 | https://github.com/op7418/guizang-ppt-skill | 93d21bf | Screenshot framing rules | browser and phone frames | Re-synthesised | see clone |
+| apple-bento-grid | hubeiqiao | https://github.com/hubeiqiao/apple-bento-grid | 235f740 | Unequal-cell summary card | closing slide | Re-synthesised | `LICENSE` (MIT) |
+| open-design (deck templates) | nexu-io | https://github.com/nexu-io/open-design | b4ec310 | Reference only | none | Not used | `LICENSE` (Apache-2.0) |
+
 ## 2. Pitch and fundraising content
 
 "Cited by" lists the reference files under `skills/startup-pitch/references/` whose attribution notes name the repository. All material was re-synthesised; no passages were copied.
@@ -142,6 +157,7 @@ Priority 1, verbatim copies present in the repository: none. (The Anthropic pptx
 
 Priority 2, heavy synthesis (structure, checklists or workflow closely follow the upstream):
 - [ ] Anthropic (anthropics/skills): pptx skill guidance (pptxgenjs rules, safe fonts) and frontend-design principles are re-synthesised in the builder and `references/design.md`; a courtesy note.
+- [ ] Lucide (lucide-icons/lucide): 74 icons embedded in `assets/deck-template/icons.json`; ISC requires keeping the copyright notice, which `assets/deck-template/README.md` should carry.
 - [ ] Pedro Nauck (pedronauck/skills): heaviest content upstream across the reference files; no license file in the clone.
 - [ ] Roman Kurnovskii (romankurnovskii/awesome-founder-skills): anti-pattern taxonomy, severity tiers, consistency-check idea.
 - [ ] yyh1102 / lowesyang (lowesyang/fundraising-skill): stage structures, DD patterns, interaction rules; no license file in the clone.

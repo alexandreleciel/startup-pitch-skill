@@ -1,0 +1,11 @@
+cohort_quarter,employers_in_cohort,segment_mix,q+1,q+2,q+3,q+4,q+5,q+6,q+7,q+8
+2024-Q3,4,3 SMB / 1 ENT,100,75,75,75,75,50,50,50
+2024-Q4,6,4 SMB / 2 ENT,100,100,83,67,67,67,67,
+2025-Q1,5,3 SMB / 2 ENT,100,100,80,80,80,80,,
+2025-Q2,6,3 SMB / 3 ENT,100,100,100,83,83,,,
+2025-Q3,7,4 SMB / 3 ENT,100,86,86,71,,,,
+2025-Q4,6,2 SMB / 4 ENT,100,100,100,,,,,
+2026-Q1,5,1 SMB / 4 ENT,100,100,,,,,,
+2026-Q2,7,2 SMB / 5 ENT,100,,,,,,,
+# logo retention %, employers still active N quarters after first paid quarter. SMB = under 250 employees. All churn to date is SMB.
+# NRR (revenue) is higher than logo retention because enterprise accounts expand (more sites, more employees covered).

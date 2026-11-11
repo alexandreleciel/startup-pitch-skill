@@ -1,6 +1,6 @@
 ---
 name: startup-pitch
-description: Use when a founder wants an investor pitch, pitch deck, fundraising narrative, investor Q&A preparation, red-flag review or a deck rebuild, working from the files already in their startup folder (notes, metrics exports, financial model, old decks, memos). Trigger on "pitch", "pitch deck", "investor deck", "raise a pre-seed / seed / Series A", "prepare me for investor meetings", "what will VCs ask", "fundraising story", "review my deck", "update the deck numbers", even when the user does not say the word deck. Also use when a user shares startup materials and asks what investors will think. Produces a one-page start page backed by a sourced fact ledger, and on request a narrative, investor Q&A and an HTML, PDF and PPTX deck.
+description: Use when a founder wants an investor pitch, pitch deck, fundraising narrative, investor Q&A preparation, red-flag review or a deck rebuild, working from the files already in their startup folder (notes, metrics exports, financial model, old decks, memos). Trigger on "pitch", "pitch deck", "investor deck", "raise a pre-seed / seed / Series A", "prepare me for investor meetings", "what will VCs ask", "fundraising story", "review my deck", "update the deck numbers", even when the user does not say the word deck. Also use when a user shares startup materials and asks what investors will think. Produces a one-page start page backed by a sourced fact ledger, and on request a narrative, investor Q&A and a designed deck as HTML and PDF, with PowerPoint when needed.
 license: MIT
 compatibility: Needs read access to the startup folder, a shell and python3. Deck export also needs node 18+ and Chrome or Edge; run `python3 scripts/pitch.py doctor` to see what is available.
 metadata:
@@ -81,12 +81,44 @@ If the target investor is unknown, that is one of the five questions; state the 
 | The narrative | `references/narrative.md` | Write `pitch/narrative.md`: purpose sentence, narrative choices, long form, two-sentence, 60-second and 3-minute versions. Cite ids inline. Other variants only on request. |
 | Investor Q&A | `references/investor-questions.md`; `question-bank.md` as a lookup by theme | Write `pitch/investor-qa.md`: least-ready five, 10-question drill, at most 15 themed questions with honest answers citing ids, and red-flag records in the `core.md` format. |
 | A full red-flag audit or pre-send check | `references/red-flags.md` | Add the audit to `investor-qa.md` (or the deck review) with every flag's trigger, fix and status. |
-| A deck | `references/deck-structure.md` (capacity table), `references/design.md` | `pitch.py comparables` and skim the three decks' structure. Write `pitch/deck/deck.json` within the capacity table, a theme chosen for this company, brand colours and logo if the folder has them. `pitch.py deck`. Fix every lint and QA line by cutting words, rerun until the summary is clean, then look at `pitch/deck/qa/` yourself. |
+| A deck | `references/deck-structure.md`, `references/design.md`, `assets/deck-template/THEMES.md` | Follow "Building a deck" below. |
 | Prep for an investor type or firm | `references/investor-types.md`, the one block in `investor-types-detail.md`, `references/meetings.md` | Tune the Q&A and the ask. Use only what a firm's public pages say, cited. |
 | Stage benchmarks, model-specific metrics | `references/benchmarks.md`, the one block in `metrics-by-model.md` | Quote with source and year, or not at all. |
 | "Review my deck" (pdf, pptx, html in the folder) | `references/red-flags.md` | Intake extracts it. Build the ledger from deck plus folder, write the start page as a review, offer the rebuild. |
 | "Update the numbers" | none | Re-run intake and check, update the ledger, rebuild outputs, list every changed value old and new. |
 | A 3-minute demo day pitch | `references/narrative.md`, `references/deck-structure.md` | Demo-day variant and the 6 to 8 slide structure. |
+
+## Building a deck
+
+A deck is judged in seconds, so it has to look designed, not typed. The builder gives you
+the means; use them.
+
+1. **Ask one format question** (skip it if the founder already said): "PDF and a web deck
+   only, or do you also need PowerPoint? If PowerPoint: one that looks identical but whose
+   text cannot be edited, or an editable one that is a little plainer?" Set `meta.pptx` to
+   `none`, `faithful` or `editable`. With nobody to ask, use `faithful`.
+2. **Pick an art direction for this company** from `THEMES.md` (nine themes): choose by who
+   they sell to and the room, for a reason you can state in one line, not by habit. Apply
+   the brand fonts and logo if the folder has them, and the brand colour that contrasts
+   best with the theme's ink as `meta.accent`. Set `variant` to `read` for a deck sent ahead
+   as a PDF and `present` for one shown live.
+3. `pitch.py comparables` and skim the three decks' structure.
+4. **Write `pitch/deck/deck.json` as a designed sequence**, not a list of bullet slides:
+   one message per slide with the takeaway as the title and one emphasised phrase
+   (`*like this*`); a `section` slide before each chapter; the hero number of each slide in
+   its own stat; a `diagram` wherever the content has a shape (a process is a `flow`, a
+   pipeline a `funnel`, market sizing is `market`, competitors a `power_grid` or `matrix`,
+   milestones a `timeline`, a growth loop a `loop`, an architecture `layers`, a change
+   `before_after`); `icon` on points; `frame` around product screenshots; a `quote` slide
+   for the best customer sentence in the folder (with none, a `statement` slide in the
+   founder's own words); a `donut` for use of funds. Every stat and
+   chart still cites its ledger id.
+5. `pitch.py deck`. Fix every capacity, QA and slack line by cutting words or adding the
+   missing visual, never by shrinking type. Rerun until the summary is clean. Open
+   `[needs number]` slots may stay: list them for the founder, who decides whether to send.
+6. **Look at `pitch/deck/qa/` yourself**, every slide. Ask of each: is there one thing the
+   eye goes to, is the slide full without being crowded, would this pass next to a deck made
+   by a designer? Rework any slide that is only a title and text.
 
 Each add-on extends the ledger only with the numbers it newly cites. Add each new file to the
 "Files" list at the bottom of START-HERE.md.
@@ -154,4 +186,6 @@ START-HERE.md section 1 lists every open item, so nothing is hidden; a deck may 
 - Padding the ledger to quiet the checker. Use `computed: true` for values you summed or
   counted, and cite only what you use.
 - Fitting an overflowing slide by shrinking type. Cut words or split the slide.
+- Shipping a deck of titles and bullets. If a slide has no number, diagram, image or quote,
+  it is not finished.
 - Hiding a weak answer. Investors find it; a candid answer with a plan reads as maturity.

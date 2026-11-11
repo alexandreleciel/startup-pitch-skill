@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 96" width="320" height="96">
+  <title>Meridian</title>
+  <circle cx="48" cy="48" r="36" fill="none" stroke="#F4F1EA" stroke-width="8"/>
+  <line x1="6" y1="48" x2="90" y2="48" stroke="#F4F1EA" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="66" cy="34" r="7" fill="#E36414"/>
+  <text x="112" y="60" font-family="Space Grotesk, Inter, Arial, sans-serif" font-size="40" font-weight="600" fill="#F4F1EA" letter-spacing="1">Meridian</text>
+</svg>

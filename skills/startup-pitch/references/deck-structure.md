@@ -2,11 +2,11 @@
 
 What this file is for: the content rules for every slide type that `scripts/build_deck.js` renders from `pitch/deck/deck.json`, every field the builder accepts, the capacity table that says what fits, the stage variants, the speaker-note rules, and a complete worked example.
 Read it when you are about to write or revise `deck.json`, when a founder asks "which slides do I need", or when the build prints capacity warnings.
-Visual design (type, colour, layout) lives in `design.md`; metric definitions in `metrics.md`; the objection list in `investor-questions.md`; the ledger format in `file-formats.md`.
+Visual design principles live in `design.md`, the art directions in `assets/deck-template/THEMES.md`; metric definitions in `metrics.md`; the objection list in `investor-questions.md`; the ledger format in `file-formats.md`.
 
 ## Contents
 
-1 Ground rules. 2 Slide types. 3 Field reference (everything the builder accepts). 4 Capacity table (what fits). 5 Stage variants. 6 Reader data and sequencing. 7 Speaker notes and timing. 8 Appendix and sources. 9 Charts. 10 Investor question and read-alone test. 11 Worked example (Meridian, 12 slides).
+1 Ground rules. 2 Slide types. 3 Field reference (every field, diagrams, icons, layouts). 4 Capacity table (what fits). 5 Stage variants. 6 Reader data and sequencing. 7 Speaker notes and timing. 8 Appendix and sources. 9 Charts. 10 Investor question and read-alone test. 11 Worked example (Meridian, 13 slides).
 
 ## 1. Ground rules that apply to every slide
 
@@ -19,7 +19,7 @@ Visual design (type, colour, layout) lives in `design.md`; metric definitions in
 
 ## 2. Slide types
 
-Each entry gives: purpose, the investor question it answers, must contain, must not contain, headline rule, density, deck.json fields, and headline examples. Fields marked (opt) are optional. Density lines say how many items a slide should carry; how long each may be is in the capacity table (section 4). All types accept `title`, `notes`, `question` (not rendered, see section 10) and `source`.
+Each entry gives: purpose, the investor question it answers, must contain, must not contain, headline rule, density, deck.json fields, and headline examples. Fields marked (opt) are optional. Density lines say how many items a slide should carry; how long each may be is in the capacity table (section 4). All types accept `title`, `notes`, `question` (not rendered, see section 10), `source` and `tone`. The newer vocabulary (icons on points, `diagram`, `frame`, `logos`, emphasis in titles) is in section 3; the field lists below name what each type must carry.
 
 ### cover. Fields: `title`, `subtitle`, `kicker`, `stats[]` (opt, max 3), `image` (opt, logo)
 - Purpose: name the company and say what it does in one concrete sentence. The reader must know what you do before slide 2 (Seibel, YC; Harris, YC, 2018).
@@ -43,7 +43,7 @@ Each entry gives: purpose, the investor question it answers, must contain, must 
 - Purpose: show one use case solved clearly better. Lead with what, not how (Hale, 2015).
 - Question: "What do you do about it, and for whom?"
 - Must contain: what the product is (app, API, device, service), the one core workflow, the outcome with a number where one exists. Each pain named on the problem slide should visibly disappear here.
-- Must not contain: feature lists, architecture diagrams (appendix), roadmap items presented as shipped.
+- Must not contain: feature lists, architecture diagrams (appendix), roadmap items presented as shipped. A `before_after` diagram with one measured pair is the strongest visual here.
 - Headline rule: "[Customer] does [outcome] in [time or cost]" or "We [verb] so that [customer] can [outcome]".
 - Density: 3 points max, one image or mock.
 - Good: "Carriers book a dock slot in 40 seconds from their phone, no account needed". Bad: "An AI-powered platform for supply chain orchestration".
@@ -66,7 +66,7 @@ Each entry gives: purpose, the investor question it answers, must contain, must 
 - Density: 2 to 3 points, 1 cited external data point.
 - Good: "Carriers will self-serve if booking takes under a minute and needs no account; incumbents require both". Bad: "Our unique approach".
 
-### market. Fields: `title`, `stats[]` (exactly 3, each `label` includes the method), `points[]` (opt, max 2 for sources and narrowing), `source`
+### market. Fields: `title`, `stats[]` (3: TAM, SAM, SOM; or 2, for example SAM and revenue today; each `label` includes the method), `points[]` (opt, max 2 for sources and narrowing), `source`
 - Purpose: show the prize is large and that you know exactly who buys first. Bottom-up SAM with the arithmetic on the slide (Seibel, YC; Harris, YC, 2018). Investors need the method more than the number.
 - Question: "How big can this get, and how do you know?"
 - Must contain: TAM, SAM, SOM each with its method in one line, the customer count source, your real price. Mark each as `kind: assumption` in the ledger and show the method on the slide.
@@ -136,7 +136,7 @@ Each entry gives: purpose, the investor question it answers, must contain, must 
 - Must contain: one amount (no range), allocation in 3 to 4 buckets as percentages, 2 to 4 milestones with number and date, runway in months with the next-round bar it reaches, non-capital asks if any.
 - Must not contain: valuation or terms, "18 months of runway" as the only plan, headcount as the goal, "open to offers".
 - Headline rule: amount plus the milestone it buys.
-- Density: 1 stacked bar or 3 to 4 stats for allocation, 2 to 4 milestone points.
+- Density: use of funds in 3 to 5 buckets (drawn as a donut) or 3 stats, 2 to 4 milestones.
 - Good: "Raising 3M EUR to reach 200k EUR MRR and 150 sites in 24 months". Bad: "The ask".
 
 ### roadmap. Fields: `title`, `milestones[]` (`{when, what, proves}`) or `rows[]` (`[date, milestone, what it proves]`), max 5
@@ -150,24 +150,30 @@ Each entry gives: purpose, the investor question it answers, must contain, must 
 - Density: 3 points, one contact line. No new information.
 
 ### appendix. Fields: `points[]` with `stats[]` or `image`, or a `chart`, or `columns[]` plus `rows[]`; add `kicker: "Appendix"`
-- Purpose: one slide per predictable objection, data too dense for the core deck (section 8). One form per slide: text, chart or table. Density is whatever section 4 allows for that form; the kicker takes one row of it.
+- Purpose: one slide per predictable objection, data too dense for the core deck (section 8). One form per slide: text, chart or table. Density is whatever section 4 allows for that form; the kicker takes one row of it. Any slide type with `kicker: "Appendix"` runs under the Appendix running head too; stats with points make a stat mosaic.
 
 ### sources
 - Generated by the builder from every `source` reference in the deck. Do not hand-write it. See section 8.
 
-### case_study. Fields: `title`, `points[]` (max 3), `stats[]` (max 2, each with `source`), `image` (opt), `source`
-- Purpose: one customer's before-and-after. Question: "Does a real customer get the value you claim?" Laid out like an appendix slide.
+### case_study. Fields: `title`, `points[]` (max 3), `stats[]` (max 3, each with `source`), `image` or `chart` (opt), `source`
+- Purpose: one customer's before-and-after. Question: "Does a real customer get the value you claim?" Laid out like a traction slide.
 - Must contain: the customer name (or "a mid-size German carrier" if confidential), the setting and period, the measured result with n. Must not generalise one site's result to all customers.
 - Headline rule: the result with its scope, for example "Nordfracht cut dock wait 31 percent at one site in three months".
 
+### quote. Fields: `quote`, `by`, `role`, `photo` (opt), `stat` (opt, `{value, label, source}`)
+- Purpose: one customer in their own words, set large, with the one metric that backs it. Only a real, attributable quote; with no permission to name, attribute by role and setting (no avatar is drawn without a `photo`). Never invent or polish a quote; when the folder has no customer quote, use a `statement` slide in the founder's own words.
+
 ### statement. Fields: `title`, `subtitle` (opt), `points[]` (opt, max 3 short)
-- Purpose: one large line, for a section break in a long deck or a single claim that needs the whole slide. No figures means no `source`.
+- Purpose: one large line on a full-bleed ground: the single claim that needs the whole slide. One per deck, near the middle. No figures means no `source`.
+
+### section. Fields: `title`, `subtitle` (opt), `number` (opt)
+- Purpose: a chapter break with a giant numeral, in decks of 14 slides or more. At most three. The title is a claim about the chapter ("Proof: it is working"), not a label. Sections are numbered automatically, and the title becomes the running head of the slides that follow, so keep it under about 40 characters.
 
 ### two_column. Fields: `title`, `columns[]` (two objects: `{title, body, points[]}`), `source`
-- Purpose: a side-by-side: before and after, live today and planned, us and them in words. Up to 5 points per column.
+- Purpose: a side-by-side in words: live today and planned, us and them. Up to 5 points per column; the second column is the filled one. For a before-and-after with numbers use `diagram.kind: "before_after"`.
 
 ### custom_html. Fields: `title`, `html`, `source` (string or list), `notes`
-- Purpose: escape hatch for a layout none of the types covers (a map, a timeline, a diagram). `html` is rendered as given; the builder does not validate numbers inside it, so every figure in the HTML must also appear in `source` as a list of ledger ids, or the checker cannot verify the slide.
+- Purpose: escape hatch for a layout none of the types or diagrams covers. `html` is placed as given in the area under the title; tone colours are CSS variables (`--bg`, `--ink`, `--muted`, `--accent`, `--surface`). The builder does not measure or validate it, so every figure in the HTML must also appear in `source` as a list of ledger ids.
 
 ## 3. Field reference: everything the builder accepts
 
@@ -175,83 +181,122 @@ Each entry gives: purpose, the investor question it answers, must contain, must 
 
 | Key | Values | Effect |
 |---|---|---|
-| `company`, `tagline`, `footer` | text | cover fallback, file properties, footer line |
-| `theme` | `graphite`, `paper`, `signal`, `midnight` | see `assets/deck-template/THEMES.md` |
+| `company`, `tagline`, `footer` | text | cover fallback, running head, file properties, footer line |
+| `theme` | `ledger`, `nocturne`, `poster`, `blueprint`, `studio`, `graphite`, `paper`, `signal`, `midnight` | the art direction; pick one per company with `assets/deck-template/THEMES.md` |
 | `accent`, `font_display`, `font_body` | `#RRGGBB`, Google Fonts family names | override the theme accent and fonts |
-| `logo` | path relative to deck.json (SVG or PNG) | cover, closing, footer |
-| `variant` | `present` (default) or `read` | `read` is the send-ahead: slightly smaller type, `body` paragraphs are drawn, each stat shows its source file under the label. Capacity differs per variant (section 4) |
+| `logo`, `logo_light` | paths relative to deck.json (SVG or PNG) | cover and closing; `logo_light` is the version for dark grounds |
+| `variant` | `present` (default) or `read` | `present` for a deck shown live; `read` for a deck sent ahead as a PDF: smaller type, `body` paragraphs are drawn, a stat shows its source file when the slide caption does not already name it. When both are needed, build twice. Capacity differs per variant (section 4) |
+| `pptx` | `faithful` (default), `editable`, `none` | `faithful`: every slide a 2x picture of what the PDF shows, text not editable. `editable`: native text and charts over a picture of each slide's ground; bar, line and area charts are native, donuts, diagrams and icons are part of the picture; fonts fall back to safe ones, so lines may break differently. The command line flag `--pptx` overrides it |
 | `sources` | `compact` (default), `full`, `none` | the generated sources appendix (section 8); `show_sources: false` is the older spelling of `none` |
-| `pptx_fonts` | `web` | write the web font names into the PPTX instead of the safe fonts (Cambria, Calibri, Arial) |
-| `aspect` | `16:9` | the only supported value |
+| `pptx_fonts`, `pptx_font_display`, `pptx_font_body` | `web`; font names | editable PPTX only. Safe fonts are chosen automatically (Georgia for headlines when the display face is a serif); the two font keys name others; `web` writes the web font names |
 
-Every slide accepts `type`, `title`, `kicker` (small line above the title; "Appendix" on appendix slides), `subtitle`, `body` (one paragraph, drawn in the read variant only), `points[]`, `stats[]` (`{value, label, source}`), `source` (a ledger id or a list of ids; becomes the one caption line), `notes` (section 7) and `question` (section 10; never drawn, shown with the notes). Type names use underscores; hyphens are accepted (`go-to-market`). An unknown type is drawn as a `statement` with a visible warning badge. A field a layout does not draw (a `chart` on a market slide, `stats` on a team slide) is reported by the lint.
+Every slide accepts `type`, `title`, `kicker` (the small label above the title; defaults to the type name), `subtitle`, `body` (one paragraph, read variant only), `points[]`, `stats[]`, `source` (a ledger id or a list; becomes the one caption line), `notes` (section 7), `question` (section 10; never drawn) and `tone` (`light`, `dark`, `accent`; leave it out and the builder keeps the rhythm, see THEMES.md). Type names use underscores; hyphens are accepted. An unknown type is drawn as a `statement` with a warning badge. A field a slide type has no place for is reported by the lint, never dropped silently.
+
+Emphasis: one phrase per title between asterisks, `"Trucks wait *94 minutes* at the dock"`, drawn in the theme's emphasis (accent colour, serif italic or highlighter block). Emphasise the number or the claim, never more than one phrase.
 
 | Field | Shape | Drawn on |
 |---|---|---|
-| `chart` | `{kind, labels[], series[{name, values[]}], y_label, show_values, source}`. `kind`: `bar`, `line`, `area`, `stacked_bar`, `horizontal_bar`. A `null` value leaves a gap (actual and projection as two series). `show_values: true` prints the number on each bar or point | traction, financials, appendix, case_study |
-| `columns[]`, `rows[]` | header cells and rows of cells. The header may include or omit the leading empty cell for the row-label column. `true` or `"yes"` draws a check, `false` or `"no"` a dash. The row whose first cell equals `meta.company` is highlighted | competition, business_model, financials, appendix, case_study |
-| `team[]` | `{name, role, bio, photo}`, or `rows[]` of `[name, role, proof line]` | team |
-| `use_of_funds[]` | `{label, pct}`, drawn as one horizontal stacked bar with a legend; or `chart{kind: "stacked_bar"}` with one series per bucket; or three `stats` | ask |
-| `milestones[]` | strings or `{when, what, proves}`. On ask, `points[]` are taken as milestones when `milestones` is absent. On roadmap, `rows[]` of `[date, milestone, what it proves]` also works | ask, roadmap |
-| `image` | path relative to deck.json | cover (logo), problem, solution, product, appendix, case_study |
-| `html` | raw HTML placed inside the 1920x1080 stage; theme tokens are CSS variables | custom_html |
+| `points[]` | strings, or `{text, icon, title}`. `icon` is a name from the icon set below; `title` a short bold lead | most types (see section 2) |
+| `stats[]` | `{value, label, source}` plus optional `trend: [numbers]` (a sparkline in the cell), `delta` ("up from 9"), `icon`. A unit after the figure ("94 min", "118%", "9 months") is set small beside it | cover, problem, insight, market, traction, business_model, go_to_market, financials, ask, appendix, case_study |
+| `chart` | `{kind, labels[], series[{name, values[]}], y_label, show_values, highlight, annotation{at, text}, source}`. `kind`: `bar`, `line`, `area`, `stacked_bar`, `horizontal_bar`, `donut`. A `null` value leaves a gap. See section 9 | traction, financials, appendix, case_study, insight, business_model, go_to_market |
+| `diagram` | `{kind, ...}`, see the table below. Takes the slide's visual slot instead of a chart or image | every content type except cover, section, statement, quote, team, closing, two_column |
+| `image`, `images[]`, `frame` | a path, or `{src, frame}`; up to two in `images` (the second overlaps the first). `frame`: `browser`, `phone` or `none` | problem, solution, product, traction, appendix, case_study; cover (logo); quote (`photo`) |
+| `columns[]`, `rows[]` | header cells and rows of cells. `true` or `"yes"` draws a filled dot, `false` or `"no"` a hollow one. The column (or row) whose header equals `meta.company` gets the accent fill | competition (a power grid), business_model, financials, appendix, case_study |
+| `team[]` | `{name, role, bio, photo}`, or `rows[]` of `[name, role, proof line]`. The photo or, without one, the initials fill the upper part of the tile edge to edge; one or two people are set with the picture beside the words | team |
+| `use_of_funds[]` | `{label, pct}`, drawn as a donut with its legend; `chart{kind: "donut"}` or `"stacked_bar"` and three `stats` also work | ask |
+| `milestones[]` | strings or `{when, what, proves, done}`; `done: true` (or `today: n`) puts the today marker after the milestones already reached | ask, roadmap (drawn as a timeline) |
+| `logos[]` | names, or `{name, image}`: a strip of wordmarks or logo files in one ink. Only customers who agreed to be named | traction, case_study, closing |
+| `sparklines[]` | `{label, values[], value}` rows: metric, small line, latest value. Needs a chart, diagram or image on the same slide | traction, financials, appendix, case_study |
+| `html` | raw HTML | custom_html |
 
-Sources and prefixes. A `source` is a ledger id with its kind as prefix: `fact:mrr_current`, `assumption:tam_bottom_up`, `projection:arr_2028`. All three prefixes are accepted; the prefix must match the entry's `kind` in `facts.yaml`. The builder warns on a mismatch and on an id missing from the ledger, and `ledger_check.py` fails on them. No raw id is ever drawn: the caption names the source files ("Source: data/metrics-2026-10.csv"), at most three, then "and N more, see sources". A slide with a chart has one caption, under the chart, covering the chart and the slide. Captions and the sources appendix show each entry's source file; give a ledger entry `cite_as: <label>` when the file name would reveal something (a customer's name). A `founder statement` source shows as "company statement".
+Diagrams. Use one when the content is a process, a market, a comparison or a structure; bullets that describe a diagram are the weaker slide.
 
-Missing numbers. Write the exact string `[needs number]` wherever a figure is missing, as a whole value (`"value": "[needs number]"`) or inside a sentence (`"CAC is [needs number] EUR"`). Each occurrence is drawn as a dashed amber slot in HTML and PPTX and listed in the build log. Never estimate a number to fill a slot, and never send a deck that still has one.
+| `kind` | Data | Use it for |
+|---|---|---|
+| `flow` | `steps[]` of `{title, text, icon}` (2 to 5), `loop` (caption of a dashed return path), `highlight` (index). Keep the steps similar in length: all titles share one size and all texts another, set by the longest | how it works, the sales motion |
+| `funnel` | `stages[]` of `{label, value, note}` (2 to 5); the rate against the stage above is added unless `rates: false` (use that for a pipeline snapshot: deals sitting in each stage today, where a rate would be wrong) | go to market, pipeline |
+| `timeline` | `items[]` of `{when, what, proves, done}` (2 to 6), `today` | roadmap, history |
+| `market` | `rings[]` of three `{value, label}` (TAM, SAM, SOM, each label carrying its method). A market slide with exactly three stats draws this by itself | market |
+| `matrix` | `x` and `y` as `{label, low, high}`, `items[]` of `{name, x, y, us}` with x and y from 0 to 1. Needs at least two named competitors; the lint refuses the company alone in the corner | positioning (appendix); the main competition slide stays a power grid |
+| `power_grid` | `columns[]`, `rows[]`, `us` (column index) | the same grid on a slide type other than competition |
+| `loop` | `nodes[]` of `{title, text}` (3 to 5), `center` | flywheel, network effect |
+| `layers` | `layers[]` of `{title, text}`, top first (2 to 5) | architecture, platform stack |
+| `before_after` | `before` and `after` as `{label, value, text, points[]}` | the solution in one measured pair, a case study |
 
-No product image. When the folder has no screenshot, photo or mock, leave `image` out: a product, solution or problem slide then sets its points across the full width. Do not reference a file that does not exist (the builder warns and drops it) and do not substitute a stock picture; ask for a screenshot in `gaps.md`.
+Layouts follow the content, not a field. A slide with stats is a mosaic: the first stat owns the accent cell beside the title, the others get cells of their own. Problem, solution and ask are colour-block splits: text on one side, a full-height panel with the stat, image, diagram or donut on the other. A product slide with a wide image sets it large with the points beside it; with a tall image (`frame: "phone"`) the image gets a panel; with no image it must carry a diagram, or its points become icon cards. A product slide takes one stat (not beside a tall image); problem and solution draw `stats` in the panel unless a `diagram` takes it; an insight slide with a diagram may also carry `points`, drawn beside it. Never reference a file that does not exist and never substitute a stock picture.
+
+Icons (Lucide, 74 names): zap, shield-check, globe, trending-up, trending-down, users, user, layers, clock, calendar, check, circle-check, target, rocket, lightbulb, lock, key, database, server, cloud, cpu, code, smartphone, monitor, truck, package, warehouse, factory, building-2, store, shopping-cart, credit-card, banknote, wallet, coins, percent, chart-column, chart-line, chart-pie, activity, gauge, heart-pulse, leaf, sun, droplet, flame, map-pin, route, search, settings, wrench, link, mail, message-circle, handshake, award, star, flag, repeat, refresh-cw, arrow-right, arrow-up-right, sparkles, brain, bot, graduation-cap, book-open, file-text, scale, eye, bell, plug, recycle, puzzle. Give every point on a slide an icon or none.
+
+Sources and prefixes. A `source` is a ledger id with its kind as prefix: `fact:mrr_current`, `assumption:tam_bottom_up`, `projection:arr_2028`. The prefix must match the entry's `kind` in `facts.yaml`; the builder warns on a mismatch and on an id missing from the ledger, and `ledger_check.py` fails on them. No raw id is ever drawn: the caption names the source files ("Source: data/metrics-2026-10.csv"), at most three, then "and N more, see sources". A chart carries the slide's caption. Give a ledger entry `cite_as: <label>` when the file name would reveal something. A `founder statement` source shows as "company statement".
+
+Missing numbers. Write the exact string `[needs number]` wherever a figure is missing, as a whole value or inside a sentence. Each occurrence is drawn as a dashed amber slot and listed in the build log. A `[needs number]` stat takes no `source`. Never estimate a number to fill a slot: build, list the open slots for the founder, and let the founder decide.
 
 ## 4. Capacity table: what fits on each slide
 
-`build_deck.js` checks deck.json against this table before it renders anything and prints one line per violation, for example:
+`build_deck.js` lays out every word of deck.json in the deck's own fonts before it draws anything, and prints one line per thing that does not fit, for example:
 
-    slide 5 (traction): 4 stats and 1 point overfill the side column by about 17 percent. Fits 4 stats and no point, or 3 stats and 1 point up to 93 characters, or 2 stats and 1 point up to 217 characters. Cut a stat or move a point to the notes.
+    slide 7 (traction): a stat cell is overfull by about 16 percent. Shorten the stat label.
+    slide 12 (competition): the table needs about 9 percent more height than it has (7 rows). Cut a row, shorten the cells that wrap, or move a point to the notes.
 
-Write to the table and a first build is clean. Fix every warning before a deck is sent; `--strict` turns warnings into a failed build. The table is generated from the numbers the lint uses (`node scripts/build_deck.js --capacities`; paste the output here when the layouts change). The lint lays out the deck's actual words in its own fonts, so its verdict is more exact than the character figures below, which are a guide for writing. Each limit is verified by rendering decks at the limit, with the web fonts loaded, in both variants and all four themes. It is the only definition of density in the skill.
+Fix every warning before a deck is sent; `--strict` turns warnings into a failed build. Headlines, points and numerals step down in size to fit before anything is reported, so the limits below are the longest text that still fits at the smallest size: a slide written to half of a limit is set large, a slide at the limit is set small. Body type never goes below 24 px on the 1920 px stage (22 px in the read variant), labels and captions never below 16 px. The same ladders run upward: tables, lists, diagram labels and milestone rows grow to use their cell. What stays thin is listed under `slack:` (a list, table or diagram cell less than 55 percent filled, also written to `qa/report.json` by `--check`): that slide will look empty, so add a point, a stat, a diagram or an image rather than ship it.
 
-Values are `present / read` where the two variants differ. Lengths are characters including spaces (6 characters is about one word).
+The table is generated by the same code (`node scripts/build_deck.js --capacities`; paste the output here when the layouts change). Each figure is the longest text for that field with the other fields at a typical length, valid in all nine themes and on every tone; a longer title, a kicker or more notes take room from the rest, so the lint line for the actual slide is the authority; lengths are characters including spaces (6 characters is about one word). Every form is verified by rendering decks at these limits in every theme and both variants.
 
-| Slide type (form) | Stats | Points | Longest point at that count | Shared column, what fits | Other limits |
-|---|---|---|---|---|---|
-| cover | 3, label 60 | 0 |  |  | title 2 lines (about 36 characters); subtitle 110; kicker 70; stat value 10 |
-| problem | 2, label 90 | 3 | 196 / 200 |  |  |
-| problem (image) | 0 | 3 | 160 |  |  |
-| solution | 0 | 3 | 220 |  |  |
-| solution (image) | 0 | 3 | 196 / 200 |  |  |
-| product | 0 | 4 | 129 / 140 |  |  |
-| product (no image) | 0 | 3 | 220 |  |  |
-| insight | 1, label 60 | 3 | 220 |  | title 3 lines (about 123 characters) |
-| market | 3, label 130 | 2 | 150 |  | 3 blocks, widest first; a label fits two lines in its block (about 80 characters in the narrowest when there are side points) |
-| traction | 4 / 3, label 100 | 2 | 220 (no stats) | 4 stats; 3 stats + 1 point of 90; 2 stats + 1 point of 210 / 3 stats; 2 stats + 1 point of 186; 1 stat + 1 point of 220 | chart, see below |
-| traction (no chart) | 4 / 3, label 100 | 5 | 148 / 166 |  |  |
-| business_model | 4, label 84 | 2 | 180 |  |  |
-| business_model (table) | 0 | 2 | 180 (each line under the table costs half a row) |  | table, see below |
-| go_to_market | 2, label 44 | 4 | 160 |  | points are numbered steps side by side; the 2-stat row fits underneath |
-| competition | 0 | 1 | 180 (each line under the table costs half a row) |  | table, see below |
-| team | 0 | 1 | 150 |  | 4 people: name 60, role 80, proof line 200 |
-| financials | 2, label 100 | 5 | 70 / 72 (no stats) | 2 stats; 1 stat + 1 point of 160; 1 point of 160 | chart, see below |
-| financials (table) | 0 | 3 | 180 (each line under the table costs half a row) |  | table, see below |
-| ask | 0 | 1 | 160 |  | title 3 lines (about 132 characters); subtitle 160; 5 use-of-funds buckets, label 90; 4 milestones of 110 |
-| ask (stats) | 3, label 66 | 0 |  |  | title 3 lines (about 132 characters); subtitle 160; 4 milestones of 110 |
-| roadmap | 0 | 1 | 150 |  | 5 milestones: date 14, milestone 70, proves 90 |
-| closing | 0 | 3 | 100 |  | title 4 lines (about 108 characters); subtitle 110 |
-| appendix (chart) | 2, label 100 | 5 | 70 / 108 (no stats) | 2 stats; 1 stat + 1 point of 160; 1 point of 160 | chart, see below |
-| appendix (table) | 0 | 2 | 180 (each line under the table costs half a row) |  | table, see below |
-| appendix (text) | 4, label 90 | 5 | 98 / 110 |  |  |
-| statement | 0 | 3 | 120 |  | title 4 lines (about 116 characters); subtitle 160 |
-| two_column | 0 | 5 | 114 / 120 |  | column heading 70; points per column |
-| custom_html | 0 | 0 |  |  |  |
+| Slide type (form) | Longest text per field, in characters, `present / read` |
+|---|---|
+| cover (3 stats) | title 86; subtitle 167 / 180; kicker 82; stat label 82 / 92 |
+| cover | title 86; subtitle 167 / 180; kicker 82 |
+| section | title 134; subtitle 193 / 229 |
+| statement | title 258; subtitle 234 / 258 |
+| statement (3 points) | title 258; point 160 / 183 |
+| quote (metric) | quote 318; name 68 / 82; role 153; stat label 115 / 120 |
+| quote | quote 419; name 92 / 102; role 211 |
+| problem (stats) | title 186; point 266 / 290; stat label 138 / 147 |
+| problem (points only) | title 211; point 323 / 364 |
+| problem (image) | title 186; point 266 / 290 |
+| solution (points only) | title 211; point 323 / 364 |
+| solution (before_after) | title 167; point 310 / 419; label 56; diagram text 193 / 221 |
+| product (wide image) | title 266; point 211 / 274 |
+| product (tall image) | title 186; point 266 / 290 |
+| product (no image) | title 266; point 419 |
+| insight (stat, 3 points) | title 229; point 229 / 284; stat label 115 / 120 |
+| insight (loop) | title 180; stat label 115 / 120; diagram text 99; node 92 / 102 |
+| market (3 stats) | title 266; stat label 173 / 186; point 419 |
+| market (3 stats, one missing) | title 266; stat label 173 / 186; point 419 |
+| market (2 stats) | title 266; stat label 346 / 377; point 419 |
+| traction (chart, 3 stats, logos) | title 180; stat label 92 / 120 |
+| traction (chart, 2 stats, 1 point) | title 180; stat label 115 / 120; point 211 / 274 |
+| traction (no chart) | title 180; stat label 34 / 42; point 120 / 134 |
+| business_model (4 stats) | title 180; stat label 92 / 102; point 419 |
+| business_model (table) | title 266; row label 138 / 147; cell 115 / 120; point 419 |
+| go_to_market (2 stats, 3 steps) | title 149; point 419; stat label 71 / 82 |
+| go_to_market (funnel) | title 180; point 245 / 318; stat label 115 / 120; funnel label 58 / 63 |
+| competition (power grid) | title 173 / 266; header 50; row label 92 / 99; cell 50 / 58; point 419 |
+| competition (matrix) | title 266; point 419; axis 21; item 26 / 30 |
+| team (4 people) | title 266; name 50; role 50; proof line 183 / 229; point 134 / 149 |
+| financials (chart, 4 drivers) | title 266; point 120 / 183 |
+| financials (chart, stat, 3 drivers) | title 180; stat label 115 / 120; point 167 / 183 |
+| financials (table) | title 201 / 266; row label 92 / 99; cell 82; point 419 |
+| ask (use of funds, milestones) | title 186; subtitle 193 / 229; fund label 115 / 138; milestone 160 |
+| ask (stats) | title 186; subtitle 193 / 229; stat label 138 / 147; milestone 183 / 201 |
+| roadmap (4 milestones) | title 266; milestone 120 / 167; proves 160 / 201; point 134 / 149 |
+| closing (3 points) | title 229; point 180 / 229; subtitle 211 / 221 |
+| appendix (text) | title 180; stat label 115 / 120; point 120 / 134 |
+| appendix (chart) | title 266; point 120 / 138; stat label 92 |
+| appendix (flow) | title 266; loop 102 / 115; step title 50; step text 234 / 302 |
+| appendix (layers) | title 266; point 419; layer 42; layer text 92 / 99 |
+| two_column | title 266; heading 92; point 211 / 225 |
+| case_study | title 180; stat label 50; point 82 / 92 |
 
 Rules that apply to every type:
 
-- Text is measured, not counted: the lint wraps the actual words of each title, point and label in the deck's own fonts (the four theme faces and 50 Google Fonts families used as `font_display` or `font_body` are built in; an unknown family is treated as wide). The character figures in this table are a guide for the widest theme faces; narrower faces fit more.
-- Slide title, two lines / three lines (the maximum), in characters that every sample headline kept within: graphite 84 / 130 (read 98 / 150), paper 84 / 130 (read 92 / 140), signal 76 / 118 (read 88 / 138), midnight 72 / 110 (read 82 / 128). Titles wrap balanced, so no line is left with a single word.
-- The budgets above assume a two-line title. A third title line, a `kicker`, a `subtitle` (max 160) or, in the read variant, a `body` paragraph (max 260) each take about one row of space: one point, one stat or one table row less. A one-line title gives one row back. The lint does this arithmetic.
-- Stat value: up to 14 characters; long values are set smaller instead of wrapping. Put the unit in the label when you can.
-- Table: up to 6 columns. 8 single-line rows under a two-line title, 7 with a kicker ("Appendix"), 6 / 7 with one one-line point underneath. A cell that wraps costs half a row per extra line. Cells stay on one line when the longest cells of all columns add up to about 126 characters (3 columns), 122 characters (4 columns), 118 characters (5 columns), 114 characters (6 columns).
-- Chart: up to 12 x labels (6 characters each at 12 labels, 10 at 8), 10 bars of 24 characters for `horizontal_bar`, up to 5 series. Legend names wrap onto extra rows and are never cut (max 60 characters, 3 rows); the chart shrinks to make room, so prefer short names and put the unit in `y_label`.
+- Counts: at most 5 points and 4 stats per slide (3 on the cover and beside a chart), 4 people, 6 milestones, 5 use-of-funds buckets, 6 logos, 6 sparkline rows. The builder keeps the first ones and says so.
+- The first stat is the hero: put the number the title talks about first. A stat value of up to about 9 characters is set large; a longer one is set smaller, never wrapped. Put the unit after the figure ("34 days") or in the label.
+- A `kicker`, a `subtitle` or, in the read variant, a `body` paragraph (about 260 characters) takes room from the title; the title cell grows by a row and the body of the slide shrinks. The lint does this arithmetic.
+- Table: up to 7 columns. About 7 single-line rows under a two-line title; a cell may wrap to 3 lines and each extra line costs about half a row.
+- Chart: up to 12 x labels (about 6 characters each at 12, 10 at 8), 8 rows for `horizontal_bar`, up to 5 series. Lines are labelled at their ends when the series names are short (about 20 characters); longer names go to a legend. Annotation up to 44 characters.
 - Source caption: one line per slide, at most three source files, then "and N more, see sources".
+- A deck that sets `font_display` or `font_body` is measured with those faces (in Chrome at build time); wider faces fit less than the table says.
 
 ## 5. Stage variants
 
@@ -280,6 +325,8 @@ Stage notes. Pre-seed: the bet is founder, market, validation; team gets more sp
 
 Read-ahead versus presented deck (Jarvis; amaklakov "read me" versus "listen to me"): in a read-ahead (10 to 12 slides, sent as PDF only) the text carries the story, up to about 50 words a slide, and screenshots are welcome; in a presented deck (10 to 15 slides, `deck.html` plus PDF) the founder carries it, about 30 words a slide and often under 15, bullets beat screenshots (Hale, 2015), and the notes are the spoken script (section 7). Build both from the same `deck.json`: `meta.variant` is `"read"` or `"present"`; the capacity table (section 4) has the limits for each. Never send the full presented deck cold; it gets forwarded without context.
 
+Counting: the slide numbers per stage are content slides including cover and closing; `section` slides and the generated sources pages do not count. A Series A deck without a financial model omits the financials slide and says so in the ask notes.
+
 ## 6. Reader data and sequencing
 
 What DocSend telemetry says (quote the year; samples differ): funded seed decks were viewed for about 3 minutes 44 seconds over about 20 pages in 2015, with most time on financials and team, then competition (DocSend with Harvard Business School, 2015). By 2022 pre-seed decks got 2 minutes 42 seconds, traction got 41 percent more time than the year before, and company purpose became the third most scrutinised section (DocSend, 2022). Funded decks run about 50 words per slide in about 12 sections (DocSend, 2025). Dwell time on a page is a defect signal: investors flip at a steady pace and stop where something confuses them (Heddleston, DocSend, 2015). What that implies: budget the whole read at 2 to 4 minutes, 10 to 20 seconds a slide; weak numbers on team and financials are a liability, and a seed deck without financials is normal; spend real effort on the cover subtitle; always include a proof slide, qualitative if necessary.
@@ -290,7 +337,7 @@ Default seed order (Harris, YC, 2018, adapted): cover, problem, solution, tracti
 - Insight after solution, never before; competition after business model and go-to-market.
 - Team at the end by default; at slide 2 or 3 only when the team is the advantage or at pre-seed.
 - Ask last, followed only by closing and appendix. Nothing new after the ask.
-- Alternate dense slides (traction, market, competition, financials) with light ones. Two tables or two charts back to back is where readers stall. Never a divider slide.
+- Alternate dense slides (traction, market, competition, financials) with light ones. Two tables or two charts back to back is where readers stall. `section` slides only in decks of 14 slides or more, at most three; one `statement` or `quote` slide near the middle breaks the rhythm better than a divider.
 
 ## 7. Speaker notes and timing
 
@@ -340,13 +387,13 @@ An id that is not in `facts.yaml` gets a build warning with its slide number; `l
 |---|---|---|
 | Monthly MRR or ARR, customers per month | `bar` | consistent intervals, at most 12 labels, the slide title states the conclusion |
 | Cohort retention, NDR over time | `line`, one series per cohort, max 5 | months since start on x, short series names, unit in `y_label` |
-| Use of funds | `use_of_funds[]` on the ask slide | 3 to 5 buckets as percentages |
+| Use of funds | `use_of_funds[]` on the ask slide (a donut) | 3 to 5 buckets as percentages |
 | Unit economics (CAC, payback, margin) | table | each row names its data window |
-| TAM, SAM, SOM | 3 market stats with method labels | no concentric circles |
+| TAM, SAM, SOM | 3 market stats with method labels (drawn as nested circles with the numbers beside them) | each label carries its method; the circles are not to scale |
 | Projection | `bar` or `line`, actual and projection as two series with `null` gaps | the projection series name contains "projection" and the title says "Projection" |
 | Two metrics at once | two slides | never a double axis |
 
-Honesty rules (metric definitions in `metrics.md`): the y-axis starts at zero (the builder enforces it); never cumulative alone, show the incremental figure beside it (YC Series A guide, 2020); one unit per axis, named in `y_label`; every series is a ledger series and `chart.source` names its id; growth charts show how long it took; no pie, no 3D.
+Honesty rules (metric definitions in `metrics.md`): the y-axis starts at zero (the builder enforces it); never cumulative alone, show the incremental figure beside it (YC Series A guide, 2020); one unit per axis, named in `y_label`; every series is a ledger series and `chart.source` names its id; growth charts show how long it took; a donut only for shares of one whole; no 3D. How charts are drawn: one accent series and the others quiet; in a single-series bar chart the latest bar is the accent and carries its value (`highlight: "none"`, an x label or an index changes that; `show_values` labels every bar); lines are labelled at their ends, a series whose name contains "projection", "plan" or "forecast" is dashed, and the first line gets a soft fill; `annotation: {"at": "Apr 26", "text": "Multi-site plan ships"}` marks the one event that explains the bend; `donut` shows shares with the largest in the hole; a stat with `trend` pairs a big number with its sparkline, and `sparklines[]` replaces a table of KPIs.
 
 ## 10. The "investor question" field and the read-alone test
 
@@ -356,122 +403,75 @@ Read-alone headline test: extract every `title` in order and read them as a para
 
 ## 11. Worked example: Meridian seed deck
 
-Fictional B2B SaaS, seed, read-ahead variant. Numbers are consistent with the `facts.yaml` example in `file-formats.md` (MRR 41,000 EUR in October 2026, ARR run-rate 492,000 EUR) and extend it: 32 paying customers, average 1,281 EUR MRR per customer (41,000 / 32), average contract 15.4k EUR per year, raising 3M EUR. Every `source` names a ledger id; ids not in the file-formats example (`raise_amount`, `customers_current`, `dock_wait_minutes`, `wait_reduction`, `mrr_series`, `nrr_ttm`, `logo_churn_12m`, `referral_share`, `driver_smartphone_share`, `mrr_per_customer`, `acv_current`, `gross_margin`, `cac_payback`, `cac_2026`, `sam_bottom_up`, `som_2029`, `sales_cycle_days`, `competitor_grid`, `mrr_2028_projection`, `use_of_funds`, `runway_months`) must exist in the startup's ledger with the kinds the `source` prefixes name before this validates.
+Fictional B2B SaaS, seed, read-ahead variant, `ledger` theme. Numbers are consistent with the `facts.yaml` example in `file-formats.md` (MRR 41,000 EUR in October 2026) and extend it: 32 paying customers, average 1,281 EUR MRR per customer, average contract 15.4k EUR per year. The full 22-slide version with the appendix diagrams (flow, layers, matrix, timeline) is `assets/deck-template/example-deck.json`. It shows a cover with fast facts, colour-block splits (problem, solution with a `before_after` diagram, ask with a donut), a `section` slide, a mosaic traction slide (annotated chart, a stat with a trend, logos), a `quote`, a market slide drawn from its three stats, a `funnel`, a power grid, icons on points, and one emphasised phrase per title.
 
 ```json
 {
-  "meta": {
-    "company": "Meridian",
-    "tagline": "Dock scheduling that carriers actually use",
-    "variant": "read",
-    "theme": "graphite",
-    "accent": "#2E6BE6",
-    "font_display": "Fraunces",
-    "font_body": "Inter",
-    "logo": "assets/meridian-logo.svg",
-    "footer": "Meridian GmbH, confidential, November 2026",
-    "aspect": "16:9",
-    "sources": "compact"
-  },
+  "meta": {"company": "Meridian", "tagline": "Dock scheduling that carriers actually use", "variant": "read", "theme": "ledger", "logo": "assets/meridian-logo.svg", "footer": "Meridian GmbH, confidential, November 2026", "pptx": "faithful"},
   "slides": [
-    { "type": "cover", "title": "Meridian", "subtitle": "Dock scheduling that carriers actually use",
+    { "type": "cover", "title": "Meridian",
+      "subtitle": "Dock scheduling that carriers actually use",
       "kicker": "Seed round, November 2026",
-      "stats": [
-        { "value": "EUR 41k", "label": "MRR, Oct 2026", "source": "fact:mrr_current" }, { "value": "32", "label": "paying operators", "source": "fact:customers_current" },
-        { "value": "EUR 3M", "label": "raising", "source": "fact:raise_amount" } ],
-      "question": "What is this, in plain words?",
-      "notes": "Say: Meridian is the booking screen a truck driver uses to get a dock slot. 32 logistics operators pay us for it today.\nContext: do not explain the product yet.\nTransition: here is why they pay.\nTime: 30" },
-    { "type": "problem", "title": "Trucks wait 94 minutes at the average mid-size dock, and nobody is paid for that time",
-      "points": [ "Mid-size operators run 6 to 20 docks on phone calls, fax and a gatehouse clipboard",
-                  "Carriers charge waiting fees from the 61st minute; operators absorb them",
-                  "Incumbent scheduling modules require carrier accounts; under 20 percent of carriers ever log in" ],
+      "stats": [{"value": "EUR 41k", "label": "MRR, October 2026", "source": "fact:mrr_current"},{"value": "61", "label": "sites live at 32 operators", "source": "fact:customers_current"},{"value": "EUR 3M", "label": "raising, one close", "source": "fact:raise_amount"}],
+      "question": "What is this, in plain words?", "notes": "Say: Meridian is dock scheduling that carriers actually use.\nTime: 20" },
+    { "type": "problem", "title": "Trucks wait *94 minutes* at the average mid-size dock, and nobody is paid for that time",
+      "points": [{"icon": "clock", "text": "Mid-size operators run 6 to 20 docks on phone calls, fax and a gatehouse clipboard"},{"icon": "banknote", "text": "Carriers charge waiting fees from the 61st minute; operators absorb them"},{"icon": "lock", "text": "Incumbent scheduling modules require carrier accounts; under 20 percent of carriers ever log in"}],
+      "stats": [{"value": "94 min", "label": "median truck wait, 140 sites, 2025", "source": "fact:dock_wait_minutes"}],
       "source": "fact:dock_wait_minutes",
-      "question": "Who hurts, how much, and what do they do about it now?",
-      "notes": "Say: 94 minutes is the median in our 2025 sample of 140 sites; at one Nordfracht site it was 3 hours.\nContext: the 20 percent login figure is from the founder's prior employer, labelled assumption in the ledger.\nTransition: the fix has to work for the driver, not the planner.\nTime: 75" },
-    { "type": "solution", "title": "Carriers book a dock slot in 40 seconds from their phone, no account needed",
-      "points": [ "Driver opens a link, picks a slot, done; the operator's board updates live",
-                  "Operators set rules once: dock types, cut-offs, priority lanes",
-                  "Waiting time at live sites fell from 94 to 31 minutes within 8 weeks" ],
-      "image": "assets/meridian-booking.png",
+      "question": "Who hurts, how much, and what do they do about it now?", "notes": "Say: the wait is the cost; the workaround is a phone.\nContext: 140 sites surveyed in 2025.\nTransition: so we removed the account.\nTime: 60" },
+    { "type": "solution", "title": "Carriers book a dock slot in *40 seconds* from their phone, no account needed",
+      "diagram": {"kind": "before_after", "before": {"label": "Before, phone and fax", "value": "94 min", "text": "Median wait at the dock"}, "after": {"label": "After, Meridian link", "value": "31 min", "text": "At live sites within 8 weeks"}},
+      "points": [{"icon": "link", "text": "Driver opens a link, picks a slot, done; the operator's board updates live"},{"icon": "settings", "text": "Operators set rules once: dock types, cut-offs, priority lanes"}],
       "source": "fact:wait_reduction",
-      "question": "What do you do about it, and for whom?",
-      "notes": "Say: no app store, no password; that is the whole trick.\nContext: 31 minutes is the 12-site median, not the best site.\nTransition: does it work as a business?\nTime: 75" },
-    { "type": "traction", "title": "MRR grew from 4k to 41k EUR in 21 months with 2 logos lost",
-      "chart": { "kind": "bar", "labels": ["Jan 25", "Apr 25", "Jul 25", "Oct 25", "Jan 26", "Apr 26", "Jul 26", "Oct 26"],
-                 "series": [ { "name": "MRR (EUR k)", "values": [4, 7, 12, 18, 25, 33, 37, 41] } ],
-                 "y_label": "EUR k per month", "source": "fact:mrr_series" },
-      "stats": [ { "value": "EUR 41k", "label": "MRR, Oct 2026", "source": "fact:mrr_current" },
-                 { "value": "118%", "label": "net revenue retention, trailing 12 months", "source": "fact:nrr_ttm" },
-                 { "value": "2", "label": "logos lost in 12 months", "source": "fact:logo_churn_12m" } ],
-      "question": "Is this working, and how fast?",
-      "notes": "Say: 10x in 21 months; the step in April 2026 is the multi-site plan.\nContext: both lost logos were single-dock sites below our current minimum; name them if asked.\nTransition: the reason carriers adopt it is the part incumbents cannot copy quickly.\nTime: 120" },
-    { "type": "insight", "title": "Carriers self-serve when booking takes under a minute and needs no account; incumbents require both",
-      "points": [ "Incumbent modules are sold to planners and built for planners; the driver is an afterthought",
-                  "Smartphone penetration among EU truck drivers passed 90 percent in 2024, so a link is enough",
-                  "Every carrier that books once is a referral into the next operator: 9 of 32 customers came that way" ],
-      "stats": [ { "value": "9 of 32", "label": "customers via carrier referral", "source": "fact:referral_share" } ],
-      "source": "assumption:driver_smartphone_share",
-      "question": "Why does this work now, and why you?",
-      "notes": "Say: the incumbents' buyer is the planner; ours is the driver, who then sells us to the next operator.\nContext: the 90 percent figure is an industry survey, kind assumption, year 2024.\nTransition: who pays and how much.\nTime: 75" },
-    { "type": "business_model", "title": "Operators pay 1,280 EUR per site per month; 81 percent gross margin, 9-month payback",
-      "stats": [ { "value": "EUR 1,281", "label": "average MRR per customer", "source": "fact:mrr_per_customer" },
-                 { "value": "EUR 15.4k", "label": "average annual contract", "source": "fact:acv_current" },
-                 { "value": "81%", "label": "gross margin, Q3 2026", "source": "fact:gross_margin" },
-                 { "value": "9 months", "label": "CAC payback, gross-margin adjusted, 2026 cohort", "source": "fact:cac_payback" } ],
-      "points": [ "Priced per site per month; carriers never pay" ],
-      "question": "Who pays, how much, and does a euro in produce more than a euro out?",
-      "notes": "Say: one price, one buyer, carriers free; that keeps the referral loop open.\nContext: payback uses 2026 cohort CAC of 9.8k EUR; the 2025 cohort was 14k EUR.\nTransition: how big that can get.\nTime: 75" },
-    { "type": "market", "title": "185M EUR serviceable today: 12,000 EU mid-size operators x our 15.4k EUR contract",
-      "stats": [ { "value": "EUR 1.8B", "label": "TAM: EU operators' yard and dock software spend, 12,000 x 150k EUR (assumption)", "source": "assumption:tam_bottom_up" },
-                 { "value": "EUR 185M", "label": "SAM: 12,000 operators x 15.4k EUR current contract (assumption)", "source": "assumption:sam_bottom_up" },
-                 { "value": "EUR 6.2M", "label": "SOM 2029: 400 operators x 15.4k EUR (projection)", "source": "projection:som_2029" } ],
-      "points": [ "Operator count from Eurostat NACE H52 size classes, 2024; contract value from our own 32 contracts" ],
-      "question": "How big can this get, and how do you know?",
-      "notes": "Say: we size on our own price, not the incumbents'.\nContext: TAM uses a 150k EUR total software spend assumption; SOM is a projection.\nTransition: and how we get there, one motion.\nTime: 60" },
-    { "type": "go_to_market", "title": "Founder-led sales closes a 15k EUR contract in 34 days; 9 of 32 customers came from carrier referrals",
-      "points": [ "Beachhead: German and Benelux operators with 6 to 20 docks",
-                  "Motion: a 20-minute demo on the operator's own carrier list, pilot on one dock, expand",
-                  "Next: two account executives from Q1 2027, each targeting 2 sites per month" ],
-      "stats": [ { "value": "34 days", "label": "median sales cycle, 2026", "source": "fact:sales_cycle_days" }, { "value": "EUR 9.8k", "label": "CAC, 2026 cohort", "source": "fact:cac_2026" } ],
-      "question": "How do you get customers repeatably, and what does one cost?",
-      "notes": "Say: the pilot is on one dock; expansion to the site is where the contract value comes from.\nContext: AE productivity of 2 sites per month is a plan, not yet observed.\nTransition: who else the operator could buy from.\nTime: 60" },
-    { "type": "competition", "title": "Only Meridian lets a carrier book without an account; the two incumbents require one",
-      "columns": [ "", "Meridian", "Incumbent TMS module", "Point-solution startups", "Phone, fax, spreadsheet" ],
-      "rows": [ [ "Carrier books without account", "yes", "no", "no", "n/a" ],
-                [ "Time to book a slot", "40 s", "4 to 6 min", "2 min", "a phone call" ],
-                [ "Setup time per site", "2 days", "6 to 12 weeks", "1 to 2 weeks", "none" ],
-                [ "Price per site per month", "1,280 EUR", "bundled in TMS", "600 to 900 EUR", "0 EUR" ],
-                [ "Yard management, ERP integrations", "partial", "full", "partial", "none" ] ],
+      "question": "What do you do about it, and for whom?", "notes": "Say: a link, a slot, done.\nTransition: here is the product.\nTime: 60" },
+    { "type": "section", "title": "Proof: it is *working*",
+      "subtitle": "Revenue, retention and what customers say",
+      "notes": "Time: 5" },
+    { "type": "traction", "title": "MRR grew from 4k to *41k EUR* in 21 months with 2 logos lost",
+      "chart": {"kind": "bar", "labels": ["Jan 25", "Apr 25", "Jul 25", "Oct 25", "Jan 26", "Apr 26", "Jul 26", "Oct 26"], "series": [{"name": "MRR (EUR k)", "values": [4,7,12,18,25,33,37,41]}], "y_label": "MRR, EUR k per month", "annotation": {"at": "Apr 26", "text": "Multi-site plan ships"}, "source": "fact:mrr_series"},
+      "stats": [{"value": "118%", "label": "net revenue retention, trailing 12 months", "source": "fact:nrr_ttm"},{"value": "32", "label": "paying operators", "trend": [3,6,10,14,19,25,29,32], "source": "fact:customers_current"},{"value": "61", "label": "sites live", "source": "fact:customers_current"}],
+      "logos": ["Nordfracht", "Elbe Trans", "Benelux Cargo", "Hansa Freight", "Rhein Kurier"],
+      "question": "Is this working, and how fast?", "notes": "Say: 10x in 21 months; the step in April 2026 is the multi-site plan.\nContext: both lost logos were single-dock sites below our current minimum.\nTime: 120" },
+    { "type": "quote", "quote": "We stopped answering the phone. The drivers book themselves and the yard is *calm by seven*.",
+      "by": "Site manager",
+      "role": "Mid-size operator, Hamburg, 14 docks",
+      "stat": {"value": "31 min", "label": "median wait at this site, down from 96", "source": "fact:wait_reduction"},
+      "question": "Does a real customer get the value you claim?", "notes": "Say: this is what an operator notices first.\nTime: 30" },
+    { "type": "market", "title": "*185M EUR* serviceable today: 12,000 EU mid-size operators x our 15.4k EUR contract",
+      "stats": [{"value": "EUR 1.8B", "label": "TAM: EU operators' yard and dock software spend, 12,000 x 150k EUR (assumption)", "source": "assumption:tam_bottom_up"},{"value": "EUR 185M", "label": "SAM: 12,000 operators x 15.4k EUR current contract (assumption)", "source": "assumption:sam_bottom_up"},{"value": "EUR 6.2M", "label": "SOM 2029: 400 operators x 15.4k EUR (projection)", "source": "projection:som_2029"}],
+      "points": ["Operator count from Eurostat NACE H52 size classes, 2024; contract value from our own 32 contracts"],
+      "question": "How big can this get, and how do you know?", "notes": "Say: the SAM is our price times the operators that exist.\nTime: 60" },
+    { "type": "business_model", "title": "Operators pay *1,280 EUR* per site per month; 81 percent gross margin, 9-month payback",
+      "stats": [{"value": "EUR 1,281", "label": "average MRR per customer", "source": "fact:mrr_per_customer"},{"value": "EUR 15.4k", "label": "average annual contract", "source": "fact:acv_current"},{"value": "81%", "label": "gross margin, Q3 2026", "source": "fact:gross_margin"},{"value": "9 months", "label": "CAC payback, gross-margin adjusted, 2026 cohort", "source": "fact:cac_payback"}],
+      "points": [{"icon": "credit-card", "text": "Priced per site per month; carriers never pay"}],
+      "question": "Who pays, how much, and does a euro in produce more than a euro out?", "notes": "Say: one price, per site, per month.\nTime: 60" },
+    { "type": "go_to_market", "title": "Founder-led sales closes a 15k EUR contract in *34 days*; 9 of 32 customers came from carrier referrals",
+      "diagram": {"kind": "funnel", "stages": [{"label": "Operators contacted, 2026", "value": "410"},{"label": "Demos on their own carrier list", "value": "96"},{"label": "One-dock pilots", "value": "31"},{"label": "Contracts signed", "value": "18"}]},
+      "stats": [{"value": "34 days", "label": "median sales cycle, 2026", "source": "fact:sales_cycle_days"},{"value": "[needs number]", "label": "CAC, 2026 cohort", "source": "fact:cac_2026"}],
+      "points": ["Beachhead: German and Benelux operators with 6 to 20 docks", "Next: two account executives from Q1 2027, each targeting 2 sites per month"],
+      "source": "fact:sales_cycle_days",
+      "question": "How do you get customers repeatably, and what does one cost?", "notes": "Say: a 20-minute demo on the operator's own carrier list, then a pilot on one dock.\nTime: 75" },
+    { "type": "competition", "title": "Only Meridian lets a carrier book *without an account*; the two incumbents require one",
+      "columns": ["", "Meridian", "Incumbent TMS module", "Point-solution startups", "Phone, fax, spreadsheet"],
+      "rows": [["Carrier books without account",true,false,false, "n/a"],["Time to book a slot", "40 s", "4 to 6 min", "2 min", "a phone call"],["Setup time per site", "2 days", "6 to 12 weeks", "1 to 2 weeks", "none"],["Price per site per month", "1,280 EUR", "bundled in TMS", "600 to 900 EUR", "0 EUR"],["Yard management, ERP integrations", "partial", "full", "partial", "none"]],
       "source": "assumption:competitor_grid",
-      "question": "Why will you win against the obvious alternatives?",
-      "notes": "Say: the incumbent wins on integrations; we win on adoption, and adoption is what the operator actually pays for.\nContext: competitor figures from public pricing and 11 customer interviews, labelled assumption.\nTransition: the people doing this.\nTime: 60" },
+      "question": "Why will you win against the obvious alternatives, and why won't the incumbent copy you?", "notes": "Say: the incumbents are ahead on integrations and we say so.\nTime: 60" },
     { "type": "team", "title": "We ran 40 docks and built the scheduling engine at a 2B EUR carrier",
-      "rows": [ [ "Lena Hoffmann", "CEO", "12 years in operations at a mid-size operator, ran 40 docks across 3 sites" ],
-                [ "Tomas Varga", "CTO, writes the code", "Built carrier-facing scheduling at a 2B EUR revenue carrier, team of 9" ],
-                [ "Priya Nair", "Head of sales", "Closed 20 of the 32 customers; previously 6 years selling TMS software" ] ],
-      "points": [ "Lena and Tomas worked together for 4 years before founding Meridian" ],
-      "question": "Why these people, and who writes the code?",
-      "notes": "Say: 1.1M EUR spent to reach 492k EUR ARR run-rate.\nContext: no advisors on the slide by design.\nTransition: what the next 24 months look like.\nTime: 60" },
-    { "type": "financials", "title": "Projection: 200k EUR MRR by October 2028, driven by 4 AEs closing 2 sites each per month",
-      "chart": { "kind": "bar", "labels": ["Oct 26", "Apr 27", "Oct 27", "Apr 28", "Oct 28"],
-                 "series": [ { "name": "MRR actual (EUR k)", "values": [41, null, null, null, null] },
-                             { "name": "MRR projection (EUR k)", "values": [null, 62, 98, 145, 200] } ],
-                 "y_label": "EUR k per month", "source": "projection:mrr_2028_projection" },
-      "points": [ "Drivers: 2 AEs from Q1 2027, 4 from Q1 2028; 2 new sites per AE per month; 15.4k EUR contract; NRR held at 110 percent; logo churn 6 percent a year",
-                  "Sensitivity: at 1 site per AE per month, MRR reaches 128k EUR by Oct 2028 and runway holds" ],
-      "question": "What does the next 24 months look like, and what drives it?",
-      "notes": "Say: this is a projection; the levers are AE count and sites per AE.\nContext: NRR assumed below the observed 118 percent on purpose.\nTransition: which is what the round pays for.\nTime: 60" },
-    { "type": "ask", "title": "Raising 3M EUR to reach 200k EUR MRR and 150 sites in 24 months",
-      "stats": [ { "value": "EUR 3M", "label": "seed round, one close", "source": "fact:raise_amount" }, { "value": "50 / 35 / 15", "label": "product / go-to-market / operations and buffer, percent", "source": "assumption:use_of_funds" },
-                 { "value": "24 months", "label": "runway at planned burn, next raise from month 18", "source": "projection:runway_months" } ],
-      "points": [ "Q2 2027: 60 sites live, 2 AEs ramped",
-                  "Q4 2027: yard-management module shipped, first 3 ERP integrations",
-                  "Q4 2028: 200k EUR MRR, 150 sites, Series A metrics with NRR above 110 percent",
-                  "Non-capital asks: intros to 5 Benelux operators and one TMS partner" ],
-      "question": "How much, for what, and what will be true when it is spent?",
-      "notes": "Say: one number, three buckets, three dated milestones.\nContext: 15 percent buffer is inside operations; valuation is for the conversation, not the slide.\nTransition: closing summary.\nTime: 90" }
+      "team": [{"name": "Lena Hoffmann", "role": "CEO", "bio": "12 years in operations at a mid-size operator, ran 40 docks across 3 sites"},{"name": "Tomas Varga", "role": "CTO, writes the code", "bio": "Built carrier-facing scheduling at a 2B EUR revenue carrier, team of 9"},{"name": "Priya Nair", "role": "Head of sales", "bio": "Closed 20 of the 32 customers; previously 6 years selling TMS software"}],
+      "points": ["Lena and Tomas worked together for 4 years before founding Meridian"],
+      "question": "Why these people, and who writes the code?", "notes": "Say: operator, engineer, seller.\nTime: 45" },
+    { "type": "ask", "title": "Raising *EUR 3M* to reach 200k EUR MRR and 150 sites in 24 months",
+      "subtitle": "One close, runway to month 24",
+      "use_of_funds": [{"label": "Product and engineering", "pct": 50, "source": "assumption:use_of_funds"},{"label": "Go-to-market", "pct": 35},{"label": "Operations and buffer", "pct": 15}],
+      "milestones": [{"when": "Q2 2027", "what": "60 sites live, 2 AEs ramped"},{"when": "Q4 2027", "what": "Yard-management module shipped, first 3 ERP integrations"},{"when": "Q4 2028", "what": "200k EUR MRR, 150 sites, NRR above 110 percent"}],
+      "source": "fact:raise_amount",
+      "question": "How much, for what, and what will be true when it is spent?", "notes": "Say: three million euros, two years, 150 sites.\nTime: 60" },
+    { "type": "closing", "title": "Dock scheduling that carriers *actually use*",
+      "points": [{"icon": "trending-up", "text": "EUR 41k MRR, up 10x in 21 months, 2 logos lost"},{"icon": "handshake", "text": "9 of 32 customers arrived through carrier referrals"},{"icon": "rocket", "text": "Raising EUR 3M to reach 200k EUR MRR in 24 months"}],
+      "subtitle": "lena@meridian.example, +49 30 000 000, meridian.example",
+      "notes": "Say: the one-liner again, then stop.\nTime: 20" }
   ]
 }
 ```
 
-Why this example validates: 12 slides, zero capacity warnings in the read variant (three traction stats, because each carries a source line there), each with a `title` that is a sentence, every stat and chart carrying a `source` whose prefix (`fact`, `assumption`, `projection`) matches the ledger kind, the market and financials slides labelled as assumption and projection in their own text, the traction chart with time on x and y from zero, incremental information in the stats, one competition row where the incumbent wins, no advisors, no investor logos, no valuation. Add `closing`, up to 6 `appendix` slides from `investor-qa.md`, and let the builder append `sources`. Run the read-alone test on the twelve titles before building.
+Why this example validates: 13 slides plus the generated sources pages, zero capacity warnings in the read variant, every `title` a sentence with at most one emphasised phrase, every stat and chart carrying a `source` whose prefix (`fact`, `assumption`, `projection`) matches the ledger kind, one `[needs number]` left visible instead of an estimate, notes in the Say, Context, Transition, Time form, and a `question` on every content slide. Tones are not set anywhere: the builder assigns them and prints the sequence.

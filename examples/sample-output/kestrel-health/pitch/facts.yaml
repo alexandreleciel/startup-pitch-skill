@@ -1,0 +1,520 @@
+# Kestrel Health fact ledger.
+# 2026-11-10 quick run; updated the same day with the founder's answers and the numbers the Series A deck cites.
+# 2026-11-11: three entries added for the rebuilt Series A deck (covered_employees, bookings_q3, sick_days_series).
+# Only numbers an output cites, plus both sides of every open conflict.
+
+company: Kestrel Health
+currency: GBP
+as_of: 2026-09-30              # end of Q3 2026; entries from the weekly export carry their own period in the label
+
+facts:
+  # ---- GMV, growth and net revenue (finance figures; founder confirmed 2026-11-10) ----
+  - id: gmv_current
+    label: GMV, Q3 2026, finance figure
+    value: 1900000
+    unit: GBP/quarter
+    kind: fact
+    status: confirmed
+    source: docs/board-update-2026-Q3.md#KPIs
+    definition: gross value of bookings paid through Kestrel, before the clinics' share, including manually invoiced enterprise bookings
+    note: founder confirmed 2026-11-10 that finance is the system of record. The weekly export shows less (gmv_q3_export) because it misses about 170k of manually invoiced enterprise bookings.
+
+  - id: gmv_q3_export
+    label: GMV, Q3 2026, per the weekly booking export (excludes manually invoiced enterprise bookings)
+    value: 1729980
+    unit: GBP/quarter
+    kind: fact
+    status: confirmed
+    source: data/kpis-weekly.csv#column=gmv_gbp
+    computed: true
+    method: sum of gmv_gbp over the 13 weeks with week_start 2026-07-06 to 2026-09-28
+    note: kept only for the footnote the founder asked for; superseded as the headline by gmv_current
+
+  - id: gmv_quarterly_series
+    label: GMV by quarter, Q1 to Q3 2026, finance figures
+    value: [1180000, 1450000, 1900000]
+    unit: GBP/quarter
+    kind: fact
+    status: unverified
+    source: docs/board-update-2026-Q3.md#KPIs
+    note: Q3 confirmed by the founder. Q1 and Q2 are the board update's finance figures; the weekly export is higher in both quarters and that gap is not explained yet (START-HERE question 2).
+
+  - id: gmv_q2_finance
+    label: GMV, Q2 2026, finance figure in the board update
+    value: 1450000
+    unit: GBP/quarter
+    kind: fact
+    status: conflicting
+    source: docs/board-update-2026-Q3.md#KPIs
+    conflicts_with: gmv_q2_export
+    note: used in outputs, because the founder named finance as the system of record
+
+  - id: gmv_q2_export
+    label: GMV, Q2 2026, per the weekly booking export
+    value: 1478140
+    unit: GBP/quarter
+    kind: fact
+    status: conflicting
+    source: data/kpis-weekly.csv#column=gmv_gbp
+    computed: true
+    method: sum of gmv_gbp over the 13 weeks with week_start 2026-04-06 to 2026-06-29
+    conflicts_with: gmv_q2_finance
+    note: the export is higher than finance here, the opposite of Q3. docs/board-update-2026-Q2-draft.md already notes the two figures.
+
+  - id: take_rate
+    label: Take rate (Kestrel's share of each booking), Q3 2026
+    value: 0.22
+    unit: ratio
+    kind: fact
+    status: confirmed
+    source: data/unit-economics.xlsx#Employer unit economics!B10
+    note: docs/board-update-2026-Q3.md states the same 22.0 percent
+
+  - id: net_revenue
+    label: Net revenue, Q3 2026
+    value: 418000
+    unit: GBP/quarter
+    kind: fact
+    status: confirmed
+    source: docs/board-update-2026-Q3.md#KPIs
+    note: equals the finance GMV times the take rate. The earlier export-based figure of 380,596 is withdrawn with the founder's answer on GMV.
+
+  - id: net_revenue_run_rate
+    label: Net revenue run-rate, Q3 2026 annualised
+    value: 1672000
+    unit: GBP/year
+    kind: fact
+    status: confirmed
+    derived_from: net_revenue * 4
+
+  - id: gmv_qoq_growth
+    label: GMV growth, Q2 2026 to Q3 2026, finance figures
+    value: 0.31
+    unit: ratio
+    kind: fact
+    status: unverified
+    derived_from: gmv_current / gmv_q2_finance - 1
+    window: Q2 2026 to Q3 2026
+    note: the board update states the same 31 percent. The Q2 base is still being reconciled with the export; on the export alone the growth was 17 percent.
+
+  - id: gmv_run_rate
+    label: GMV run-rate, Q3 2026 annualised, finance figure
+    value: 7600000
+    unit: GBP/year
+    kind: fact
+    status: confirmed
+    derived_from: gmv_current * 4
+
+  # ---- Network ----
+  - id: active_employers
+    label: Active employer clients, end of September 2026
+    value: 41
+    unit: customers
+    kind: fact
+    status: confirmed
+    source: data/kpis-weekly.csv#row=2026-09-28
+    note: docs/board-update-2026-Q3.md states the same figure
+
+  - id: active_employers_series
+    label: Active employer clients, last week of each month, November 2025 to October 2026
+    value: [25, 26, 28, 29, 31, 33, 34, 36, 37, 39, 41, 42]
+    unit: customers
+    kind: fact
+    status: confirmed
+    source: data/kpis-weekly.csv#column=active_employers
+    computed: true
+    method: active_employers in the last weekly row of each calendar month
+    note: the board update's quarter-end counts for Q1 and Q2 2026 are lower than the export's (START-HERE question 2); Q3 agrees
+
+  - id: active_clinics
+    label: Active partner clinics, end of September 2026
+    value: 312
+    unit: clinics
+    kind: fact
+    status: confirmed
+    source: data/kpis-weekly.csv#row=2026-09-28
+    note: docs/board-update-2026-Q3.md states the same figure
+
+  - id: covered_employees
+    label: Employees covered by active employer contracts, end of September 2026
+    value: 71400
+    unit: employees
+    kind: fact
+    status: unverified
+    source: docs/board-update-2026-Q3.md#KPIs
+    note: board update only; no export in the folder
+
+  - id: bookings_q3
+    label: Bookings (appointments), Q3 2026
+    value: 30100
+    unit: bookings/quarter
+    kind: fact
+    status: unverified
+    source: docs/board-update-2026-Q3.md#KPIs
+    note: board update figure; the weekly export sums lower, in line with the GMV gap (START-HERE question 1)
+
+  # ---- Retention and churn ----
+  - id: nrr_ttm
+    label: Net revenue retention, all employers, 12 months to September 2026
+    value: 1.18
+    unit: ratio
+    kind: fact
+    status: confirmed
+    source: data/unit-economics.xlsx#Employer unit economics!B21
+    window: 12 months to September 2026
+    note: founder confirmed 2026-11-10 that it covers all employers (the memo's "enterprise cohort" wording is wrong). Gross retention has not been measured yet.
+
+  - id: enterprise_accounts
+    label: Enterprise employers (250+ staff on annual contracts)
+    value: 14
+    unit: customers
+    kind: fact
+    status: confirmed
+    source: data/unit-economics.xlsx#Employer unit economics!C20
+    definition: employers with 250 or more staff on annual contracts
+    note: founder confirmed 2026-11-10. data/cohort-retention.csv tags 24 signed employers as ENT (250+ staff, any contract); that file needs the same definition before it goes into a data room.
+
+  - id: enterprise_logo_churn
+    label: Enterprise employers lost in two years
+    value: 0
+    unit: customers
+    kind: fact
+    status: confirmed
+    source: data/unit-economics.xlsx#Employer unit economics!B20
+    n: 14
+    window: 2 years
+    note: small sample, short record; say both
+
+  - id: employers_lost_12m
+    label: Employers lost in the last 12 months, all under 200 employees
+    value: 7
+    unit: customers
+    kind: fact
+    status: confirmed
+    source: notes/founder-perspective.md#The churn problem, honestly
+    window: 12 months to October 2026
+    note: founder confirmed 2026-11-10. data/cohort-retention.csv shows 6 over Q4 2025 to Q3 2026 and needs correcting.
+
+  - id: top5_gmv_share
+    label: Share of GMV from the five largest employers, Q3 2026
+    value: 0.58
+    unit: ratio
+    kind: fact
+    status: unverified
+    source: docs/board-update-2026-Q3.md#What went well
+    note: board update only; no customer-level export in the folder
+
+  - id: hands_on_share
+    label: Share of Kestrel cases that get hands-on treatment
+    value: 0.40
+    unit: ratio
+    kind: fact
+    status: unverified
+    source: notes/founder-perspective.md#What I believe
+    note: the memo calls it "our data"; no export in the folder. docs/competitive-landscape.md attributes the same figure to customers.
+
+  # ---- Unit economics ----
+  - id: gross_margin
+    label: Gross margin, Q3 2026
+    value: 0.61
+    unit: ratio
+    kind: fact
+    status: confirmed
+    source: data/unit-economics.xlsx#Employer unit economics!B12
+    definition: on net revenue, after clinical ops, payment processing and the triage team
+    note: docs/board-update-2026-Q3.md states the same 61 percent
+
+  - id: cac_blended
+    label: Blended CAC per employer, 12 months to September 2026
+    value: 6800
+    unit: GBP
+    kind: fact
+    status: confirmed
+    source: data/unit-economics.xlsx#Employer unit economics!B5
+    definition: sales and marketing spend over new employers won, fully loaded
+
+  - id: cac_enterprise
+    label: CAC per enterprise employer, 12 months to September 2026
+    value: 11400
+    unit: GBP
+    kind: fact
+    status: confirmed
+    source: data/unit-economics.xlsx#Employer unit economics!B7
+
+  - id: net_revenue_median_employer
+    label: Monthly net revenue, median employer, 12 months to September 2026
+    value: 1240.8
+    unit: GBP/month
+    kind: fact
+    status: confirmed
+    source: data/unit-economics.xlsx#Employer unit economics!B11
+    note: shown rounded to 1,241
+
+  - id: net_revenue_enterprise_employer
+    label: Monthly net revenue, mean of the 14 enterprise employers
+    value: 9900
+    unit: GBP/month
+    kind: fact
+    status: confirmed
+    source: data/unit-economics.xlsx#Employer unit economics!B16
+    n: 14
+
+  - id: cac_payback_blended_months
+    label: CAC payback, blended CAC on the median employer, 12 months to September 2026
+    value: 9
+    unit: months
+    kind: fact
+    status: confirmed
+    source: data/unit-economics.xlsx#Employer unit economics!B14
+    note: the sheet's own note says the target was 6; the board update also reports 9
+
+  - id: cac_payback_enterprise_months
+    label: CAC payback, enterprise employers, 12 months to September 2026
+    value: 1.9
+    unit: months
+    kind: fact
+    status: confirmed
+    source: data/unit-economics.xlsx#Employer unit economics!B17
+    n: 14
+
+  - id: sales_cycle_enterprise_months
+    label: Average enterprise sales cycle, Q3 2026
+    value: 5
+    unit: months
+    kind: fact
+    status: unverified
+    source: docs/board-update-2026-Q3.md#What did not go well
+    note: board update only
+
+  # ---- Outcomes and waiting times ----
+  - id: sick_days_reduction
+    label: Fall in MSK sick days, one employer, 212 participants, January to June 2026 against January to June 2025
+    value: 0.34
+    unit: ratio
+    kind: fact
+    status: confirmed
+    source: docs/clinical-outcomes-whitepaper.md#Results
+    n: 212
+    note: single employer, two sites, same individuals before and after, no control group, self-selected, shift patterns changed in March 2026
+
+  - id: sick_days_series
+    label: MSK sick days recorded for the same 212 employees at one employer, January to June 2025 and January to June 2026
+    value: [1418, 936]
+    unit: days
+    kind: fact
+    status: confirmed
+    source: docs/clinical-outcomes-whitepaper.md#Results
+    n: 212
+    note: employer HR records; same caveats as sick_days_reduction
+
+  - id: days_to_first_appointment
+    label: Average days to first physiotherapy appointment with Kestrel, one employer, January to June 2026
+    value: 2.3
+    unit: days
+    kind: fact
+    status: confirmed
+    source: docs/clinical-outcomes-whitepaper.md#Results
+    n: 212
+    note: docs/competitive-landscape.md quotes a network-wide median with no data file behind it
+
+  - id: days_to_first_appointment_before
+    label: Average days to first physiotherapy appointment via the same employer's previous occupational health route, January to June 2025
+    value: 19
+    unit: days
+    kind: fact
+    status: confirmed
+    source: docs/clinical-outcomes-whitepaper.md#Results
+    n: 212
+
+  - id: nhs_wait_weeks
+    label: NHS physiotherapy wait
+    value: 14
+    unit: weeks
+    kind: assumption
+    status: unverified
+    source: notes/founder-perspective.md#What we actually are
+    method: founder's figure, also in docs/competitive-landscape.md and the 2024 deck; no public source or year in the folder
+
+  - id: insurer_wait_days
+    label: Wait for a first appointment via insurer MSK pathways
+    value: 10
+    unit: days
+    kind: assumption
+    status: unverified
+    source: docs/competitive-landscape.md#Direct competitors (employer MSK)
+    method: stated as "10+ days" in the August 2026 landscape note; no source in the folder
+
+  - id: competitor_grid
+    label: Competitor comparison
+    value: Insurer MSK pathways, US digital MSK providers and the NHS compared with Kestrel on access, hands-on treatment, employer data and evidence
+    unit: text
+    kind: assumption
+    status: unverified
+    source: docs/competitive-landscape.md
+    method: the COO's August 2026 landscape note, from public information and customer conversations
+
+  # ---- Team ----
+  - id: ceo_book_size
+    label: Book of corporate health business the CEO owned at a UK health insurer
+    value: 120000000
+    unit: GBP
+    kind: fact
+    status: unverified
+    source: team/team.md#Founders
+
+  # ---- Cash and the round ----
+  - id: cash
+    label: Cash, end of September 2026
+    value: 1900000
+    unit: GBP
+    kind: fact
+    status: unverified
+    source: docs/board-update-2026-Q3.md#KPIs
+    note: board update only; no bank or management-accounts export in the folder
+
+  - id: net_burn
+    label: Net burn per month, Q3 2026
+    value: 215000
+    unit: GBP/month
+    kind: fact
+    status: unverified
+    source: docs/board-update-2026-Q3.md#KPIs
+    note: board update only
+
+  - id: runway_months
+    label: Runway at end of September 2026, at Q3 net burn
+    value: 8.8
+    unit: months
+    kind: fact
+    status: unverified
+    derived_from: cash / net_burn
+
+  - id: ask
+    label: Series A round size
+    value: 9500000
+    unit: GBP
+    kind: fact
+    status: confirmed
+    source: docs/board-update-2026-Q3.md#Series A plan
+    note: notes/founder-perspective.md states the same figure. legal/round-terms-draft.md was not read.
+
+  - id: use_of_funds_gtm_pct
+    label: Use of funds, go-to-market (enterprise sales and employer success)
+    value: 45
+    unit: percent
+    kind: assumption
+    status: unverified
+    source: docs/board-update-2026-Q3.md#Series A plan
+    method: founders' planned allocation in the Q3 board update
+
+  - id: use_of_funds_product_pct
+    label: Use of funds, product (outcomes tracking, clinician tooling, HR system integrations)
+    value: 30
+    unit: percent
+    kind: assumption
+    status: unverified
+    source: docs/board-update-2026-Q3.md#Series A plan
+    method: founders' planned allocation in the Q3 board update
+
+  - id: use_of_funds_clinical_pct
+    label: Use of funds, clinical team and supply operations
+    value: 15
+    unit: percent
+    kind: assumption
+    status: unverified
+    source: docs/board-update-2026-Q3.md#Series A plan
+    method: founders' planned allocation in the Q3 board update
+
+  - id: use_of_funds_buffer_pct
+    label: Use of funds, buffer
+    value: 10
+    unit: percent
+    kind: assumption
+    status: unverified
+    source: docs/board-update-2026-Q3.md#Series A plan
+    method: founders' planned allocation in the Q3 board update
+
+  - id: milestone_gmv_run_rate
+    label: Series A milestone, GMV run-rate by end of 2027
+    value: 10000000
+    unit: GBP/year
+    kind: projection
+    status: unverified
+    source: docs/board-update-2026-Q3.md#Series A plan
+    method: target stated by the founders; no financial model yet (founder, 2026-11-10), so its drivers are not named
+
+  - id: milestone_employers
+    label: Series A milestone, active employers by end of 2027
+    value: 120
+    unit: customers
+    kind: projection
+    status: unverified
+    source: docs/board-update-2026-Q3.md#Series A plan
+    method: target stated by the founders; no financial model yet, so its drivers are not named
+
+  # ---- Market ----
+  - id: sam
+    label: Serviceable market, UK, Netherlands and Ireland, employers with 250+ staff, physiotherapy pathway only
+    value: 1100000000
+    unit: GBP/year
+    kind: assumption
+    status: unverified
+    source: docs/market-sizing-2026.md#Method (bottoms-up)
+    method: 15.6M employees at 250+ employers in the three countries x 18 percent annual MSK incidence x GBP 403 per case (6.2 sessions x GBP 65)
+    note: founder chose this as the market figure on 2026-11-10. Booking value, not Kestrel revenue. The file notes that people who seek treatment are fewer than the 18 percent who report a problem.
+
+  - id: sam_employees
+    label: Employees at employers with 250+ staff, UK, Netherlands and Ireland
+    value: 15600000
+    unit: employees
+    kind: assumption
+    status: unverified
+    source: docs/market-sizing-2026.md#Method (bottoms-up)
+    computed: true
+    method: sum of the file's UK (11.3M), Netherlands (3.4M) and Ireland (0.9M) counts; the file names no public source or year
+
+  - id: msk_incidence
+    label: Working adults reporting an MSK problem causing absence or treatment in a year
+    value: 0.18
+    unit: ratio
+    kind: assumption
+    status: unverified
+    source: docs/market-sizing-2026.md#Method (bottoms-up)
+    method: the file's average of UK and EU public health survey data; it measures people reporting a problem, not people seeking treatment
+
+  - id: spend_per_case
+    label: Spend per case through an employer-funded physiotherapy pathway, market average
+    value: 403
+    unit: GBP
+    kind: assumption
+    status: unverified
+    source: docs/market-sizing-2026.md#Method (bottoms-up)
+    method: 6.2 sessions x GBP 65, the file's market average; Kestrel's own cases average slightly less
+
+  - id: sam_net_revenue
+    label: Net revenue pool in the serviceable market at Kestrel's take rate
+    value: 242000000
+    unit: GBP/year
+    kind: assumption
+    status: unverified
+    derived_from: sam * take_rate
+    method: serviceable booking value times the current 22 percent take rate
+
+  - id: tam
+    label: Market estimate, UK plus five European markets, 2026 refresh (not used)
+    value: 11000000000
+    unit: GBP/year
+    kind: assumption
+    status: unverified
+    source: docs/market-sizing-2026.md#Method (bottoms-up)
+    method: 46.4M employees at 250+ employers x 18 percent MSK incidence x GBP 403 per case, plus a per-employee prevention fee layer and an occupational health layer
+    note: not used in investor material (founder, 2026-11-10). The same file puts the like-for-like UK figure at about 0.9B, below the 4.2B in the 2024 seed deck.
+
+  # ---- Round profile ----
+  - id: round_profile
+    label: Stage and target investor
+    value: Series A, UK company, institutional Series A funds, priced equity, reading deck sent ahead and a presenting deck for the meeting
+    unit: text
+    kind: assumption
+    status: unverified
+    method: inferred from docs/board-update-2026-Q3.md (Series A process opening November 2026, one fund already in discussion); core.md default applied for deck mode. Founder to confirm.

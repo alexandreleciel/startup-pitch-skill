@@ -263,7 +263,7 @@ facts:
     kind: fact
     status: confirmed
     source: docs/Meridian-customer-case-study-Nordfracht.pdf#page=1
-    cite_as: published customer case study, 2025
+    cite_as: published customer case study, June 2025
     n: 1
     window: March to May 2025 against March to May 2024
     note: one site, first three months after go-live, from the customer's own gate logs. Published June 2025.
@@ -275,7 +275,7 @@ facts:
     kind: fact
     status: confirmed
     source: docs/Meridian-customer-case-study-Nordfracht.pdf#page=1
-    cite_as: published customer case study, 2025
+    cite_as: published customer case study, June 2025
     n: 1
     window: March to May 2025 against March to May 2024
     note: (94 - 65) / 94; one customer, one site, three months. Not a company-wide metric.
@@ -287,7 +287,7 @@ facts:
     kind: fact
     status: confirmed
     source: docs/Meridian-customer-case-study-Nordfracht.pdf#page=1
-    cite_as: published customer case study, 2025
+    cite_as: published customer case study, June 2025
     n: 1
     note: "approximately EUR 38,000"; one site, one year; also in docs/customer-interviews-notes.md
 
@@ -298,9 +298,20 @@ facts:
     kind: fact
     status: confirmed
     source: docs/Meridian-customer-case-study-Nordfracht.pdf#page=1
-    cite_as: published customer case study, 2025
+    cite_as: published customer case study, June 2025
     n: 1
     note: Hamburg main site, 2025; one site
+
+  - id: case_morning_peak_pct
+    label: Share of trucks arriving between 06:00 and 09:30 at the first customer, before Meridian
+    value: 60
+    unit: percent
+    kind: fact
+    status: confirmed
+    source: docs/Meridian-customer-case-study-Nordfracht.pdf#page=1
+    cite_as: published customer case study, June 2025
+    n: 1
+    note: "Sixty percent" in the case study, "60%" in docs/customer-interviews-notes.md; one customer, 2025. Added 2026-11-11 for the deck's problem slide.
 
   # ---- Sales ----
   - id: pipeline_open_deals
@@ -313,6 +324,16 @@ facts:
     computed: true
     method: count of rows; owner column is Lena on 14 and Jonas on 4, none owned by the account executive. By stage, 3 negotiation, 4 proposal, 5 demo done, 6 qualified.
 
+  - id: pipeline_open_acv
+    label: Annual contract value of the 18 open deals
+    value: 487200
+    unit: EUR/year
+    kind: fact
+    status: confirmed
+    source: data/pipeline.csv#column=acv_eur
+    computed: true
+    method: sum of acv_eur over the 18 rows. Open pipeline, unweighted; none of it is revenue. Added 2026-11-11 for the deck's go-to-market slide.
+
   # ---- Round and investor ----
   - id: round_profile
     label: Stage and target investor
@@ -320,4 +341,4 @@ facts:
     unit: text
     kind: assumption
     status: confirmed
-    method: founder answer, 2026-11-10 ("German seed funds first, priced round, yes"). The deck mode is still the core.md default.
+    method: founder answer, 2026-11-10 ("German seed funds first, priced round, yes"). On 2026-11-11 the founder asked for one deck as PDF and web version, no PowerPoint; it is built as the reading variant.

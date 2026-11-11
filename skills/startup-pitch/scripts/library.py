@@ -163,6 +163,7 @@ def comparables(rows, sector, rnd, n=3):
         return (
             -(4 if same_sector and gap == 0 else 3 if same_sector and gap == 1 else 2 if gap == 0 else 1 if same_sector else 0),
             not is_curated(r),
+            not (r["slide_count"].isdigit() and int(r["slide_count"]) >= 10),
             not r["slide_count"],
             -(int(r["year"]) if r["year"].isdigit() else 0),
         )
@@ -222,6 +223,12 @@ def main():
     ap.add_argument("--comparables", action="store_true",
                     help="three decks to study for this --sector and --round; widens the search so it always returns three")
     a = ap.parse_args()
+    if a.round:  # accept "Series A", "series a", "preseed", "pre seed"
+        r = a.round.strip().lower().replace("_", "-").replace(" ", "-")
+        a.round = {"preseed": "pre-seed", "seriesa": "series-a", "seriesb": "series-b", "seriesc": "series-c",
+                   "series-d": "series-d+", "seriesd": "series-d+"}.get(r, r)
+    if a.sector:
+        a.sector = a.sector.strip().lower()
     rows = load(a.csv)
     if a.stats:
         stats(rows)

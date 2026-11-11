@@ -1,136 +1,168 @@
-# Design: making the deck look like it was made for this company
+# Design: a deck that looks made for this company
 
-Read this before writing `deck.json` and again when reviewing the QA screenshots. It distils
-Anthropic's `frontend-design` skill and the html-slides lineage for the one case that matters
-here: a 16:9 investor deck that will be presented on a projector and read as a PDF.
+Read this before writing `deck.json` and again when reviewing the QA screenshots. Field
+names, diagram kinds and the capacity table are in `deck-structure.md`; the nine art
+directions are in `assets/deck-template/THEMES.md`. This file is about judgement.
 
 ## Contents
 
-1. Choose a theme for this company, not a default
-2. Typography and the headline
-3. One memorable element per slide
-4. Charts and numbers
-5. Images, logos and brand files
-6. The generated-deck tells to avoid
-7. QA pass on screenshots
-8. When to use `custom_html`
+1. What "designed" means here
+2. Choosing the art direction
+3. Composing a slide
+4. Choosing the visual for the content
+5. Rhythm across the deck
+6. Numbers and charts
+7. What makes a deck look cheap
+8. Reviewing the screenshots
+9. PowerPoint: none, faithful or editable
 
-## 1. Choose a theme for this company, not a default
+## 1. What "designed" means here
 
-Four themes ship in `assets/deck-template/themes.css` (details in `THEMES.md`):
+An investor sees twenty decks a week. A designed deck is one where each slide has a single
+thing the eye lands on, the whole stage is used, the look belongs to this company, and the
+sequence has pace. A typed deck is a title in the top-left corner with small text under it,
+the same on every slide. The builder draws the layouts, tones, grids and diagrams; your job
+is to give it content with a shape: a number, a diagram, an image, a quote. A slide with
+only a title and bullets is not finished.
 
-| Theme | Feel | Fits |
-|---|---|---|
-| `graphite` | dark graphite ground, editorial serif display, warm off-white type | deep tech, hardware, infrastructure, anything that should feel considered |
-| `paper` | warm light ground, one restrained green accent, humanist sans | B2B SaaS, services, read-ahead decks that will be printed or skimmed |
-| `signal` | white ground, heavy wide grotesk, one hot orange-red accent, large numerals | consumer, marketplace, brands that trade on energy |
-| `midnight` | deep navy, ice type, geometric sans, sky blue and amber | fintech, data, security |
+## 2. Choosing the art direction
 
-Pick by audience and setting, then say why in one line in the run log. Dark grounds carry a
-room; light grounds read better as PDFs on a laptop. If the founder's folder has a brand file
-(hex colours, font names, a logo), keep the theme that fits the setting and set `meta.accent`
-to the brand colour and `meta.font_display` / `meta.font_body` to the brand faces. Check the
-accent against the ground: a mid-blue accent on `midnight` disappears, a pale accent on
-`paper` has no contrast. The builder does not check contrast; you do, on the screenshots.
+Pick from the nine themes in `THEMES.md` by who the company sells to and the room the deck
+will be seen in. Useful starting points: `ledger` for anything sold to a finance or
+operations buyer; `blueprint` for deep tech, robotics and infrastructure; `nocturne` for
+consumer, media and commerce; `poster` for hardware, climate, food and marketplaces;
+`studio` for friendly consumer and health products. The older four (`graphite`, `paper`,
+`signal`, `midnight`) are quieter.
 
-Never ship a theme because it is first in the list. A pitch deck is the one document where
-investors see twenty near-identical decks a week; the theme choice is part of the message.
+- If the folder has brand colours, fonts or a logo, keep the theme that fits and set
+  `meta.accent`, `meta.font_display`, `meta.font_body`, `meta.logo` and, for dark grounds,
+  `meta.logo_light`. The builder checks contrast and adjusts the accent for text.
+- Choose for a reason and write it in one line in the run log. Do not reuse the theme of
+  the last deck you built out of habit.
+- Which brand colour becomes the accent: the one that contrasts with the theme's ink. A
+  brand navy or dark teal on a navy-ink theme disappears; use the brand's brighter colour
+  as the accent and let the dark one be the ink.
+- If the logo is dark, make or ask for a light version and set `meta.logo_light`, so it
+  does not sit on a white chip on dark slides.
+- A reading deck sent ahead works on any theme; a deck projected in a bright room is safer
+  on a light base tone.
 
-## 2. Typography and the headline
+## 3. Composing a slide
 
-The headline carries the slide. Rules the builder enforces by layout and you enforce by
-writing:
+- **One focal element.** A hero number, a diagram, a product image, a quote, or the headline
+  itself on statement slides. Everything else supports it.
+- **The title is the takeaway**, under twelve words, with its number, unit and date. Mark
+  the phrase that carries the point with asterisks: `"MRR grew *2.15x* in 12 months"`. One
+  emphasis per title.
+- **Give the number its own stat.** A figure inside a sentence is invisible; the same figure
+  as a stat owns a cell. Use `trend` or `delta` when there is a before.
+- **Fill the stage.** If the build reports a slide as looking empty, add the missing visual
+  (a diagram, a second stat, an image, a quote) or merge the slide with its neighbour. Do not
+  pad with words.
+- **Cut, do not shrink.** When the capacity check says a slide is over, remove words or split
+  it. The renderer picks type sizes; shorter content is set larger.
+- **Icons carry meaning or are left out.** Use `icon` on points and steps when the icon names
+  the thing (a truck for carriers, a shield for compliance). Three unrelated icons are noise.
 
-- The headline is the takeaway, under twelve words, with the number, unit and date when the
-  slide is about a number. "MRR grew 10x in 21 months to EUR 41k (Oct 2026)" beats "Traction".
-- Headlines read alone: scrolling only the titles tells the whole pitch. Test this in the
-  speaker-notes overlay or by reading `deck.json` titles top to bottom.
-- Sentence case. No ALL CAPS eyebrow labels, no middle-dot meta strings, no arrows appended
-  to text, no single word in a different colour for emphasis.
-- Body copy under 30 words per slide in the presented variant. If it needs more, it is two
-  slides or it belongs in the speaker notes.
-- One display face and one body face, from the theme. Do not mix in a third.
+## 4. Choosing the visual for the content
 
-## 3. One memorable element per slide
+| The content is | Use |
+|---|---|
+| A process, how it works, a pipeline through the product | `diagram: flow` (with a loop-back if it feeds itself) |
+| Conversion from many to few (pipeline, onboarding) | `diagram: funnel` |
+| Market sizing | `market` slide with three stats and their methods: drawn as nested circles |
+| Competitors by capability | `diagram: power_grid`, or the competition table |
+| Two real trade-offs with named competitors | `diagram: matrix` (never the company alone in a corner) |
+| Milestones, roadmap, what the round buys | `diagram: timeline` with a today marker |
+| A self-reinforcing loop | `diagram: loop` |
+| Architecture, product tiers | `diagram: layers` |
+| A measured change for a customer | `diagram: before_after`, or a `case_study` slide |
+| The product | `image` with `frame: browser` or `phone`; two images may overlap |
+| The best sentence a customer said | `quote` slide, with the metric beside it |
+| Customers or partners with permission to name | `logos[]` |
+| Use of funds | chart `donut` |
+| Growth over time | bar chart: the latest bar is highlighted automatically; add an `annotation` at the event that changed the slope |
+| Several health metrics | `sparklines[]` |
+| A chapter break | `section` slide |
+| One sentence that must land | `statement` slide |
 
-Each slide type has a built-in focal element: the wordmark on the cover, the big number on
-the problem slide, the chart on traction, the stepped blocks on market, the amount on the ask.
-Everything else on the slide stays quiet. Before adding anything (a second stat, an extra
-bullet, an image), ask what it adds to the one message. Density limits per slide type are in
-`deck-structure.md`; the builder warns when you exceed them, and the warning is a signal to
-cut, not to shrink type.
+A market slide needs a serviceable market with its method; show the wider market only when
+the folder sources it, and use today's revenue as the inner ring when there is no
+obtainable-market figure. Keep flow steps to similar lengths so the cards match, and keep
+section titles short: they become the running head of the slides that follow.
 
-Rhythm matters across the deck: alternate dense slides (traction, business model, competition)
-with light ones (insight, statement, closing). A deck of fourteen stat grids is a spreadsheet.
+When the folder has no product image, do not leave a frame empty: explain the product with a
+`flow` or `before_after` diagram and ask the founder for screenshots.
 
-## 4. Charts and numbers
+## 5. Rhythm across the deck
 
-The builder draws charts as inline SVG (HTML, PDF) and native charts (PPTX) from the same data,
-with the y axis at zero and a source caption under every chart. What you control:
+The builder alternates light, dark and accent tones on its own; set `tone` on a slide only
+to make a point. What you control is the sequence: open with the cover and the problem,
+place a `section` slide before each chapter (two or three in a 12 to 16 slide deck), follow
+a dense slide (traction, business model, competition) with a light one (quote, statement,
+insight), and end on a closing slide that repeats the one-liner with three hero facts. Read
+the tone line in the build log (`tones: D L L D L A ...`): four data slides in a row with no
+break means a section, quote or statement is missing.
 
-- Pick the chart kind by the data: `bar` for monthly or quarterly totals, `line` for cohorts
-  and trends over many periods, `stacked_bar` for use of funds or revenue mix, `horizontal_bar`
-  for ranked categories, `area` only for a single cumulative series shown next to its
-  incremental counterpart. No pie charts.
-- One series unless the comparison is the point. Two at most. Actual and projection share one
-  chart with `null` gaps so the break is visible.
-- Labels carry units and dates: "EUR k / month", "Jan 25 ... Oct 26". Round to the precision
-  the source supports; a 41,183 becomes 41.2k, not 41,183.
-- Every `stats[].value` and chart `source` names a ledger id (`fact:mrr_current`). The sources
-  slide is generated from these; a stat without a source prints an amber "needs source".
-- `[needs number]` renders as a dashed amber slot. That is intentional: a founder must not be
-  able to send a deck with an invented figure by accident. Clear every slot or leave the gap
-  visible and say so in the handoff.
+## 6. Numbers and charts
 
-## 5. Images, logos and brand files
+- Every stat and chart cites a ledger id; the sources slide is generated from them.
+- One series unless the comparison is the point; actual and projection share a chart with a
+  `null` gap so the break is visible. The y axis starts at zero.
+- Labels carry units and dates. Round to what the source supports.
+- `[needs number]` and `[needs detail]` render as amber slots on purpose: a founder must not
+  be able to send an invented figure by accident.
+- Small samples say so on the slide ("one site, three months", "n=212").
 
-- `meta.logo` takes an SVG or PNG from the founder's folder; the builder copies it next to the
-  deck and embeds it. SVG logos in the PPTX need playwright-core to rasterise; otherwise
-  supply a PNG.
-- Product screenshots go on the `product` slide only, inside the frame the layout provides.
-  One image, real product, no stock photography, no generic illustration of "a team" or
-  "growth".
-- A team slide uses names, roles and one proof line each; photos are optional and only if
-  the founder supplies them.
+## 7. What makes a deck look cheap
 
-## 6. The generated-deck tells to avoid
+Check the finished deck against this list; each item is a reason an investor discounts the
+company before reading a word.
 
-These are the patterns that make a deck look machine-made, drawn from the frontend-design
-calibration list and from investor feedback on AI-written decks. The themes avoid them by
-construction; do not reintroduce them through `custom_html` or copy:
+- every slide the same layout and background
+- titles that are labels ("Traction", "Market") instead of takeaways
+- bullets where a number, diagram or image should be
+- small text with the bottom half of the slide empty
+- three or more fonts, or more than one accent colour used at equal weight
+- a pie chart with many slices; a chart without units, dates or a highlighted point
+- a competition 2x2 with the company alone in the top-right corner
+- stock photos, clip-art icons, decorative illustrations unrelated to the product
+- screenshots without a frame, stretched or blurry
+- a team slide of names with no proof line
+- buzzwords: revolutionary, disrupt, seamless, cutting-edge, world-class, unlock, leverage
+- a market slide of three numbers with no method
+- visible placeholders the founder did not choose to leave
 
-- cream background with a terracotta accent and a high-contrast serif as a reflex choice;
-  near-black with one acid green; both are fine only when chosen for a reason
-- the card kit: content chopped into identical rounded cards with the same soft shadow
-- gradient washes as decoration, glow effects, particles
-- tracked-out ALL-CAPS labels above every heading, "01 / 02 / 03" numbering on content
-  that is not a sequence
-- a competition 2x2 with the company alone in the top right
-- fade-and-slide-up on every element; one restrained reveal per slide at most, and none in
-  the PDF
-- buzzword copy: revolutionary, disrupt, seamless, cutting-edge, world-class, best-in-class,
-  unlock, leverage, synergy. Replace with the specific thing.
-- a market slide that is three circles with billions and no method line
+## 8. Reviewing the screenshots
 
-## 7. QA pass on screenshots
+`pitch.py deck` writes `pitch/deck/qa/slide-NN.png` and reports capacity, overflow, contrast,
+minimum text size and slides that look empty. Fix those lines first. Then open every
+screenshot and ask:
 
-Run `pitch.py deck` and open `pitch/deck/qa/`.
-The summary lists capacity warnings (what fits on each layout), overflow, clipped text and overlaps; fix those first in `deck.json`. Then
-look at every slide and ask, in this order:
+1. In two seconds, what is this slide about? If the answer is not the title's point, the
+   focal element is wrong.
+2. Is the stage used, without crowding?
+3. Does the deck change pace, or do five slides in a row look alike?
+4. Would this slide survive next to one made by a designer? If not, change its content
+   shape (see section 4), not its wording.
+5. Is anything on it that the founder could not defend, or that should not be public?
 
-1. Does the headline alone tell me what this slide proves?
-2. Is there exactly one thing my eye goes to? Is it the right thing?
-3. Can I read the smallest text from the back of a room (nothing under 22 px on the stage)?
-4. Does every number carry a unit and a date, and a source caption?
-5. Would a founder be embarrassed by any word on this slide (buzzwords, hedges, filler)?
-6. Does the deck still work in grayscale (print test) and without the web fonts (offline)?
+Three build-and-look passes is normal for a good deck.
 
-Fix in `deck.json`, rebuild, re-check. Three passes is normal.
+## 9. PowerPoint: none, faithful or editable
 
-## 8. When to use `custom_html`
+The HTML deck and its PDF are the designed artefact. PowerPoint cannot reproduce every
+effect, so the founder chooses (`meta.pptx`):
 
-Only for a layout the builder does not have (a product flow diagram, a before-and-after, a
-timeline with more than five points). Write it with the theme tokens (`var(--ink)`,
-`var(--accent)`, `var(--font-display)`), keep it inside the 1920x1080 stage with fixed pixel
-sizes, and give it `source` ids like any other slide. The PPTX gets the slide's text and notes
-only, so if the investor will receive the PPTX, prefer a built-in type.
+- `none`: PDF and web deck only. The right choice when the deck is sent as a link or PDF.
+- `faithful` (default): each slide is a high-resolution picture with speaker notes. It looks
+  identical to the PDF; the text cannot be edited in PowerPoint. Edit `deck.json` and rebuild.
+- `editable`: text and charts are native and editable; grounds, cells and diagrams are
+  pictures. Close to the PDF, with safe fonts, so line breaks can differ slightly.
+
+Ask once, before building. If the founder will hand the deck to someone who must edit it in
+PowerPoint, choose `editable`; otherwise `faithful` or `none`.
+
+`custom_html` remains for a layout the builder does not have. Use the theme's CSS variables,
+stay inside the 1920x1080 stage, and cite sources as on any other slide. It is not measured
+by the capacity check, so look at its screenshot with extra care.

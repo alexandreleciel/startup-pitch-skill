@@ -3,22 +3,30 @@
 /*
  * build_deck.js: turn pitch/deck/deck.json into deck.html and deck.pptx.
  *
- *   node scripts/build_deck.js pitch/deck/deck.json [--html-only] [--pptx-only] [--out DIR] [--check] [--strict]
+ *   node scripts/build_deck.js pitch/deck/deck.json [--html-only] [--pptx-only] [--pptx MODE]
+ *                                                   [--out DIR] [--check] [--strict] [--facts FILE]
  *
- * - deck.html is one self-contained file: fixed 1920x1080 stage scaled to the window,
- *   keyboard / click / touch navigation, speaker notes (press n), print stylesheet with
- *   one page per slide, inline SVG charts, Google Fonts with local fallbacks.
- * - deck.pptx is a native PowerPoint file built with pptxgenjs (LAYOUT_WIDE), with
- *   native charts, tables, speaker notes and a theme mapped to safe fonts. After writing
- *   it the script runs scripts/pptx_check.py (structural check, Python standard library)
- *   and, when Anthropic's pptx skill is installed on the machine, its OOXML validator too.
- * - Before rendering, a capacity lint lays the deck's words out in its own fonts and
- *   reports what does not fit (--strict fails the build, --capacities prints the table).
+ * - deck.html is one self-contained file: a fixed 1920x1080 stage scaled to the window,
+ *   keyboard, click and touch navigation, speaker notes (press n), a print stylesheet with
+ *   one page per slide. Slides are composed from measured cells (mosaic, colour-block
+ *   split, full-bleed), each in one of the theme's tones (light, dark, accent), with
+ *   inline SVG charts, diagrams and icons.
+ * - deck.pptx comes in three modes (meta.pptx or --pptx): "faithful" (default; every
+ *   slide is a 2x picture rendered by Chrome, with speaker notes and a title per slide),
+ *   "editable" (a picture of the ground and shapes with native text boxes and native
+ *   charts on top) and "none". Without Chrome the native renderer (shapes, charts and
+ *   tables drawn by pptxgenjs) is used. After writing, scripts/pptx_check.py runs and,
+ *   when Anthropic's pptx skill is installed on the machine, its OOXML validator too.
+ * - The renderer is also the capacity lint: every text is wrapped in the deck's own fonts
+ *   before anything is drawn, and what does not fit is reported per slide (--strict fails
+ *   the build, --capacities prints the table of what fits).
  * - --check screenshots every slide with playwright-core and the installed Chrome to
- *   deck/qa/slide-NN.png and reports overflow and overlapping text.
+ *   deck/qa/slide-NN.png and reports overflow, overlapping text, type below the size
+ *   floor and text contrast under 4.5:1.
  *
  * Dependencies: pptxgenjs and playwright-core (scripts/package.json). Node 18+, CommonJS.
- * Themes and fonts live in assets/deck-template/themes.css; see THEMES.md.
+ * Themes live in assets/deck-template/themes.css (see THEMES.md), glyph widths of the
+ * theme faces in font-metrics.json, icons (a subset of Lucide, ISC) in icons.json.
  */
 
 const fs = require('fs');
@@ -31,30 +39,35 @@ const PLACEHOLDER = '[needs number]';
 const KNOWN_TYPES = [
   'cover', 'problem', 'solution', 'product', 'insight', 'market', 'traction', 'business_model',
   'go_to_market', 'competition', 'team', 'financials', 'ask', 'roadmap', 'closing', 'appendix',
-  'sources', 'custom_html', 'statement', 'two_column',
-  'case_study',   // used by the eval fixtures: title, points, stats, optional image or chart (generic layout)
+  'sources', 'custom_html', 'statement', 'two_column', 'section', 'quote',
+  'case_study',   // one customer's before and after: title, points, stats, optional image or chart
 ];
 const MAX_POINTS = 5;
 const MAX_STATS = 4;
+const warn = (msg) => { if (!PROBE_QUIET) console.log('  warning: ' + msg); };
 
 // --------------------------------------------------------------------------------------
 // 1. CLI
 // --------------------------------------------------------------------------------------
 
 function usage() {
-  console.log('Usage: node scripts/build_deck.js pitch/deck/deck.json [--html-only] [--pptx-only] [--out DIR] [--check] [--strict] [--facts pitch/facts.yaml]');
+  console.log('Usage: node scripts/build_deck.js pitch/deck/deck.json [--html-only] [--pptx-only] [--pptx none|faithful|editable] [--out DIR] [--check] [--strict] [--facts pitch/facts.yaml]');
   console.log('       node scripts/build_deck.js --capacities     print the capacity table (what fits on each slide type)');
+  console.log('       node scripts/build_deck.js --measure-fonts  re-measure the theme faces into assets/deck-template/font-metrics.json (needs Chrome, online)');
 }
 
 function parseArgs(argv) {
-  const opts = { input: null, html: true, pptx: true, out: null, check: false, facts: null, strict: false };
+  const opts = { input: null, html: true, pptx: true, pptxMode: null, out: null, check: false, facts: null, strict: false, capacities: false, measure: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--html-only') opts.pptx = false;
     else if (a === '--pptx-only') opts.html = false;
+    else if (a === '--pptx') opts.pptxMode = argv[++i];
+    else if (a.startsWith('--pptx=')) opts.pptxMode = a.slice(7);
     else if (a === '--check') opts.check = true;
     else if (a === '--strict') opts.strict = true;
-    else if (a === '--capacities') { console.log(capacityMarkdown()); process.exit(0); }
+    else if (a === '--capacities') opts.capacities = true;
+    else if (a === '--measure-fonts') opts.measure = true;
     else if (a === '--out') opts.out = argv[++i];
     else if (a.startsWith('--out=')) opts.out = a.slice(6);
     else if (a === '--facts') opts.facts = argv[++i];
@@ -63,14 +76,15 @@ function parseArgs(argv) {
     else if (!a.startsWith('--')) opts.input = a;
     else { console.error('Unknown option: ' + a); usage(); process.exit(1); }
   }
-  if (!opts.input) { usage(); process.exit(1); }
+  if (opts.pptxMode != null && !['none', 'faithful', 'editable'].includes(String(opts.pptxMode))) { console.error('--pptx takes none, faithful or editable'); process.exit(1); }
+  if (!opts.input && !opts.capacities && !opts.measure) { usage(); process.exit(1); }
   return opts;
 }
 
 const log = (msg) => console.log(msg);
 // Relative path for messages when the file is under the current folder, absolute otherwise.
 function rel(p) { const r = path.relative(process.cwd(), p); return r && !r.startsWith('..') ? r : p; }
-const warn = (msg) => console.log('  warning: ' + msg);
+
 
 // --------------------------------------------------------------------------------------
 // 2. Load and normalise deck.json
@@ -126,7 +140,9 @@ function normaliseSlide(s, i, ctx) {
     out.unknownType = out.type;
     out.type = 'statement';
   }
-  out.points = asArray(s.points);
+  const sp = splitPoints(s.points);
+  out.points = sp.points;
+  out.pmeta = sp.pmeta;
   if (out.points.length > MAX_POINTS) {
     warn('slide ' + (i + 1) + ': ' + out.points.length + ' points, keeping the first ' + MAX_POINTS);
     out.points = out.points.slice(0, MAX_POINTS);
@@ -138,7 +154,7 @@ function normaliseSlide(s, i, ctx) {
   }
   if (out.chart) {
     const c = out.chart;
-    c.kind = ['bar', 'line', 'stacked_bar', 'area', 'horizontal_bar'].includes(c.kind) ? c.kind : 'bar';
+    c.kind = ['bar', 'line', 'stacked_bar', 'area', 'horizontal_bar', 'donut'].includes(c.kind) ? c.kind : 'bar';
     c.labels = asArray(c.labels).map(String);
     // null keeps a gap (actual vs projection series); anything else becomes a number
     c.series = asArray(c.series).map((se) => ({ name: se.name || '', values: asArray(se.values).map((v) => (v == null || v === '' ? null : (Number(v) || 0))) }));
@@ -165,13 +181,16 @@ function normaliseSlide(s, i, ctx) {
   // ask: use of funds may arrive as `chart{kind: stacked_bar}` (one bar, one series per
   // bucket) and milestones as `points[]`
   if (out.type === 'ask') {
-    if (!out.use_of_funds.length && out.chart && out.chart.kind === 'stacked_bar') {
-      out.use_of_funds = out.chart.series.map((se) => ({ label: se.name, pct: se.values[0] || 0, source: out.chart.source }));
+    if (!out.use_of_funds.length && out.chart && (out.chart.kind === 'stacked_bar' || out.chart.kind === 'donut')) {
+      out.use_of_funds = out.chart.series.length === 1 && out.chart.labels.length > 1
+        ? out.chart.labels.map((l, k) => ({ label: l, pct: out.chart.series[0].values[k] || 0, source: out.chart.source }))
+        : out.chart.series.map((se) => ({ label: se.name, pct: se.values[0] || 0, source: out.chart.source }));
       delete out.chart;
     }
     if (!out.milestones.length && out.points.length) { out.milestones = out.points; out.points = []; }
   }
   if (out.body && ctx.variant !== 'read') warn('slide ' + (i + 1) + ': `body` is only rendered in the read variant (meta.variant: "read")');
+  normaliseExtras(out, s, i);
   // Record placeholders so the summary can list them.
   walkStrings(out, (v, where) => { if (hasPlaceholder(v)) ctx.placeholders.push('slide ' + (i + 1) + ' (' + out.type + '): ' + where); });
   return out;
@@ -248,15 +267,15 @@ const SOURCE_FILES_PER_SLIDE = 11;
 const SOURCE_FILE_PAGES = 2;        // the compact appendix never exceeds two slides
 
 // A sources list longer than one slide is split into continuation slides.
-const SOURCES_PER_SLIDE = 20;
-const SOURCES_PAGE_PX = 600;        // table body height available under the title
-// Estimated height of one ledger row at 19px type: the tallest of its wrapping cells.
+const SOURCES_PER_SLIDE = 13;
+const SOURCES_PAGE_PX = 520;        // table body height available under the title
+// Estimated height of one ledger row at 20px type: the tallest of its wrapping cells.
 function sourceRowPx(it) {
   const lines = (str, perLine) => Math.max(1, Math.ceil(String(str || '').length / perLine));
-  const labelLines = lines(it.label, 42) + 1;                       // plus the "slide N" line
-  const fileLines = lines((it.file || '').split('#')[0], 34) + (it.method ? lines(it.method, 38) : 0);
-  const idLines = lines(it.id, 30);
-  return Math.max(labelLines, fileLines, idLines, lines(it.value, 30)) * 24 + 20;
+  const labelLines = lines(it.label, 32);
+  const fileLines = lines(it.file, 24);
+  const idLines = lines(it.id, 22);
+  return Math.max(labelLines, fileLines, idLines, lines(it.value, 10)) * 28 + 16;
 }
 function paginateSources(slides) {
   const out = [];
@@ -367,21 +386,67 @@ function attachLedger(items, ledger, ctx) {
   });
 }
 
+// ---- fields added with the visual vocabulary -------------------------------------------
+// Called at the end of normaliseSlide: images and frames, icons on points, diagram,
+// logos, sparklines, quote fields. Old decks pass through unchanged.
+function normaliseExtras(out, s, i) {
+  // image: "path" or {src, frame}; images: up to two of them; slide-level `frame` applies to the first
+  const imgs = [];
+  const addImg = (v, frame) => { if (!v) return; if (typeof v === 'string') imgs.push({ src: v, frame: frame || 'none' }); else if (v.src) imgs.push({ src: String(v.src), frame: v.frame || frame || 'none' }); };
+  if (Array.isArray(s.images)) s.images.forEach((v, k) => addImg(v, k === 0 ? s.frame : null));
+  else addImg(s.image, s.frame);
+  if (out.type === 'quote' && !imgs.length && s.photo) addImg(s.photo);
+  if (imgs.length > 2) warn('slide ' + (i + 1) + ': ' + imgs.length + ' images, keeping the first 2');
+  out.images = imgs.slice(0, 2).map((im) => ({ src: im.src, frame: ['browser', 'phone', 'none'].includes(String(im.frame).toLowerCase()) ? String(im.frame).toLowerCase() : 'none' }));
+  out.image = out.images.length ? out.images[0].src : undefined;
+  if (s.diagram && typeof s.diagram === 'object') out.diagram = Object.assign({}, s.diagram, { kind: String(s.diagram.kind || '').toLowerCase().replace(/-/g, '_') });
+  else delete out.diagram;
+  out.logos = asArray(s.logos).map((l) => (typeof l === 'string' ? { name: l } : { name: String((l && l.name) || ''), image: l && l.image })).filter((l) => l.name || l.image);
+  out.sparklines = asArray(s.sparklines).filter((r) => r && typeof r === 'object').map((r) => ({ label: String(r.label || ''), values: asArray(r.values), value: r.value == null ? '' : String(r.value) }));
+  if (out.type === 'quote') { out.quote = s.quote || s.title || ''; if (!s.title) out.title = ''; }
+  return out;
+}
+// points: strings, or {text, icon, title}; the text list stays a list of strings.
+function splitPoints(raw) {
+  const points = [], pmeta = [];
+  asArray(raw).forEach((p) => {
+    if (p && typeof p === 'object') { points.push(String(p.text == null ? (p.title || '') : p.text)); pmeta.push({ icon: p.icon, title: p.text == null ? undefined : p.title }); }
+    else { points.push(p == null ? '' : String(p)); pmeta.push({}); }
+  });
+  return { points, pmeta };
+}
+// After the sources pages exist: number the sections, give every slide its tone.
+function prepareDeck(deck, theme, ctx) {
+  let sec = 0, title = '', appendix = false;
+  deck.slides.forEach((s) => {
+    if (s.type === 'section') { sec += 1; title = stripEm(s.label || s.title || ''); s.sectionNo = sec; }
+    else if (s.type !== 'cover' && s.type !== 'closing') {
+      // appendix slides (by type or by kicker) and everything after them run under "Appendix"
+      if (s.type === 'sources' || s.type === 'appendix' || /^appendix$/i.test(String(s.kicker || '').trim())) { appendix = true; }
+      if (appendix) { s.sectionTitle = 'Appendix'; if (sec) s.sectionNo = sec; }
+      else if (sec) { s.sectionNo = sec; s.sectionTitle = title; }
+    }
+  });
+  ctx.toneRuns = assignTones(deck.slides, theme);
+}
 // --------------------------------------------------------------------------------------
-// 3. Theme tokens (parsed from assets/deck-template/themes.css)
+// 3. Themes: art directions, tones and type roles (parsed from assets/deck-template/themes.css)
 // --------------------------------------------------------------------------------------
 
 const THEMES_CSS_PATH = path.join(__dirname, '..', 'assets', 'deck-template', 'themes.css');
+const TONES = ['light', 'dark', 'accent', 'pop'];
+const TONE_KEYS = ['bg', 'ink', 'muted', 'accent', 'accent2', 'surface', 'rule'];
+const ROLE_KEYS = ['display', 'em', 'num', 'body', 'mono'];
 
 // Minimal stand-in so the builder still works if themes.css is missing.
 const FALLBACK_THEMES_CSS = `[data-theme="paper"] {
-  --bg: #F6F4EF; --ink: #1F2429; --muted: #6B7178; --accent: #1F6F5B; --accent-2: #B8862B;
-  --surface: #ECE8DF; --rule: #D8D3C8;
-  --font-display: "Albert Sans", "Helvetica Neue", Arial, sans-serif;
-  --font-body: "Albert Sans", "Helvetica Neue", Arial, sans-serif;
-  --chart-1: #1F6F5B; --chart-2: #B8862B; --chart-3: #6FA392; --chart-4: #9A9A93; --chart-5: #CFC9BC;
-  --pptx-display: Calibri; --pptx-body: Calibri; --gfonts: "Albert Sans:wght@400;500;600;700";
-  --display-weight: 600; --display-tracking: -0.025em;
+  --display: "font-family:'Albert Sans','Helvetica Neue',Arial,sans-serif;font-weight:600;letter-spacing:-0.03em";
+  --body: "font-family:'Albert Sans','Helvetica Neue',Arial,sans-serif;font-weight:400";
+  --mono: "font-family:'DM Mono',Menlo,monospace;font-weight:500;letter-spacing:0.1em;text-transform:uppercase";
+  --light-bg: #F6F4EF; --light-ink: #1F2429; --light-muted: #646A71; --light-accent: #1F6F5B; --light-accent2: #B8862B; --light-surface: #EAE6DC; --light-rule: #CFC9BC;
+  --dark-bg: #1F2429; --dark-ink: #F6F4EF; --dark-muted: #A7ADB3; --dark-accent: #7FD1B9; --dark-accent2: #E0B455; --dark-surface: #2B3138; --dark-rule: #474E56;
+  --accent-bg: #1F6F5B; --accent-ink: #F6F4EF; --accent-muted: #CFE5DD; --accent-accent: #F2C867; --accent-accent2: #F2C867; --accent-surface: #1A5F4E; --accent-rule: #5E9C8C;
+  --cell: soft; --radius: 10; --gfonts: "Albert Sans:wght@400;500;600;700|DM Mono:wght@400;500"; --pptx-display: Calibri; --pptx-body: Calibri;
 }`;
 
 function loadThemesCss() {
@@ -391,12 +456,18 @@ function loadThemesCss() {
   }
 }
 
+function themeNames(css) {
+  const names = [];
+  String(css).replace(/\[data-theme="([\w-]+)"\]\s*\{/g, (_, n) => { if (!names.includes(n)) names.push(n); return ''; });
+  return names;
+}
+
 function parseThemeTokens(css, name) {
   const re = new RegExp('\\[data-theme="' + name + '"\\]\\s*\\{([^}]*)\\}');
   const m = css.match(re);
   if (!m) return null;
   const tokens = {};
-  // A quoted value may contain semicolons (the --gfonts weight lists), so match quotes whole.
+  // A quoted value may contain semicolons (font declarations, weight lists), so match quotes whole.
   m[1].replace(/--([\w-]+)\s*:\s*("[^"]*"|[^;]+);/g, (_, k, v) => {
     v = v.trim();
     const q = v.match(/^"([^"]*)"$/);
@@ -408,41 +479,269 @@ function parseThemeTokens(css, name) {
 
 function isHex(v) { return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.trim()); }
 
+// ---- colour arithmetic ---------------------------------------------------------------
+function rgbOf(h) { h = String(h).replace('#', ''); return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)); }
+function hexOf(c) { return '#' + c.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('').toUpperCase(); }
+function mixHex(a, b, t) { const x = rgbOf(a), y = rgbOf(b); return hexOf(x.map((v, i) => v + (y[i] - v) * t)); }
+function rgbaOf(h, a) { return 'rgba(' + rgbOf(h).join(',') + ',' + a + ')'; }
+function luminance(h) {
+  const [r, g, b] = rgbOf(h).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function contrast(a, b) { const x = luminance(a), y = luminance(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+// The nearest colour to `c` that reads on every ground in `grounds` at `min`:1 (moved
+// toward black on light grounds, toward white on dark ones).
+function textSafe(c, grounds, min) {
+  min = min || 4.5;
+  const ok = (x) => grounds.every((g) => contrast(x, g) >= min);
+  if (ok(c)) return c;
+  const to = contrast('#000000', grounds[0]) >= contrast('#FFFFFF', grounds[0]) ? '#000000' : '#FFFFFF';
+  for (let t = 0.04; t <= 1.0001; t += 0.04) { const x = mixHex(c, to, t); if (ok(x)) return x; }
+  return to;
+}
+function bestOn(fill, candidates) {
+  return candidates.concat(['#FFFFFF', '#111111']).map((c) => [contrast(c, fill), c]).sort((a, b) => b[0] - a[0])[0][1];
+}
+
+// ---- type roles ----------------------------------------------------------------------
+// A role is a list of CSS declarations; the same string styles the deck and tells the
+// capacity lint which face, weight, width and tracking to measure.
+function parseRole(css) {
+  const get = (prop) => { const m = String(css).match(new RegExp('(?:^|;)\\s*' + prop + '\\s*:\\s*([^;]+)')); return m ? m[1].trim() : ''; };
+  const fam = get('font-family');
+  return {
+    css: String(css).replace(/;\s*$/, ''),
+    family: (fam.match(/^['"]?([^'",]+)/) || [0, 'sans-serif'])[1].trim(),
+    weight: Number(get('font-weight')) || 400,
+    italic: /italic/.test(get('font-style')),
+    upper: /uppercase/.test(get('text-transform')),
+    tracking: parseFloat(get('letter-spacing')) || 0,
+  };
+}
+function swapFamily(css, family) {
+  return String(css).replace(/font-family\s*:\s*(['"]?)[^'",;]+\1/, "font-family:'" + String(family).replace(/['"]/g, '') + "'")
+    .replace(/font-variation-settings\s*:[^;]+;?/, '').replace(/font-stretch\s*:[^;]+;?/, '');
+}
+
 function resolveTheme(meta, css) {
-  let name = String(meta.theme || 'paper').toLowerCase();
-  let tokens = parseThemeTokens(css, name);
-  if (!tokens) {
-    warn('theme "' + name + '" not found in themes.css, falling back to paper');
+  let name = String(meta.theme || 'paper').toLowerCase().replace(/[\s_]+/g, '-');
+  const ALIAS = { 'signal-print': 'poster', 'soft-machine': 'studio' };
+  if (ALIAS[name]) name = ALIAS[name];
+  let T = parseThemeTokens(css, name);
+  if (!T) {
+    warn('theme "' + name + '" not found in themes.css (available: ' + themeNames(css).join(', ') + '), falling back to paper');
     name = 'paper';
-    tokens = parseThemeTokens(css, 'paper') || parseThemeTokens(FALLBACK_THEMES_CSS, 'paper');
+    T = parseThemeTokens(css, 'paper') || parseThemeTokens(FALLBACK_THEMES_CSS, 'paper');
   }
   const overrides = {};
+  const num = (k, d) => (isFinite(parseFloat(T[k])) ? parseFloat(T[k]) : d);
+
+  // tones
+  const tones = {};
+  TONES.forEach((t) => {
+    if (!isHex(T[t + '-bg'])) return;
+    const o = {};
+    TONE_KEYS.forEach((k) => { o[k] = isHex(T[t + '-' + k]) ? T[t + '-' + k].trim().toUpperCase() : null; });
+    o.ink = o.ink || bestOn(o.bg, []);
+    o.muted = o.muted || mixHex(o.ink, o.bg, 0.4);
+    o.accent = o.accent || o.ink;
+    o.accent2 = o.accent2 || o.accent;
+    o.surface = o.surface || mixHex(o.bg, o.ink, 0.06);
+    o.rule = o.rule || mixHex(o.bg, o.ink, 0.2);
+    o.fx = String(T[t + '-fx'] || '').split(/\s+/).filter(Boolean);
+    tones[t] = o;
+  });
+  ['light', 'dark', 'accent'].forEach((t) => { if (!tones[t]) throw new Error('theme "' + name + '" does not define the ' + t + ' tone'); });
   if (meta.accent) {
-    if (isHex(meta.accent)) { overrides.accent = meta.accent.trim().toUpperCase(); overrides['chart-1'] = overrides.accent; }
-    else warn('meta.accent "' + meta.accent + '" is not a 6-digit hex colour, ignored');
+    if (isHex(meta.accent)) {
+      const A = meta.accent.trim().toUpperCase();
+      overrides.accent = A;
+      tones.light.accent = A; tones.dark.accent = A;
+      const a = tones.accent;
+      a.bg = A; a.ink = bestOn(A, [tones.light.ink, tones.light.bg]);
+      a.muted = mixHex(a.ink, A, 0.22); a.accent = a.ink; a.accent2 = a.ink;
+      a.surface = mixHex(A, a.ink, 0.1); a.rule = mixHex(A, a.ink, 0.45);
+      a.fx = a.fx.filter((f) => /^(grain|dots|lines)/.test(f));
+      if (tones.pop) tones.pop.accent = A;
+    } else warn('meta.accent "' + meta.accent + '" is not a 6-digit hex colour, ignored');
   }
-  const gfonts = tokens.gfonts ? tokens.gfonts.split('|') : [];
-  const fontOverride = (key, family) => {
+  Object.keys(tones).forEach((t) => {
+    const o = tones[t];
+    const grounds = [o.bg, o.surface];
+    o.muted = textSafe(o.muted, grounds);
+    o.accentT = textSafe(o.accent, grounds);          // accent as a text colour
+    o.accent2T = textSafe(o.accent2, grounds);
+    o.fill = mixHex(o.bg, o.ink, 0.2);                // quiet fill: the muted bars of a chart
+    o.onAccent = bestOn(o.accent, [o.ink, o.bg]);     // type on an accent-filled shape
+    o.onAccent2 = bestOn(o.accent2, [o.ink, o.bg]);
+    o.c2 = contrast(o.accent2, o.accent) > 1.3 ? o.accent2 : o.ink;     // second colour for rings and slices
+    o.onC2 = bestOn(o.c2, [o.ink, o.bg]);
+    // series colours for charts with several series or slices: the tone's own colours first,
+    // then greys between ink and ground, each at least 1.4:1 from every one before it and 1.3:1 from the ground
+    o.series = [];
+    const far = (c) => contrast(c, o.bg) >= 1.3 && o.series.every((x) => contrast(c, x) >= 1.4);
+    [o.accent, o.ink, o.accent2, o.muted, o.fill, o.surface].concat([0.5, 0.7, 0.3, 0.85, 0.15, 0.6, 0.4].map((t) => mixHex(o.bg, o.ink, t))).forEach((c) => { if (o.series.length < 5 && far(c)) o.series.push(c); });
+    while (o.series.length < 5) o.series.push(mixHex(o.bg, o.ink, 0.2 + 0.15 * o.series.length));
+    o.dark = luminance(o.bg) < 0.3;
+  });
+
+  // type roles and the fonts to load
+  const roles = {};
+  ROLE_KEYS.forEach((k) => { roles[k] = T[k] || T.display || FALLBACK_ROLE; });
+  if (!T.em) roles.em = roles.display;
+  if (!T.num) roles.num = roles.display;
+  const gfonts = T.gfonts ? T.gfonts.split('|') : [];
+  const fontOverride = (key, family, into) => {
     if (!family) return;
     const fam = String(family).trim();
-    const tail = tokens[key].replace(/^"[^"]*",\s*/, '');
-    overrides[key] = '"' + fam + '", ' + tail;
-    gfonts.push(fam + ':wght@400;500;600;700');
+    overrides[key] = fam;
+    into.forEach((r) => { if (r !== 'em' || parseRole(roles.em).family === parseRole(roles.display).family) roles[r] = swapFamily(roles[r], fam); });
+    gfonts.push(fam + ':ital,wght@0,400;0,500;0,600;0,700;1,400');
   };
-  fontOverride('font-display', meta.font_display);
-  fontOverride('font-body', meta.font_body);
-  const resolved = Object.assign({}, tokens, overrides);
-  resolved.gfontsList = gfonts;
-  resolved.webDisplay = firstFamily(resolved['font-display']);
-  resolved.webBody = firstFamily(resolved['font-body']);
-  return { name, tokens: resolved, overrides };
+  fontOverride('font-display', meta.font_display, ['em', 'display', 'num']);
+  fontOverride('font-body', meta.font_body, ['body']);
+  const R = {};
+  ROLE_KEYS.forEach((k) => { R[k] = parseRole(roles[k]); });
+  R.bodyb = Object.assign({}, R.body, { css: R.body.css.replace(/font-weight\s*:\s*\d+/, 'font-weight:600'), weight: 600 });
+  if (!/font-weight/.test(R.bodyb.css)) R.bodyb.css += ';font-weight:600';
+
+  const base = TONES.includes(T['base-tone']) && tones[T['base-tone']] ? T['base-tone'] : 'light';
+  const theme = {
+    name, T, overrides, tones, roles: R, base,
+    cover: tones[T['cover-tone']] ? T['cover-tone'] : (base === 'dark' ? 'dark' : 'accent'),
+    bold: String(T['bold-tones'] || 'accent dark').split(/\s+/).filter((t) => tones[t] && t !== base),
+    cell: ['hairline', 'rule', 'block', 'outline', 'card', 'soft'].includes(T.cell) ? T.cell : 'soft',
+    radius: num('radius', 0), decor: T.decor || 'none', marg: T.marg || 'slash',
+    emMode: ['serif', 'mark', 'color'].includes(T['em-mode']) ? T['em-mode'] : 'color',
+    emScale: num('em-scale', 1), titleSize: num('title-size', 64), titleLh: num('title-lh', 1.05),
+    bigSize: num('big-size', 150), bigLh: num('big-lh', 0.95), numLh: num('num-lh', 0.86), monoSize: num('mono-size', 17),
+    gfonts,
+  };
+  if (!theme.bold.length) theme.bold = ['accent', 'dark', 'light'].filter((t) => t !== base).slice(0, 2);
+  // The contrast tone: where a calm slide goes when four in a row would share a tone.
+  theme.alt = theme.bold.find((t) => t !== 'accent') || theme.bold[0];
+  // Legacy token view (base tone) for the native PPTX renderer and custom_html slides.
+  const b = tones[base];
+  theme.tokens = {
+    bg: b.bg, ink: b.ink, muted: b.muted, accent: b.accentT, 'accent-2': b.accent2T, surface: b.surface, rule: b.rule,
+    'chart-1': b.accentT, 'chart-2': b.accent2T, 'chart-3': b.muted, 'chart-4': b.fill, 'chart-5': mixHex(b.bg, b.ink, 0.5),
+    'font-display': R.display.family, 'font-body': R.body.family, webDisplay: R.display.family, webBody: R.body.family,
+    'display-weight': String(R.display.weight), 'display-tracking': R.display.tracking + 'em',
+    'pptx-display': T['pptx-display'] || 'Arial', 'pptx-body': T['pptx-body'] || 'Arial', gfontsList: gfonts,
+  };
+  return theme;
+}
+const FALLBACK_ROLE = "font-family:'Helvetica Neue',Arial,sans-serif;font-weight:400";
+
+// Tones a filled cell can take on a slide of tone `t`, most prominent first: the accent
+// block, the second colour when the theme has one, then the opposite neutral.
+function fillTones(theme, t) {
+  const order = ['accent', 'pop', 'dark', 'light'].filter((x) => theme.tones[x] && x !== t);
+  if (t === 'accent' || t === 'pop') return order.filter((x) => x !== 'accent' || t === 'pop').sort((a, b) => (a === 'dark' ? -1 : b === 'dark' ? 1 : 0));
+  return order;
 }
 
-function firstFamily(stack) {
-  const m = String(stack || '').match(/^"([^"]+)"/);
-  return m ? m[1] : String(stack || '').split(',')[0].trim();
+// How the emphasised phrase is drawn in a tone: the theme's mode, or the highlighter
+// block where the accent is the ink colour and could not be seen.
+function emMode(theme, tone) {
+  const o = theme.tones[tone] || theme.tones[theme.base];
+  return theme.emMode !== 'mark' && contrast(o.accentT, o.ink) < 1.25 ? 'mark' : theme.emMode;
 }
 
+// ---- tone rhythm ---------------------------------------------------------------------
+// Every slide gets a tone. An explicit `tone` wins; otherwise cover and closing take the
+// cover tone, section and statement slides alternate through the bold tones, quote and
+// data slides are calm, and a fourth slide in a row never shares the tone of the three
+// before it (the slide in the run that carries an inversion best is flipped).
+const FLIP_ORDER = ['quote', 'insight', 'ask', 'team', 'market', 'case_study', 'two_column', 'problem', 'solution', 'go_to_market', 'business_model', 'roadmap', 'competition', 'product', 'financials', 'traction', 'appendix', 'custom_html', 'sources'];
+function assignTones(slides, theme) {
+  let b = 0;
+  slides.forEach((s, i) => {
+    const want = String(s.tone || '').toLowerCase();
+    s.toneGiven = TONES.includes(want) && !!theme.tones[want];
+    if (s.tone && !s.toneGiven) warn('slide ' + (i + 1) + ': tone "' + s.tone + '" is not light, dark or accent; assigned automatically');
+    if (s.toneGiven) { s.tone = want; return; }
+    if (s.type === 'cover') s.tone = theme.cover;
+    else if (s.type === 'closing') s.tone = theme.cover;
+    else if (s.type === 'section' || s.type === 'statement') { s.tone = theme.bold[b % theme.bold.length]; b += 1; }
+    else s.tone = theme.base;
+  });
+  // closing differs from the slide before it
+  slides.forEach((s, i) => {
+    if (s.type === 'closing' && !s.toneGiven && i > 0 && slides[i - 1].tone === s.tone) s.tone = theme.bold.find((t) => t !== s.tone) || theme.alt;
+    if ((s.type === 'section' || s.type === 'statement') && !s.toneGiven && i > 0 && slides[i - 1].tone === s.tone) s.tone = theme.bold.find((t) => t !== s.tone) || s.tone;
+  });
+  for (let i = 3; i < slides.length; i++) {
+    const t = slides[i].tone;
+    if (slides[i - 1].tone !== t || slides[i - 2].tone !== t || slides[i - 3].tone !== t) continue;
+    const cands = [i, i - 1].filter((k) => !slides[k].toneGiven);
+    if (!cands.length) continue;
+    const rank = (k) => { const r = FLIP_ORDER.indexOf(slides[k].type); return r < 0 ? 99 : r; };
+    const pick = cands.sort((x, y) => rank(x) - rank(y) || y - x)[0];
+    slides[pick].tone = t === theme.alt ? (theme.bold.find((x) => x !== t) || theme.base) : theme.alt;
+    slides[pick].toneFlipped = true;
+  }
+  const runs = [];
+  for (let i = 3; i < slides.length; i++) {
+    if ([1, 2, 3].every((k) => slides[i - k].tone === slides[i].tone)) runs.push(i + 1);
+  }
+  return runs;      // slide numbers that still end a run of four (explicit tones)
+}
+
+// ---- generated stylesheet parts ------------------------------------------------------
+function toneVars(o) {
+  return '--bg:' + o.bg + ';--ink:' + o.ink + ';--muted:' + o.muted + ';--accent:' + o.accent + ';--accent-t:' + o.accentT +
+    ';--accent-2:' + o.accent2 + ';--accent-2t:' + o.accent2T + ';--surface:' + o.surface + ';--rule:' + o.rule + ';--fill:' + o.fill +
+    o.series.map((c, k) => ';--s' + (k + 1) + ':' + c).join('') + ';--c2:' + o.c2 + ';--on-c2:' + o.onC2 + ';--on-accent:' + o.onAccent + ';--on-accent2:' + o.onAccent2 + ';--hair:' + rgbaOf(o.ink, o.dark ? 0.2 : 0.16) +
+    ';--chart-1:' + o.accent + ';--chart-2:' + o.accent2 + ';--chart-3:' + o.muted + ';--chart-4:' + o.fill + ';--chart-5:' + o.ink + ';';
+}
+// Background treatment of a slide in tone o: gradients and patterns only (they stay
+// vector in the PDF). Grain is a separate layer with a small PNG tile.
+function toneBackground(o) {
+  const layers = [];
+  let grain = 0;
+  o.fx.forEach((f) => {
+    const [k, v] = f.split(':');
+    if (k === 'grain') grain = parseFloat(v) || 0.2;
+    else if (k === 'dots') layers.unshift('radial-gradient(circle,' + rgbaOf(o.ink, o.dark || luminance(o.bg) < 0.3 ? 0.22 : 0.2) + ' 1.5px,transparent 1.7px) 20px 20px/40px 40px');
+    else if (k === 'lines') layers.unshift('linear-gradient(' + rgbaOf(o.ink, 0.055) + ' 1px,transparent 1px) 0 0/60px 60px', 'linear-gradient(90deg,' + rgbaOf(o.ink, 0.055) + ' 1px,transparent 1px) 0 0/60px 60px');
+    else if (k === 'vignette' && isHex(v)) layers.push('radial-gradient(1500px 950px at 24% 18%,' + v + ' 0,' + o.bg + ' 62%,' + mixHex(o.bg, '#000000', 0.35) + ' 100%)');
+    else if ((k === 'glow' || k === 'mesh') && isHex(v)) {
+      layers.push('radial-gradient(' + (k === 'glow' ? '900px 700px at 80% 22%,' : '1100px 800px at 86% 8%,') + rgbaOf(v, k === 'glow' ? 0.5 : 0.6) + ',transparent 70%)',
+        'radial-gradient(760px 620px at 6% 110%,' + rgbaOf(mixHex(o.bg, '#000000', 0.45), 0.75) + ',transparent 70%)');
+    }
+  });
+  layers.push(o.bg);
+  return { css: layers.join(','), grain };
+}
+
+// 192px tile of fine two-tone noise as a PNG data URI (seeded, so builds are repeatable).
+// A full-slide SVG turbulence filter would be rasterised by Chrome at print size; a small
+// repeating tile keeps the PDF small.
+let GRAIN_URI = null;
+function grainDataUri() {
+  if (GRAIN_URI) return GRAIN_URI;
+  const zlib = require('zlib');
+  const N = 192;
+  let seed = 7;
+  const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const raw = Buffer.alloc(N * (1 + N * 2));
+  for (let y = 0; y < N; y++) {
+    raw[y * (1 + N * 2)] = 0;
+    for (let x = 0; x < N; x++) {
+      const p = y * (1 + N * 2) + 1 + x * 2;
+      raw[p] = rnd() < 0.5 ? 0 : 255;                       // black or white speck
+      raw[p + 1] = Math.round(Math.pow(rnd(), 1.6) * 120);  // mostly faint
+    }
+  }
+  const crcTable = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; crcTable[n] = c >>> 0; }
+  const crc = (buf) => { let c = 0xFFFFFFFF; for (const b of buf) c = crcTable[(c ^ b) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const td = Buffer.concat([Buffer.from(type), data]); const cr = Buffer.alloc(4); cr.writeUInt32BE(crc(td)); return Buffer.concat([len, td, cr]); };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(N, 0); ihdr.writeUInt32BE(N, 4); ihdr[8] = 8; ihdr[9] = 4;   // 8-bit grey + alpha
+  const png = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]);
+  GRAIN_URI = 'data:image/png;base64,' + png.toString('base64');
+  return GRAIN_URI;
+}
 // --------------------------------------------------------------------------------------
 // 4. HTML renderer
 // --------------------------------------------------------------------------------------
@@ -495,160 +794,6 @@ function niceTicks(max, allInt) {
   return ticks;
 }
 
-// Inline SVG chart. Colours reference the theme palette through CSS variables so the
-// same markup follows the theme; the y axis always starts at zero.
-function svgChart(chart, W, H) {
-  const kind = chart.kind;
-  const series = chart.series;
-  const labels = chart.labels;
-  const n = Math.max(labels.length, ...series.map((s) => s.values.length));
-  const multi = series.length > 1;
-  const stacked = kind === 'stacked_bar';
-  const horizontal = kind === 'horizontal_bar';
-  const showValues = !!chart.show_values;
-
-  const has = (s, i) => s.values[i] != null;      // null values leave a gap (actual vs projection)
-  let maxVal = 0;
-  for (let i = 0; i < n; i++) {
-    if (stacked) maxVal = Math.max(maxVal, series.reduce((a, s) => a + Math.max(0, s.values[i] || 0), 0));
-    else series.forEach((s) => { maxVal = Math.max(maxVal, s.values[i] || 0); });
-  }
-  const allInt = series.every((s) => s.values.every((x) => x == null || Number.isInteger(x)));
-  const ticks = niceTicks(maxVal, allInt);
-  const top = ticks[ticks.length - 1];
-
-  const padL = horizontal ? 300 : 110;
-  const padR = horizontal ? 120 : 28;
-  const fs = 22;
-  // Legend: one entry per series, wrapped onto as many rows as the names need (never cut).
-  const legend = [];
-  if (multi) {
-    let lx = padL;
-    let row = 0;
-    series.forEach((s, k) => {
-      const w = 28 + (HCTX && HCTX.faces ? textPx(s.name, HCTX.faces.body, fs) * 1.02 : s.name.length * fs * 0.52) + 44;
-      if (lx > padL && lx + w > W - padR + 44) { lx = padL; row += 1; }
-      legend.push({ x: lx, row, k, name: s.name });
-      lx += w;
-    });
-  }
-  const legendRows = legend.length ? legend[legend.length - 1].row + 1 : 0;
-  const padT = 70 + legendRows * 38;
-  const padB = horizontal ? 56 : 64;
-  const pw = W - padL - padR;
-  const ph = H - padT - padB;
-  const out = [];
-  out.push('<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" preserveAspectRatio="xMinYMin meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="' + esc(series.map((s) => s.name).join(', ')) + '" style="font-family:var(--font-body);font-variant-numeric:tabular-nums">');
-
-  // Header row: y label left, legend right.
-  if (chart.y_label) out.push('<text x="' + padL + '" y="34" font-size="' + fs + '" style="fill:var(--muted)">' + esc(chart.y_label) + '</text>');
-  legend.forEach((it) => {
-    const y = 62 + it.row * 38;
-    out.push('<rect x="' + it.x.toFixed(0) + '" y="' + y + '" width="18" height="18" rx="2" style="fill:var(--chart-' + (it.k + 1) + ')"/>');
-    out.push('<text x="' + (it.x + 28).toFixed(0) + '" y="' + (y + 16) + '" font-size="' + fs + '" style="fill:var(--muted)">' + esc(it.name) + '</text>');
-  });
-
-  if (horizontal) {
-    // Value axis along the bottom, categories down the left.
-    const x0 = padL;
-    const xOf = (v) => x0 + (v / top) * pw;
-    ticks.forEach((t) => {
-      const x = xOf(t);
-      out.push('<line x1="' + x + '" y1="' + padT + '" x2="' + x + '" y2="' + (padT + ph) + '" style="stroke:var(--rule)" stroke-width="1"/>');
-      out.push('<text x="' + x + '" y="' + (padT + ph + 36) + '" text-anchor="middle" font-size="' + fs + '" style="fill:var(--muted)">' + fmtNum(t) + '</text>');
-    });
-    const gh = ph / n;
-    const bh = Math.min(56, (gh * 0.7) / (stacked ? 1 : series.length));
-    for (let i = 0; i < n; i++) {
-      const cy = padT + gh * i + gh / 2;
-      out.push('<text x="' + (padL - 24) + '" y="' + (cy + 8) + '" text-anchor="end" font-size="' + fs + '" style="fill:var(--ink)">' + esc(labels[i] || '') + '</text>');
-      const groupTop = cy - (bh * series.length) / 2;
-      series.forEach((s, k) => {
-        if (!has(s, i)) return;
-        const v = Math.max(0, s.values[i] || 0);
-        const y = groupTop + k * bh;
-        out.push('<rect x="' + x0 + '" y="' + y.toFixed(1) + '" width="' + (xOf(v) - x0).toFixed(1) + '" height="' + (bh - 4).toFixed(1) + '" style="fill:var(--chart-' + (k + 1) + ')"/>');
-        if (showValues) out.push('<text x="' + (xOf(v) + 14) + '" y="' + (y + bh / 2 + 6) + '" font-size="' + fs + '" style="fill:var(--ink)">' + fmtNum(v) + '</text>');
-      });
-    }
-    out.push('<line x1="' + x0 + '" y1="' + padT + '" x2="' + x0 + '" y2="' + (padT + ph) + '" style="stroke:var(--muted)" stroke-width="1.5"/>');
-    out.push('</svg>');
-    return out.join('');
-  }
-
-  // Vertical charts: gridlines and y labels.
-  const yOf = (v) => padT + ph - (v / top) * ph;
-  ticks.forEach((t) => {
-    const y = yOf(t);
-    out.push('<line x1="' + padL + '" y1="' + y.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + y.toFixed(1) + '" style="stroke:var(--rule)" stroke-width="1"/>');
-    out.push('<text x="' + (padL - 18) + '" y="' + (y + 8).toFixed(1) + '" text-anchor="end" font-size="' + fs + '" style="fill:var(--muted)">' + fmtNum(t) + '</text>');
-  });
-  const gw = pw / n;
-  const cx = (i) => padL + gw * i + gw / 2;
-  labels.forEach((lab, i) => {
-    out.push('<text x="' + cx(i).toFixed(1) + '" y="' + (padT + ph + 40) + '" text-anchor="middle" font-size="' + fs + '" style="fill:var(--muted)">' + esc(lab) + '</text>');
-  });
-
-  if (kind === 'bar' || stacked) {
-    // Grouped bars share a slot; when series never overlap on the same label (an
-    // actual series followed by a projection series) each label shows one bar.
-    const overlap = !stacked && series.length > 1 && labels.some((_, i) => series.filter((s) => has(s, i)).length > 1);
-    const perSlot = stacked || !overlap ? 1 : series.length;
-    const bw = stacked ? Math.min(120, gw * 0.6) : Math.min(perSlot === 1 ? 120 : 96, (gw * 0.72) / perSlot);
-    for (let i = 0; i < n; i++) {
-      let acc = 0;
-      series.forEach((s, k) => {
-        if (!has(s, i)) return;
-        const v = Math.max(0, s.values[i] || 0);
-        const x = perSlot === 1 ? cx(i) - bw / 2 : cx(i) - (bw * series.length) / 2 + k * bw;
-        const y1 = yOf(stacked ? acc + v : v);
-        const h = (yOf(stacked ? acc : 0) - y1);
-        out.push('<rect x="' + x.toFixed(1) + '" y="' + y1.toFixed(1) + '" width="' + (bw - 6).toFixed(1) + '" height="' + h.toFixed(1) + '" style="fill:var(--chart-' + (k + 1) + ')"/>');
-        if (showValues && !stacked) out.push('<text x="' + (x + (bw - 6) / 2).toFixed(1) + '" y="' + (y1 - 12).toFixed(1) + '" text-anchor="middle" font-size="' + fs + '" style="fill:var(--ink)">' + fmtNum(v) + '</text>');
-        if (showValues && stacked && h > 34) out.push('<text x="' + (x + (bw - 6) / 2).toFixed(1) + '" y="' + (y1 + h / 2 + 8).toFixed(1) + '" text-anchor="middle" font-size="' + (fs - 2) + '" style="fill:var(--bg)">' + fmtNum(v) + '</text>');
-        acc += v;
-      });
-      if (showValues && stacked) out.push('<text x="' + cx(i).toFixed(1) + '" y="' + (yOf(acc) - 12).toFixed(1) + '" text-anchor="middle" font-size="' + fs + '" style="fill:var(--ink)">' + fmtNum(acc) + '</text>');
-    }
-  } else {
-    // line or area
-    series.forEach((s, k) => {
-      const pts = [];
-      for (let i = 0; i < n; i++) if (has(s, i)) pts.push([cx(i), yOf(Math.max(0, s.values[i] || 0)), i]);
-      if (!pts.length) return;
-      const poly = pts.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
-      if (kind === 'area') {
-        const base = yOf(0).toFixed(1);
-        out.push('<polygon points="' + pts[0][0].toFixed(1) + ',' + base + ' ' + poly + ' ' + pts[pts.length - 1][0].toFixed(1) + ',' + base + '" style="fill:var(--chart-' + (k + 1) + ')" opacity="0.18"/>');
-      }
-      out.push('<polyline points="' + poly + '" fill="none" style="stroke:var(--chart-' + (k + 1) + ')" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>');
-      if (n <= 14) pts.forEach((p) => out.push('<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="7" style="fill:var(--chart-' + (k + 1) + ')"/>'));
-      if (showValues) pts.forEach((p) => out.push('<text x="' + p[0].toFixed(1) + '" y="' + (p[1] - 18).toFixed(1) + '" text-anchor="middle" font-size="' + fs + '" style="fill:var(--ink)">' + fmtNum(s.values[p[2]] || 0) + '</text>'));
-    });
-  }
-  out.push('<line x1="' + padL + '" y1="' + yOf(0).toFixed(1) + '" x2="' + (W - padR) + '" y2="' + yOf(0).toFixed(1) + '" style="stroke:var(--muted)" stroke-width="1.5"/>');
-  out.push('</svg>');
-  return out.join('');
-}
-
-function chartBlock(chart, W, H, slideSource) {
-  if (!chart) return '';
-  const cap = chart.source ? captionHtml([chart.source, slideSource], HCTX) : '';
-  const src = cap ? '<p class="chart-source">' + cap + '</p>' : '<p class="chart-source needs-src">Source: <span class="needs">needs source</span></p>';
-  return '<div class="chart-wrap">' + svgChart(chart, W, H) + src + '</div>';
-}
-
-// ---- small building blocks -----------------------------------------------------------
-
-function headBlock(s, cls, ctx) {
-  let h = '<header class="head' + (cls ? ' ' + cls : '') + '">';
-  if (s.kicker) h += '<p class="kicker">' + txt(s.kicker) + '</p>';
-  if (s.title) h += '<h1 class="title">' + txt(s.title) + '</h1>';
-  if (s.subtitle) h += '<p class="subtitle">' + txt(s.subtitle) + '</p>';
-  if (s.body && ctx && ctx.variant === 'read') h += '<p class="body-text">' + txt(s.body) + '</p>';
-  return h + '</header>';
-}
-
 // Human caption for one or more source references. Investors never see a raw ledger id
 // on a content slide: with a ledger the entry's source file is shown (its label when the
 // value is derived); without one a superscript number points at the sources slide, which
@@ -683,7 +828,7 @@ function describeSource(src, ctx) {
   notes = notes.slice(0, CAPTION_MAX - texts.length);
   const more = total - texts.length - notes.length;
   const tail = more > 0 ? ' and ' + more + ' more' + (ctx && ctx.hasSourcesSlide ? ', see sources' : '') : '';
-  const sups = notes.map((n) => '<sup class="fn">' + n + '</sup>').join('');
+  const sups = notes.map((n) => '<sup class="fn">[' + n + ']</sup>').join('');
   return {
     texts, notes,
     html: texts.map(esc).join(', ') + (notes.length ? (texts.length ? ' ' : '') + sups : '') + tail,
@@ -691,7 +836,7 @@ function describeSource(src, ctx) {
     sups: sups + tail,
   };
 }
-const CAPTION_MAX = 3;
+let CAPTION_MAX = 3;      // lowered while a caption is fitted to a narrow line
 // Slide types that draw `chart`; on those the chart caption is the single slide caption.
 const CHART_TYPES = ['traction', 'financials', 'appendix', 'case_study'];
 // "Source: notes/bom-estimate.md" or "Source: sources slide 3" (HTML and plain text).
@@ -725,11 +870,6 @@ function sourceLine(s, ctx) {
   return cap ? '<p class="slide-source">' + cap + '</p>' : '';
 }
 
-function pointsBlock(points, cls) {
-  if (!points || !points.length) return '';
-  return '<ul class="points' + (cls ? ' ' + cls : '') + '">' + points.map((p) => '<li>' + txt(p) + '</li>').join('') + '</ul>';
-}
-
 // Display figures and capitals measure up to 0.66em per character in the widest theme
 // face (Sora). A value that would not fit its column of w px on one line is set smaller
 // (never below 40px); values are never wrapped.
@@ -746,285 +886,1729 @@ function fitSize(value, w, size) {
   return Math.max(40, Math.min(size, Math.floor((size * w) / Math.max(1, natural))));
 }
 
-// w and size (column width and base font size in px) switch on value fitting.
-function statsBlock(stats, cls, w, size) {
-  if (!stats || !stats.length) return '';
-  return '<div class="stats' + (cls ? ' ' + cls : '') + '">' + stats.map((st) => {
-    const sp = statSourceParts(st, HCTX);
-    const fit = w ? ' style="font-size:' + fitSize(st.value, w, size) + 'px"' : '';
-    return '<div class="stat"><div class="stat-v"' + fit + '>' + txt(st.value) + '</div>' +
-      (st.label || sp.sup ? '<div class="stat-l">' + txt(st.label) + sp.sup + '</div>' : '') +
-      (sp.line ? '<div class="stat-s">' + sp.line + '</div>' : '') + '</div>';
-  }).join('') + '</div>';
+// --------------------------------------------------------------------------------------
+// 4a. Measured layout: the renderer and the capacity lint are one pass
+// --------------------------------------------------------------------------------------
+// Every slide is drawn from boxes of known size. Each piece of text is wrapped here, in
+// the deck's own faces, before any HTML is written: headlines step down a size ladder
+// until they fit, and whatever still does not fit is reported with the slide number.
+// The lint is therefore a dry run of the renderer and covers every layout by construction.
+
+const METRICS_PATH = path.join(__dirname, '..', 'assets', 'deck-template', 'font-metrics.json');
+let METRICS = null;
+function loadMetrics() {
+  if (METRICS) return METRICS;
+  try { METRICS = JSON.parse(fs.readFileSync(METRICS_PATH, 'utf8')); } catch (e) { METRICS = {}; }
+  return METRICS;
+}
+const metricCache = {};
+function roleWidths(role) {
+  const key = role.css;
+  if (!(key in metricCache)) {
+    const enc = loadMetrics()[key];
+    if (enc) { const a = []; for (let i = 0; i < enc.length; i += 2) a.push(parseInt(enc.slice(i, i + 2), 36)); metricCache[key] = a; } else metricCache[key] = null;
+  }
+  return metricCache[key];
+}
+// Width in px of a string in a type role at sizePx. Roles of the shipped themes are
+// measured glyph by glyph (font-metrics.json); other faces fall back to the family tables.
+function tw(text, role, sizePx) {
+  let str = String(text == null ? '' : text);
+  if (role.upper) str = str.toUpperCase();
+  const ws = roleWidths(role);
+  if (!ws) return textPx(str, { family: role.family, weight: role.weight, tracking: role.tracking }, sizePx) * (role.upper ? 1.02 : 1);
+  let em = 0;
+  for (const ch of str) { const i = GLYPH_SET.indexOf(ch); em += i >= 0 ? ws[i] / 1000 : 0.62; }
+  return (em + str.length * role.tracking) * sizePx;
 }
 
-function tableBlock(columns, rows, company) {
-  if (!rows.length) return '';
-  const cols = columns.length ? columns : rows[0].map((_, i) => (i === 0 ? '' : 'Col ' + i));
-  const check = '<svg class="ck" viewBox="0 0 24 24" width="30" height="30" aria-label="yes"><path d="M4 12.5l5 5L20 6.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  const cell = (v, j) => {
-    if (v === true || v === 'yes' || v === 'true') return '<td class="c">' + check + '</td>';
-    if (v === false || v === 'no' || v === 'false' || v === '' || v == null) return '<td class="c"><span class="no">' + (j === 0 ? '' : '–') + '</span></td>';
-    return '<td' + (j === 0 ? ' class="rowhead"' : '') + '>' + txt(v) + '</td>';
-  };
-  let h = '<table class="tbl"><thead><tr>' + cols.map((c) => '<th>' + txt(c) + '</th>').join('') + '</tr></thead><tbody>';
-  rows.forEach((r) => {
-    const cells = Array.isArray(r) ? r : (r.cells || [r.name].concat(asArray(r.values)));
-    const us = company && String(cells[0]).toLowerCase() === String(company).toLowerCase();
-    h += '<tr' + (us ? ' class="us"' : '') + '>' + cells.map(cell).join('') + '</tr>';
+// "A title with *one emphasised phrase*" as runs. A lone asterisk stays a character.
+function parseRuns(text) {
+  const str = String(text == null ? '' : text);
+  const runs = [];
+  const re = /\*([^*\n]+)\*/g;
+  let last = 0, m;
+  while ((m = re.exec(str))) {
+    if (m.index > last) runs.push({ t: str.slice(last, m.index), em: false });
+    runs.push({ t: m[1], em: true });
+    last = m.index + m[0].length;
+  }
+  if (last < str.length) runs.push({ t: str.slice(last), em: false });
+  return runs.length ? runs : [{ t: '', em: false }];
+}
+const stripEm = (text) => parseRuns(text).map((r) => r.t).join('');
+const SLOT_PX = 0.4;      // a "[needs number]" slot is this much wider (in em) than its words
+
+// Lines and widest line of a text wrapped at widthPx: greedy breaks at spaces and after
+// hyphens, which is also the line count of a balanced wrap.
+function wrapText(text, role, sizePx, widthPx, em) {
+  const T = LX.theme;
+  const keepHyph = role === T.roles.display || role === T.roles.em;      // display type keeps compounds whole
+  const runs = em ? parseRuns(text) : [{ t: String(text == null ? '' : text), em: false }];
+  const words = [];
+  runs.forEach((r) => {
+    const ro = r.em && T.emMode === 'serif' ? T.roles.em : role;
+    const sz = r.em && T.emMode === 'serif' ? sizePx * T.emScale : sizePx;
+    const padEm = r.em && emMode(T, LX.tone) === 'mark' ? 0.12 * sizePx : 0;
+    const parts = r.t.split(/(\s+)/);
+    parts.forEach((p, k) => {
+      if (!p) return;
+      if (/^\s+$/.test(p)) { words.push({ sp: true, w: tw(' ', ro, sz) }); return; }
+      const whole = !LX.brk && keepHyph && /[A-Za-z0-9]-[A-Za-z0-9]/.test(p) && tw(p, ro, sz) <= widthPx;
+      (whole ? [p] : p.split(LX.brk ? /(?<=[-_/:.#])/ : /(?<=-)/)).forEach((frag, j) => {
+        let w = tw(frag.replace(/\[needs (?:number|detail)\]/ig, 'needs number'), ro, sz);
+        if (hasPlaceholder(frag)) w += SLOT_PX * sizePx;
+        // highlighter padding: at both ends of the phrase and again wherever it breaks across lines,
+        // so every emphasised word is counted with one
+        if (padEm) w += padEm;
+        if (padEm && k === 0 && j === 0) w += padEm;
+        words.push({ w, glue: j > 0 });
+      });
+    });
   });
-  return h + '</tbody></table>';
+  let lines = 1, x = 0, widest = 0, pendingSp = 0, over = false;
+  words.forEach((wd) => {
+    if (wd.sp) { pendingSp = wd.w; return; }
+    if (wd.w > widthPx && !wd.glue) over = true;      // one word wider than the line: it cannot wrap
+    const lead = x > 0 && !wd.glue ? pendingSp : 0;
+    if (x > 0 && x + lead + wd.w > widthPx) { lines += 1; widest = Math.max(widest, x); x = wd.w; } else x += lead + wd.w;
+    pendingSp = 0;
+  });
+  return { lines, widest: Math.max(widest, x), over };
 }
 
-// Up to three points side by side, each under a small accent mark.
-function columnsBlock(points) {
-  const shown = points.slice(0, 3);
-  const n = Math.max(1, shown.length);
-  return '<div class="cols cols-' + n + '">' + shown.map((p) => '<div class="pt"><span class="mark"></span>' + txt(p) + '</div>').join('') + '</div>' +
-    pointsBlock(points.slice(3), 'compact under');
+// ---- the layout context --------------------------------------------------------------
+// LX is set per slide while it renders: theme, variant, tone, slide number, and the list
+// that collects what does not fit.
+let LX = { theme: null, variant: 'present', tone: 'light', no: 0, type: '', issues: [], slack: [], quiet: false };
+const sv = (present, read) => (LX.variant === 'read' && read !== undefined ? read : present);
+function issue(msg) { if (!LX.quiet) LX.issues.push('slide ' + LX.no + ' (' + LX.type + '): ' + msg); LX.count = (LX.count || 0) + 1; }
+
+// Smallest sizes drawn, in px on the 1920 stage: running text and marginalia.
+const FLOOR = { body: { present: 24, read: 22 }, small: 16 };
+const floorBody = () => FLOOR.body[LX.variant] || 24;
+
+const SLACK_MIN = 0.55;       // a list, table or diagram cell filled less than this is reported as slack
+const WRAP_SAFETY = 0.985;    // measured glyph sums against real shaping: kerning and rounding
+
+// One block of text: {h, html, size, lines}. o: role, size or sizes (largest first), lh,
+// w (wrap width), max (lines), cls, what (name used in a warning), em (parse *phrase*),
+// nowrap, style, tag.
+function tb(text, o) {
+  const T = LX.theme;
+  const roleName = o.role || 'body';
+  const role = T.roles[roleName];
+  const sizes = o.sizes || [o.size];
+  const lh = o.lh || (roleName === 'body' || roleName === 'bodyb' ? 1.36 : roleName === 'mono' ? 1.3 : T.titleLh);
+  const max = o.nowrap ? 1 : (o.max || 99);
+  // a highlighter block that breaks across lines keeps its padding at the break, which the
+  // browser's line breaker does not count: the block reserves that much at its right edge
+  const markPad = o.em && emMode(T, LX.tone) === 'mark' && /\*[^*\n]+\*/.test(String(text || ''));
+  let size = sizes[sizes.length - 1], m = null, fits = false;
+  for (const sz of sizes) {
+    m = wrapText(text, role, sz, o.w * WRAP_SAFETY - 1 - (markPad ? 0.13 * sz : 0), o.em);
+    if (m.lines <= max && !m.over && (!o.maxH || m.lines * sz * lh <= o.maxH)) { size = sz; fits = true; break; }
+  }
+  if (!fits && o.what && m.over && m.lines <= max) issue(o.what + ' has a word that is wider than its line' + (sizes.length > 1 ? ' at the smallest size' : '') + '. Shorten or hyphenate it.');
+  else if (!fits && o.what) {
+    const len = stripEm(text).length;
+    const cap = o.maxH ? Math.max(1, Math.min(max, Math.floor(o.maxH / (size * lh)))) : max;
+    const about = Math.max(4, Math.floor((len * cap / m.lines) * 0.94 / 2) * 2);
+    issue(o.what + ' is too long: ' + len + ' characters take ' + m.lines + ' line' + (m.lines === 1 ? '' : 's') + (sizes.length > 1 ? ' at the smallest size' : '') +
+      ', ' + cap + ' fit' + (cap === 1 ? 's' : '') + '. Shorten it to about ' + about + ' characters.');
+  }
+  const lines = m.lines;
+  const cls = 't f-' + roleName + (o.cls ? ' ' + o.cls : '');
+  const st = 'font-size:' + size + 'px;line-height:' + lh + (o.nowrap ? ';white-space:nowrap' : (max > 1 && /\blbl\b/.test(o.cls || '') ? ';white-space:normal' : '')) + (o.mw ? ';max-width:' + Math.round(o.w) + 'px' : '') + (markPad ? ';padding-right:.13em' : '') + (o.style ? ';' + o.style : '');
+  const tag = o.tag || 'div';
+  return { h: lines * size * lh, size, lines, widest: m.widest, fits,
+    html: '<' + tag + ' class="' + cls + '" style="' + st + '">' + (roleName === 'display' && !LX.brk ? keepCompounds(o.em ? emHtml(text) : txt(text), (wd) => tw(wd, role, size) <= o.w * WRAP_SAFETY - 1) : o.em ? emHtml(text) : (LX.brk ? txt(text).replace(/([_/:.#])(?=[^\s<])/g, '$1<wbr>') : txt(text))) + '</' + tag + '>' };
+}
+// Inline HTML of a text with its emphasised phrase.
+function emHtml(text) {
+  return parseRuns(text).map((r) => (r.em ? '<em class="em" data-ground="--em-bg">' + txt(r.t) + '</em>' : txt(r.t))).join('');
+}
+// Wrap hyphenated compounds of a headline in a no-break span (those that fit on a line).
+function keepCompounds(html, fits) {
+  return html.replace(/(^|[\s>])([A-Za-z0-9]+(?:-[A-Za-z0-9]+)+)(?=[\s<.,;:!?]|$)/g, (m, pre, wd) => (fits(wd) ? pre + '<span class="nb">' + wd + '</span>' : m));
+}
+// Mono label (running head, eyebrow, caption). One line unless max is given.
+function label(text, w, o) {
+  o = o || {};
+  const T = LX.theme;
+  return tb(text, Object.assign({ role: 'mono', size: T.monoSize + (/\beb\b/.test(o.cls || '') ? 3 : 0), lh: 1.3, w, max: o.max || 1, cls: 'lbl' + (o.cls ? ' ' + o.cls : ''), what: o.what || 'a label', style: (o.max || 1) > 1 ? 'white-space:normal' : '' }, o.size ? { size: o.size } : {}));
+}
+const gapBlock = (h) => ({ h, html: '<div style="height:' + h + 'px;flex:none"></div>' });
+const rawBlock = (h, html) => ({ h, html });
+// Stack blocks with a gap: {h, html}.
+function vs(blocks, gap, cls) {
+  const list = blocks.filter(Boolean);
+  const h = list.reduce((a, b) => a + b.h, 0) + Math.max(0, list.length - 1) * (gap || 0);
+  return { h, html: '<div class="vs' + (cls ? ' ' + cls : '') + '" style="gap:' + (gap || 0) + 'px">' + list.map((b) => b.html).join('') + '</div>' };
 }
 
-function imgTag(src, cls, alt) {
-  if (!src) return '';
-  return '<img class="' + (cls || '') + '" src="' + esc(src) + '" alt="' + esc(alt || '') + '">';
+// ---- stage geometry ------------------------------------------------------------------
+// The content frame and its 12 x 8 grid. Gaps, padding and how a cell is drawn come from
+// the theme's cell style.
+const FRAME = { x: 72, y: 96, w: 1776, h: 900 };
+const CELL_STYLE = {
+  hairline: { gap: 0, pad: 34, plainPad: 34 },
+  rule: { gap: 0, pad: 34, plainPad: 34 },
+  block: { gap: 12, pad: 34, plainPad: 0 },
+  outline: { gap: 16, pad: 32, plainPad: 0 },
+  card: { gap: 22, pad: 34, plainPad: 0 },
+  soft: { gap: 16, pad: 34, plainPad: 0 },
+};
+const cs = () => CELL_STYLE[LX.theme.cell];
+// Rectangle of grid columns c0..c0+cn and rows r0..r0+rn (zero-based) inside `f`.
+function grid(c0, r0, cn, rn, f) {
+  f = f || FRAME;
+  const g = cs().gap;
+  const cw = (f.w - 11 * g) / 12, rh = (f.h - 7 * g) / 8;
+  return { x: f.x + c0 * (cw + g), y: f.y + r0 * (rh + g), w: cn * cw + (cn - 1) * g, h: rn * rh + (rn - 1) * g };
+}
+// Split a rectangle into n columns or rows with the theme gap; weights are relative sizes.
+function splitRect(r, n, dir, weights) {
+  const g = cs().gap;
+  const wts = weights || Array(n).fill(1);
+  const total = wts.reduce((a, b) => a + b, 0);
+  const span = (dir === 'row' ? r.h : r.w) - (n - 1) * g;
+  const out = [];
+  let pos = dir === 'row' ? r.y : r.x;
+  wts.forEach((wt) => {
+    const len = span * wt / total;
+    out.push(dir === 'row' ? { x: r.x, y: pos, w: r.w, h: len } : { x: pos, y: r.y, w: len, h: r.h });
+    pos += len + g;
+  });
+  return out;
 }
 
-// ---- slide renderers -----------------------------------------------------------------
-// Each returns the inner HTML of a slide. ctx carries meta, resolved images, and totals.
+// One cell. o.tone fills it with another tone (a nested tone scope); o.kind "plain" is
+// an unframed text area, "bleed" a full-height panel. build(w, h) returns {top, bottom,
+// mid}: lists of blocks pinned to the top, the bottom, or centred. What does not fit in
+// the cell height is reported.
+function cell(r, o, build) {
+  o = o || {};
+  const st = cs();
+  const hair = LX.theme.cell === 'hairline' || LX.theme.cell === 'rule';
+  const plain = o.kind === 'plain';
+  const pad = o.pad !== undefined ? o.pad : (plain ? st.plainPad : st.pad);
+  const padX = o.padX !== undefined ? o.padX : pad;
+  const iw = r.w - 2 * padX, ih = r.h - 2 * pad;
+  const prevTone = LX.tone;
+  if (o.tone) LX.tone = o.tone;
+  const parts = build(iw, ih) || {};
+  LX.tone = prevTone;
+  const gap = o.gap !== undefined ? o.gap : 18;
+  const group = (list) => { const l = (list || []).filter(Boolean); return { l, h: l.reduce((a, b) => a + b.h, 0) + Math.max(0, l.length - 1) * gap }; };
+  const top = group(parts.top), mid = group(parts.mid), bottom = group(parts.bottom);
+  const used = top.h + mid.h + bottom.h + ((top.l.length ? 1 : 0) + (mid.l.length ? 1 : 0) + (bottom.l.length ? 1 : 0) - 1) * Math.max(gap, o.minGap || 0);
+  if (used > ih * 1.012 + 1) {
+    const pct = Math.round((used / ih - 1) * 100);
+    issue((o.what || 'a cell') + ' is overfull by about ' + Math.max(1, pct) + ' percent' + (o.fix ? '. ' + o.fix : '. Shorten the text or cut an item.'));
+  }
+  if (o.slack && !LX.quiet) {
+    const filled = top.l.concat(mid.l, bottom.l).reduce((a, b) => a + (b.fill !== undefined ? b.fill : b.h), 0) + Math.max(0, top.l.length + mid.l.length + bottom.l.length - 1) * gap;
+    if (filled < ih * SLACK_MIN) LX.slack.push('slide ' + LX.no + ' (' + LX.type + '): ' + (o.what || 'a cell') + ' is only ' + Math.round(filled * 100 / ih) + ' percent filled. The slide will look empty: add a point, a stat, a diagram or an image, or say more.');
+  }
+  const wrap = (g, cls) => (g.l.length ? '<div class="cg ' + cls + '" style="gap:' + gap + 'px">' + g.l.map((b) => b.html).join('') + '</div>' : '');
+  const cls = 'cell' + (plain ? ' plain' : o.kind === 'bleed' ? ' bleed' : '') + (o.tone ? ' filled' : '') + (o.cls ? ' ' + o.cls : '');
+  // hairline cells overlap by one pixel so neighbours share a border
+  const grow = hair && !plain && o.kind !== 'bleed' ? 1 : 0;
+  const style = 'left:' + r.x.toFixed(1) + 'px;top:' + r.y.toFixed(1) + 'px;width:' + (r.w + grow).toFixed(1) + 'px;height:' + (r.h + grow).toFixed(1) + 'px;padding:' + pad + 'px ' + padX + 'px' + (o.style ? ';' + o.style : '');
+  return '<div class="' + cls + '"' + (o.tone ? ' data-tone="' + o.tone + '"' : '') + ' style="' + style + '">' + (parts.under || '') + wrap(top, 'cg-top') + wrap(mid, 'cg-mid') + wrap(bottom, 'cg-bottom') + (parts.over || '') + '</div>';
+}
 
-const HTML_RENDERERS = {
-  cover(s, ctx) {
-    const logo = ctx.logo || ctx.image;    // cover `image` is an alternative logo slot
-    const facts = s.stats.length ? '<div class="cover-facts">' + s.stats.slice(0, 3).map((st) =>
-      '<div class="stat"><div class="stat-v">' + txt(st.value) + '</div><div class="stat-l">' + txt(st.label) + '</div></div>').join('') + '</div>' : '';
-    return '<div class="cover-wrap">' +
-      (logo ? imgTag(logo, 'cover-logo', ctx.meta.company + ' logo') : '<div class="cover-mark">' + esc(ctx.meta.company) + '</div>') +
-      '<div class="cover-main' + (facts ? ' has-facts' : '') + '">' +
-      (s.kicker ? '<p class="kicker">' + txt(s.kicker) + '</p>' : '') +
-      '<h1 class="cover-title">' + txt(s.title || ctx.meta.company) + '</h1>' +
-      (s.subtitle || ctx.meta.tagline ? '<p class="cover-sub">' + txt(s.subtitle || ctx.meta.tagline) + '</p>' : '') +
-      facts + '</div></div>';
-  },
+// ---- icons ---------------------------------------------------------------------------
+// A subset of Lucide (ISC), assets/deck-template/icons.json. Unknown names fall back to
+// a plain mark and are listed in the build log.
+let ICONS = null;
+function icon(name, size, cls) {
+  if (!ICONS) { try { ICONS = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'assets', 'deck-template', 'icons.json'), 'utf8')); } catch (e) { ICONS = {}; } }
+  const key = String(name || '').trim().toLowerCase().replace(/[\s_]+/g, '-');
+  let inner = key && key !== '_meta' ? ICONS[key] : null;
+  if (!inner) {
+    if (key && LX.unknownIcons && !LX.unknownIcons.includes(key)) LX.unknownIcons.push(key);
+    inner = '<rect x="5" y="5" width="14" height="14" rx="1" fill="currentColor" stroke="none"/>';
+    return '<svg class="ico' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" width="' + Math.round(size * 0.5) + '" height="' + Math.round(size * 0.5) + '" aria-hidden="true">' + inner + '</svg>';
+  }
+  return '<svg class="ico' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" width="' + size + '" height="' + size + '" aria-hidden="true">' + inner + '</svg>';
+}
+const iconNames = () => { icon('zap', 1); return Object.keys(ICONS).filter((k) => k !== '_meta'); };
 
-  problem(s, ctx) {
-    // Headline across the top; below it the one big number (or two) beside the points.
-    // With an image the points sit beside the picture; with neither the points stand alone.
-    const stats = s.stats.slice(0, 2);
-    if (ctx.image) {
-      return headBlock(s, '', ctx) + '<div class="grid-2 fill">' + pointsBlock(s.points, 'compact') +
-        '<div class="frame fillh">' + imgTag(ctx.image, 'fit', s.title) + '</div></div>' + sourceLine(s, ctx);
+// ---- hero numerals -------------------------------------------------------------------
+// "138%" becomes a numeral with a raised unit; "492k EUR" a numeral with a small unit.
+function splitValue(v) {
+  const str = String(v == null ? '' : v).trim();
+  const m = str.match(/^([^\d\s]{0,3}\s?[\d][\d.,]*(?:\s?(?:[kKMB]|bn|m)(?![A-Za-z]))?)\s*([%x×]|pp|[^\d]{1,12})?$/);
+  if (!m || !m[2]) return { main: str, unit: '' };
+  return { main: m[1].trim(), unit: m[2].trim() };
+}
+// A numeral that fills width w on one line: {h, html, size}. sizes: largest first.
+function numBlock(value, w, sizes, o) {
+  o = o || {};
+  const T = LX.theme;
+  if (isPlaceholder(value)) {
+    let size = Math.min(sizes[0], 60);
+    while (size > 30 && tw('needs number', T.roles.bodyb, size * 0.72) + size * 0.8 > w) size -= 4;
+    return { h: size * 1.1, size, html: '<div class="num f-num" style="font-size:' + size + 'px;line-height:1.1">' + txt(value) + '</div>' };
+  }
+  const { main, unit } = splitValue(value);
+  const digit = Math.max(...'0123456789'.split('').map((d) => tw(d, T.roles.num, 100))) / 100;
+  // tabular figures: every digit is as wide as the widest one
+  const mainW = (sz) => tw(main.replace(/\d/g, ''), T.roles.num, sz) + (main.match(/\d/g) || []).length * (digit + T.roles.num.tracking) * sz;
+  const unitW = (sz) => (unit ? tw(unit, T.roles.num, sz * 0.36) + sz * 0.05 : 0);
+  let size = sizes[sizes.length - 1], fits = false;
+  for (const sz of sizes) { if ((mainW(sz) + unitW(sz)) * 1.03 <= w) { size = sz; fits = true; break; } }
+  if (!fits) issue((o.what || 'a stat value') + ' "' + String(value) + '" is too long for its cell. Keep the figure and move the unit into the label (about ' + Math.max(3, Math.floor(String(value).length * w / ((mainW(size) + unitW(size)) * 1.03))) + ' characters fit).');
+  const lh = T.numLh;
+  return { h: size * lh, size,
+    html: '<div class="num f-num' + (o.cls ? ' ' + o.cls : '') + '" style="font-size:' + size + 'px;line-height:' + lh + '">' + esc(main) + (unit ? '<sup>' + esc(unit) + '</sup>' : '') + '</div>' };
+}
+const ladder = (max, min, step) => { const a = []; for (let s = max; s >= min; s -= (step || Math.max(4, Math.round(max * 0.08)))) a.push(Math.round(s)); if (a[a.length - 1] !== min) a.push(min); return a; };
+// --------------------------------------------------------------------------------------
+// 4b. Charts: inline SVG at the exact pixel size of their cell
+// --------------------------------------------------------------------------------------
+// One accent series, the others muted; the latest bar or point is the highlight; lines
+// are labelled at their end instead of in a legend; the y axis always starts at zero;
+// whole-number data gets whole-number ticks. Colours are CSS variables of the tone.
+
+const SERIES_FILL = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)'];
+const CHART_LIMITS = { labels: 12, hbarRows: 8, series: 5, annotation: 44 };
+const AX = 19;       // axis label size, px
+const VL = 24;       // value label size, px
+let chartSeq = 0;
+const f1 = (n) => Number(n.toFixed(1));
+
+function chartMax(chart) {
+  let max = 0;
+  if (chart.kind === 'stacked_bar') chart.labels.forEach((_, i) => { max = Math.max(max, chart.series.reduce((a, se) => a + (se.values[i] || 0), 0)); });
+  else chart.series.forEach((se) => se.values.forEach((v) => { if (v != null) max = Math.max(max, v); }));
+  return max;
+}
+const isPlan = (name) => /projection|projected|forecast|plan\b|target/i.test(String(name || ''));
+
+// Returns {svg, issues[]}. W and H are final pixels: nothing is scaled afterwards.
+function endLabelWidth(chart) {
+  const body = LX.theme.roles.bodyb;
+  const series = chart.series.slice(0, CHART_LIMITS.series);
+  return Math.max(0, ...series.map((se) => { let k = se.values.length - 1; while (k >= 0 && se.values[k] == null) k--; return Math.max(se.name && series.length > 1 ? tw(se.name, body, 22) : 0, tw(k >= 0 ? fmtNum(se.values[k]) : '', body, VL)); })) + 22;
+}
+function svgChart(chart, W, H, direct) {
+  const T = LX.theme;
+  const mono = T.roles.mono, body = T.roles.bodyb;
+  const n = chart.labels.length;
+  const series = chart.series.slice(0, CHART_LIMITS.series);
+  if (chart.series.length > CHART_LIMITS.series) issue('the chart has ' + chart.series.length + ' series; ' + CHART_LIMITS.series + ' are drawn. Merge the smallest into "Other".');
+  if (chart.kind !== 'horizontal_bar' && n > CHART_LIMITS.labels) issue('the chart has ' + n + ' x labels; ' + CHART_LIMITS.labels + ' fit. Aggregate (months into quarters) or show the latest ' + CHART_LIMITS.labels + '.');
+  const allInt = series.every((se) => se.values.every((v) => v == null || Number.isInteger(v)));
+  const out = [];
+  const id = 'c' + (++chartSeq);
+
+  if (chart.kind === 'horizontal_bar') {
+    const rows = Math.min(n, CHART_LIMITS.hbarRows);
+    if (n > CHART_LIMITS.hbarRows) issue('the bar chart has ' + n + ' rows; ' + CHART_LIMITS.hbarRows + ' fit. Keep the top ' + CHART_LIMITS.hbarRows + '.');
+    const vals = series[0].values;
+    const max = Math.max(1e-9, ...vals.slice(0, rows).map((v) => v || 0));
+    const lw = Math.min(W * 0.42, Math.max(...chart.labels.slice(0, rows).map((l) => tw(l, T.roles.body, 24))) + 20);
+    if (Math.max(...chart.labels.slice(0, rows).map((l) => tw(l, T.roles.body, 24))) + 20 > W * 0.42) issue('a bar label is too long for the chart. Keep bar labels under about ' + Math.floor(W * 0.42 / (24 * 0.5)) + ' characters.');
+    const vw = Math.max(...vals.slice(0, rows).map((v) => tw(fmtNum(v || 0), body, VL))) + 14;
+    const rh = Math.min(84, H / rows), bh = Math.min(44, rh * 0.56);
+    const hi = chart.highlight === 'none' ? -1 : (Number.isInteger(chart.highlight) ? chart.highlight : 0);
+    for (let i = 0; i < rows; i++) {
+      const y = i * rh + (rh - bh) / 2;
+      const bw = Math.max(2, (W - lw - vw) * (vals[i] || 0) / max);
+      out.push('<text class="hl" x="0" y="' + f1(y + bh / 2 + 8) + '">' + esc(chart.labels[i]) + '</text>');
+      out.push('<rect x="' + f1(lw) + '" y="' + f1(y) + '" width="' + f1(bw) + '" height="' + f1(bh) + '" fill="' + (i === hi ? 'var(--accent)' : 'var(--fill)') + '"/>');
+      out.push('<text class="vl' + (i === hi ? ' hi' : '') + '" x="' + f1(lw + bw + 12) + '" y="' + f1(y + bh / 2 + 8) + '">' + esc(fmtNum(vals[i] || 0)) + '</text>');
     }
-    if (!stats.length) return headBlock(s, '', ctx) + '<div class="grid-2 problem"><div class="col wide">' + pointsBlock(s.points) + '</div></div>' + sourceLine(s, ctx);
-    const two = stats.length > 1;
-    return headBlock(s, '', ctx) + '<div class="grid-2 problem">' +
-      '<div class="col">' + statsBlock(stats, 'big' + (two ? ' two' : ''), two ? 366 : 780, two ? 120 : 168) + '</div>' +
-      '<div class="col">' + pointsBlock(s.points) + '</div></div>' + sourceLine(s, ctx);
-  },
+    return '<svg class="chart" width="' + Math.round(W) + '" height="' + Math.round(rows * rh) + '" viewBox="0 0 ' + Math.round(W) + ' ' + Math.round(rows * rh) + '" role="img" aria-label="Bar chart">' + out.join('') + '</svg>';
+  }
 
-  solution(s, ctx) {
-    if (ctx.image) {
-      return headBlock(s, '', ctx) + '<div class="grid-2 narrow fill">' + pointsBlock(s.points) + '<div class="frame fillh">' + imgTag(ctx.image, 'fit', s.title) + '</div></div>' + sourceLine(s, ctx);
+  const ticks = niceTicks(chartMax(chart), allInt);
+  const top = ticks[ticks.length - 1];
+  const tickW = Math.max(...ticks.map((t) => tw(fmtNum(t), mono, AX)));
+  const isLine = chart.kind === 'line' || chart.kind === 'area';
+  // direct labels at the end of each line: name and latest value
+  const ends = isLine ? series.map((se) => { let k = se.values.length - 1; while (k >= 0 && se.values[k] == null) k--; return { k, name: se.name, val: k >= 0 ? fmtNum(se.values[k]) : '' }; }) : [];
+  // names too long to sit at the line ends go to the legend; the latest values stay at the ends
+  if (isLine && !direct) ends.forEach((e) => { e.name = ''; });
+  const endW = isLine ? Math.max(0, ...ends.map((e) => Math.max(e.name && series.length > 1 ? tw(e.name, body, 22) : 0, tw(e.val, body, VL)))) + 22 : 0;
+  const L = tickW + 16, R = isLine ? Math.max(16, endW) : 6, TOP = 44, B = 48;
+  const pw = W - L - R, ph = H - TOP - B;
+  const y = (v) => TOP + ph - (ph * v) / top;
+  // gridlines: faint, horizontal only; the baseline is the one solid line
+  ticks.forEach((t, k) => {
+    if (k > 0) out.push('<line x1="' + f1(L) + '" x2="' + f1(L + pw) + '" y1="' + f1(y(t)) + '" y2="' + f1(y(t)) + '" class="grid"/>');
+    out.push('<text class="ax" text-anchor="end" x="' + f1(L - 12) + '" y="' + f1(y(t) + 6) + '">' + esc(fmtNum(t)) + '</text>');
+  });
+  const slot = pw / Math.max(1, n);
+  const cx = (i) => (isLine ? L + (n === 1 ? pw / 2 : (pw * i) / (n - 1)) : L + slot * (i + 0.5));
+  // x labels must not collide with their neighbours
+  const lws = chart.labels.map((l) => tw(l, mono, AX));
+  const step = isLine && n > 1 ? pw / (n - 1) : slot;
+  if (lws.some((w, i) => i > 0 && (w + lws[i - 1]) / 2 + 10 > step)) {
+    issue('the chart\'s x labels run into each other. Shorten them to about ' + Math.max(2, Math.floor((step - 10) / (AX * 0.68))) + ' characters ("Q1 25", "Jan") or use fewer points.');
+  }
+  // the highlight: the latest value of the first series, unless chart.highlight says otherwise
+  let hi = -1;
+  if (chart.highlight !== 'none') {
+    if (Number.isInteger(chart.highlight)) hi = chart.highlight;
+    else if (typeof chart.highlight === 'string' && chart.labels.indexOf(chart.highlight) >= 0) hi = chart.labels.indexOf(chart.highlight);
+    else { hi = series[0].values.length - 1; while (hi >= 0 && series[0].values[hi] == null) hi--; }
+  }
+  chart.labels.forEach((l, i) => {
+    const anchor = isLine && i === 0 ? 'start' : (isLine && i === n - 1 ? 'end' : 'middle');
+    out.push('<text class="ax' + (i === hi && series.length === 1 && !isLine ? ' hi' : '') + '" text-anchor="' + anchor + '" x="' + f1(cx(i)) + '" y="' + f1(TOP + ph + 34) + '">' + esc(l) + '</text>');
+  });
+
+  if (chart.kind === 'bar') {
+    const group = Math.min(slot * 0.8, 150 * series.length);
+    const bw = group / series.length;
+    series.forEach((se, si) => se.values.forEach((v, i) => {
+      if (v == null) return;
+      const single = series.length === 1;
+      const fill = single ? (i === hi ? 'var(--accent)' : 'var(--fill)') : SERIES_FILL[si];
+      const x = L + slot * i + (slot - group) / 2 + bw * si;
+      out.push('<rect x="' + f1(x + (single ? 0 : 1)) + '" y="' + f1(y(v)) + '" width="' + f1(bw - (single ? 0 : 2)) + '" height="' + f1(Math.max(0, TOP + ph - y(v))) + '" fill="' + fill + '"/>');
+      if (chart.show_values || (single && i === hi)) out.push('<text class="vl' + (single && i === hi ? ' hi' : '') + '" text-anchor="middle" x="' + f1(x + bw / 2) + '" y="' + f1(y(v) - 10) + '">' + esc(fmtNum(v)) + '</text>');
+    }));
+  } else if (chart.kind === 'stacked_bar') {
+    const bw = Math.min(slot * 0.7, 170);
+    chart.labels.forEach((_, i) => {
+      let acc = 0;
+      series.forEach((se, si) => {
+        const v = se.values[i] || 0;
+        if (!v) return;
+        out.push('<rect x="' + f1(cx(i) - bw / 2) + '" y="' + f1(y(acc + v)) + '" width="' + f1(bw) + '" height="' + f1(Math.max(0, y(acc) - y(acc + v) - 2)) + '" fill="' + SERIES_FILL[si] + '"/>');
+        acc += v;
+      });
+      if (chart.show_values || i === hi) out.push('<text class="vl" text-anchor="middle" x="' + f1(cx(i)) + '" y="' + f1(y(acc) - 10) + '">' + esc(fmtNum(acc)) + '</text>');
+    });
+  } else {
+    const fillArea = chart.kind === 'area' || series.length === 1;
+    series.forEach((se, si) => {
+      // null values leave gaps: one path per run of numbers
+      const runs = []; let run = [];
+      se.values.forEach((v, i) => { if (v == null) { if (run.length) runs.push(run); run = []; } else run.push([cx(i), y(v)]); });
+      if (run.length) runs.push(run);
+      const stroke = SERIES_FILL[si];
+      const dash = isPlan(se.name) || (si > 0 && series.length === 2 && !isPlan(series[0].name)) ? ' stroke-dasharray="3 9" stroke-linecap="round"' : '';
+      runs.forEach((pts) => {
+        const d = pts.map((p, k) => (k ? 'L' : 'M') + f1(p[0]) + ' ' + f1(p[1])).join('');
+        if (si === 0 && fillArea && pts.length > 1) {
+          out.push('<defs><linearGradient id="' + id + 'g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--s1)" stop-opacity=".42"/><stop offset="1" stop-color="var(--s1)" stop-opacity="0"/></linearGradient></defs>');
+          out.push('<path d="' + d + 'L' + f1(pts[pts.length - 1][0]) + ' ' + f1(TOP + ph) + 'L' + f1(pts[0][0]) + ' ' + f1(TOP + ph) + 'Z" fill="url(#' + id + 'g)"/>');
+        }
+        if (pts.length === 1) out.push('<circle cx="' + f1(pts[0][0]) + '" cy="' + f1(pts[0][1]) + '" r="5" fill="' + stroke + '"/>');
+        else out.push('<path class="draw" d="' + d + '" fill="none" stroke="' + stroke + '" stroke-width="' + (si === 0 ? 4 : 2.5) + '" stroke-linejoin="round"' + dash + '/>');
+      });
+      if (chart.show_values && si === 0) se.values.forEach((v, i) => { if (v != null && i !== ends[0].k) out.push('<text class="vl sm" text-anchor="middle" x="' + f1(cx(i)) + '" y="' + f1(y(v) - 14) + '">' + esc(fmtNum(v)) + '</text>'); });
+    });
+    // end dots and direct labels, nudged apart when two lines end close together
+    const marks = ends.map((e, si) => ({ si, e, py: e.k >= 0 ? y(series[si].values[e.k]) : 0, px: e.k >= 0 ? cx(e.k) : 0 })).filter((m2) => m2.e.k >= 0).sort((a, b) => a.py - b.py);
+    const lineH = series.length > 1 && direct ? 58 : 30;
+    marks.forEach((m2, k) => { m2.ly = k === 0 ? Math.max(m2.py, TOP + 4) : Math.max(m2.py, marks[k - 1].ly + lineH); });
+    marks.forEach((m2) => {
+      const stroke = SERIES_FILL[m2.si];
+      out.push('<circle cx="' + f1(m2.px) + '" cy="' + f1(m2.py) + '" r="' + (m2.si === 0 ? 8 : 5) + '" fill="var(--bg)" stroke="' + stroke + '" stroke-width="' + (m2.si === 0 ? 4 : 2.5) + '"/>');
+      const lx = m2.px + 18;
+      if (series.length > 1 && m2.e.name && direct) {
+        out.push('<text class="el" x="' + f1(lx) + '" y="' + f1(m2.ly - 2) + '">' + esc(m2.e.name) + '</text>');
+        out.push('<text class="vl' + (m2.si === 0 ? ' hi' : '') + '" x="' + f1(lx) + '" y="' + f1(m2.ly + 27) + '">' + esc(m2.e.val) + '</text>');
+      } else out.push('<text class="vl' + (m2.si === 0 ? ' hi' : '') + '" x="' + f1(lx) + '" y="' + f1(m2.ly + 8) + '">' + esc(m2.e.val) + '</text>');
+    });
+  }
+  out.push('<line x1="' + f1(L) + '" x2="' + f1(L + pw) + '" y1="' + f1(TOP + ph) + '" y2="' + f1(TOP + ph) + '" class="base"/>');
+
+  // annotation: the event that explains the bend, on a leader line
+  const an = chart.annotation;
+  if (an && an.text) {
+    let at = Number.isInteger(an.at) ? an.at : chart.labels.indexOf(String(an.at));
+    if (at < 0 || at >= n) issue('chart annotation: "at" must be one of the x labels (or its index); "' + an.at + '" is not.');
+    else {
+      if (String(an.text).length > CHART_LIMITS.annotation) issue('the chart annotation is ' + String(an.text).length + ' characters; ' + CHART_LIMITS.annotation + ' fit on its line.');
+      const v = chart.kind === 'stacked_bar' ? series.reduce((a, se) => a + (se.values[at] || 0), 0) : (series[0].values[at] || 0);
+      const px = cx(at), py = y(v);
+      const textW = tw(an.text, body, 20);
+      const left = px + 14 + textW > L + pw;
+      const ty = Math.max(TOP - 16, Math.min(py - 70, TOP + ph * 0.35));
+      out.push('<line class="an-l" x1="' + f1(px) + '" x2="' + f1(px) + '" y1="' + f1(py - (isLine ? 0 : 6)) + '" y2="' + f1(ty - 14) + '"/>');
+      if (isLine) out.push('<circle cx="' + f1(px) + '" cy="' + f1(py) + '" r="6" class="an-d"/>');
+      out.push('<text class="an" text-anchor="' + (left ? 'end' : 'start') + '" x="' + f1(px + (left ? -12 : 12)) + '" y="' + f1(ty) + '">' + esc(an.text) + '</text>');
     }
-    return headBlock(s, '', ctx) + columnsBlock(s.points) + sourceLine(s, ctx);
+  }
+  return '<svg class="chart" width="' + Math.round(W) + '" height="' + Math.round(H) + '" viewBox="0 0 ' + Math.round(W) + ' ' + Math.round(H) + '" role="img" aria-label="' + esc((chart.y_label || 'Chart') + ', ' + series.map((se) => se.name).filter(Boolean).join(', ')) + '">' + out.join('') + '</svg>';
+}
+
+// Chart with its header row (what the y axis measures, legend for bars) and its source
+// caption, filling w x h exactly.
+function chartBlock(chart, w, h, src) {
+  const T = LX.theme;
+  if (chart.kind === 'donut') {
+    const parts = chart.labels.map((l, k) => ({ label: l, pct: chart.series[0].values[k] || 0 }));
+    return { h, html: '<div class="chart-b" style="height:' + Math.round(h) + 'px;justify-content:center">' + fundsBlock(parts, Math.min(w, 760)).html + '</div>' };
+  }
+  const isLine = chart.kind === 'line' || chart.kind === 'area';
+  const direct = isLine && endLabelWidth(chart) <= w * 0.3;
+  const multi = chart.series.length > 1 && chart.kind !== 'horizontal_bar' && !(isLine && direct);
+  const lineColor = (i) => SERIES_FILL[i];
+  const cap = src ? captionHtml(src, HCTX) : '';
+  let head = 0, headHtml = '';
+  const legend = multi ? chart.series.slice(0, CHART_LIMITS.series).map((se, i) => '<span class="lg"><i style="background:' + (isLine ? lineColor(i) : SERIES_FILL[i]) + '"></i>' + esc(se.name) + '</span>').join('') : '';
+  if (chart.y_label || legend) {
+    const legW = multi ? chart.series.slice(0, CHART_LIMITS.series).reduce((a, se) => a + tw(se.name, T.roles.mono, T.monoSize) + 54, 0) : 0;
+    const ylW = chart.y_label ? tw(chart.y_label, T.roles.mono, T.monoSize) + 30 : 0;
+    const two = legW + ylW > w;
+    if (legW > w) issue('the chart legend does not fit on one line. Shorten the series names (about ' + Math.floor((w / chart.series.length - 54) / (T.monoSize * 0.7)) + ' characters each).');
+    if (ylW > w) issue('y_label is too long for the chart (about ' + Math.floor(w / (T.monoSize * 0.7)) + ' characters fit).');
+    head = two ? 64 : 34;
+    headHtml = '<div class="chart-h f-mono lbl" style="height:' + head + 'px;font-size:' + T.monoSize + 'px' + (two ? ';flex-wrap:wrap' : '') + '">' + (chart.y_label ? '<span>' + esc(chart.y_label) + '</span>' : '<span></span>') + (legend ? '<span class="lgs">' + legend + '</span>' : '') + '</div>';
+  }
+  const foot = cap ? 34 : 0;
+  const ch = h - head - foot;
+  if (ch < 240) issue('the chart has only ' + Math.round(ch) + ' px of height left. Cut a stat or a point beside it.');
+  const svg = svgChart(chart, w, Math.max(160, ch), direct);
+  return { h, html: '<div class="chart-b" style="height:' + Math.round(h) + 'px">' + headHtml + svg + (cap ? '<p class="cap f-mono" style="font-size:16px">' + cap + '</p>' : '') + '</div>' };
+}
+
+// Donut: each slice is a stroke-dasharray on a circle of circumference 100, so it stays
+// vector in the PDF. The largest share sits in the hole.
+const DONUT_COLORS = SERIES_FILL;
+function donutSvg(parts, size) {
+  const total = parts.reduce((a, p) => a + (Number(p.pct) || 0), 0) || 1;
+  const colors = DONUT_COLORS;
+  let acc = 0;
+  const segs = parts.map((p, i) => {
+    const v = (Number(p.pct) || 0) * 100 / total;
+    const seg = '<circle cx="21" cy="21" r="15.915" stroke="' + colors[i % colors.length] + '" stroke-dasharray="' + f1(Math.max(0, v - 0.6)) + ' ' + f1(100 - Math.max(0, v - 0.6)) + '" stroke-dashoffset="' + f1(-acc) + '"/>';
+    acc += v;
+    return seg;
+  }).join('');
+  const big = parts.reduce((a, p) => ((Number(p.pct) || 0) > (Number(a.pct) || 0) ? p : a), parts[0] || { pct: 0 });
+  return '<svg class="donut" width="' + size + '" height="' + size + '" viewBox="0 0 42 42" role="img" aria-label="Use of funds"><g fill="none" stroke-width="5.2" transform="rotate(-90 21 21)">' + segs + '</g>' +
+    '<text class="f-num dn" x="21" y="24.2" text-anchor="middle">' + esc(fmtNum(Number(big.pct) || 0)) + '%</text></svg>';
+}
+
+
+// Sparkline: a small line that ends in an accent dot. No axis; the value beside it is the number.
+function sparkSvg(values, w, h, strong) {
+  const v = values.filter((x) => x != null).map(Number);
+  if (v.length < 2) return '';
+  const min = Math.min(...v), max = Math.max(...v), span = max - min || 1;
+  const pts = v.map((x, i) => [4 + (w - 12) * i / (v.length - 1), 5 + (h - 10) * (1 - (x - min) / span)]);
+  return '<svg class="spark" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true"><polyline class="draw" fill="none" stroke="currentColor" stroke-width="' + (strong ? 3 : 2) + '" stroke-linejoin="round" points="' + pts.map((p) => f1(p[0]) + ',' + f1(p[1])).join(' ') + '"/>' +
+    '<circle cx="' + f1(pts[pts.length - 1][0]) + '" cy="' + f1(pts[pts.length - 1][1]) + '" r="' + (strong ? 6 : 4.5) + '" fill="var(--accent-2)"/></svg>';
+}
+// Rows of metric name, sparkline, latest value: replaces a table of KPIs.
+function sparkRows(rows, w) {
+  const T = LX.theme;
+  const size = sv(24, 22);
+  const list = rows.slice(0, 6);
+  if (rows.length > 6) issue(rows.length + ' sparkline rows; 6 are drawn.');
+  const valW = Math.max(60, ...list.map((r) => tw(String(r.value == null ? '' : r.value), T.roles.bodyb, size))) + 8;
+  const sw = Math.max(90, Math.min(240, w * 0.36));
+  const nameW = w - sw - valW - 36;
+  const rowH = 54;
+  const html = list.map((r) => {
+    if (tw(r.label, T.roles.body, size) > nameW) issue('sparkline label "' + r.label + '" is too long (about ' + Math.floor(nameW / (size * 0.52)) + ' characters fit).');
+    return '<div class="sp-row" style="height:' + rowH + 'px;font-size:' + size + 'px"><span class="t f-body sp-n">' + txt(r.label) + '</span>' + sparkSvg(asArray(r.values), Math.round(sw), 34) + '<b class="t f-bodyb sp-v" style="width:' + Math.round(valW) + 'px">' + txt(r.value) + '</b></div>';
+  }).join('');
+  return { h: list.length * rowH, html: '<div class="sparks">' + html + '</div>' };
+}
+// --------------------------------------------------------------------------------------
+// 4c. Diagrams: native SVG and positioned text, drawn from the `diagram` object
+// --------------------------------------------------------------------------------------
+// Each kind takes its data and the pixel size of its cell and returns {h, html}. Shapes
+// are SVG (vector in the PDF); words are measured text boxes, so the lint covers them.
+
+const DIAGRAM_KINDS = ['flow', 'funnel', 'timeline', 'market', 'matrix', 'power_grid', 'loop', 'layers', 'before_after'];
+let dgSeq = 0;
+// A text box at (x, y) inside the diagram.
+const dgAt = (x, y, w, html, extra) => '<div class="dg-t" style="left:' + f1(x) + 'px;top:' + f1(y) + 'px;width:' + f1(w) + 'px' + (extra ? ';' + extra : '') + '">' + html + '</div>';
+const dgWrap = (w, h, svg, html, cls, fill) => ({ h, fill: fill === undefined ? h : Math.min(h, fill), html: '<div class="dg dg-' + cls + '" style="width:' + Math.round(w) + 'px;height:' + Math.round(h) + 'px">' + (svg ? '<svg class="dg-s" width="' + Math.round(w) + '" height="' + Math.round(h) + '" viewBox="0 0 ' + Math.round(w) + ' ' + Math.round(h) + '" aria-hidden="true">' + svg + '</svg>' : '') + html + '</div>' });
+const arrowDef = (id) => '<defs><marker id="' + id + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--ink)"/></marker></defs>';
+const stepOf = (x) => (typeof x === 'string' ? { text: x } : (x || {}));
+const two = (n) => String(n).padStart(2, '0');
+
+const DIAGRAMS = {
+  // Steps with arrows; `loop` adds a dashed return path with a caption.
+  flow(d, w, h) {
+    const steps = asArray(d.steps).slice(0, 5).map(stepOf);
+    if (asArray(d.steps).length > 5) issue('the flow has ' + d.steps.length + ' steps; 5 are drawn.');
+    const n = Math.max(1, steps.length);
+    const gap = n > 3 ? 54 : 72;
+    const loopH = d.loop ? 104 : 0;
+    const bw = (w - (n - 1) * gap) / n;
+    const bh = h - loopH;                       // the cards run the full height of the cell
+    const pad = bw < 300 ? 24 : 30;
+    const iw = bw - 2 * pad;
+    const hi = Number.isInteger(d.highlight) ? d.highlight : n - 1;
+    const id = 'dg' + (++dgSeq);
+    const fills = fillTones(LX.theme, LX.tone);
+    const titleLadder = n > 3 ? [52, 46, 40, 34, 30, 26] : [64, 56, 48, 42, 36, 30, 26];
+    const anyTitle = steps.some((st) => st.title);
+    // every step is fitted alone first; then all titles take the smallest title size and all texts
+    // the smallest text size, so uneven steps do not end up in different sizes
+    const fitAll = (tSizes, bSizes) => steps.map((st, i) => {
+      const title = st.title ? tb(st.title, { role: 'display', sizes: tSizes, w: iw, max: 2, what: 'flow step ' + (i + 1) + ' title' }) : null;
+      const body = st.text ? tb(st.text, { role: 'body', sizes: bSizes, w: iw, maxH: bh - 2 * pad - 56 - 16 - (title ? title.h + 14 : 0), what: 'flow step ' + (i + 1) + ' text' }) : null;
+      return { title, body };
+    });
+    const was = LX.quiet; LX.quiet = true; const c0 = LX.count || 0;
+    const first = fitAll(titleLadder, PT_SIZES().slice(anyTitle ? 1 : 0));
+    LX.count = c0; LX.quiet = was;
+    const tSize = Math.min(...first.map((f) => (f.title ? f.title.size : 999)));
+    const bSize = Math.min(...first.map((f) => (f.body ? f.body.size : 999)));
+    const parts = fitAll([tSize], [bSize]);
+    let svg = arrowDef(id), html = '';
+    steps.forEach((st, i) => {
+      const x = i * (bw + gap);
+      const tone = i === hi ? fills[0] : null;
+      const head = st.icon ? rawBlock(56, icon(st.icon, 52)) : tb(two(i + 1), { role: 'num', size: 52, lh: 1, w: iw, max: 1, cls: 'idx' });
+      const { title, body } = parts[i];
+      html += '<div class="dg-box' + (tone ? ' filled' : '') + '"' + (tone ? ' data-tone="' + tone + '"' : '') + ' style="left:' + f1(x) + 'px;top:0;width:' + f1(bw) + 'px;height:' + f1(bh) + 'px;padding:' + pad + 'px"><div class="cg cg-top">' + head.html + '</div><div class="cg cg-bottom" style="gap:14px">' + (title ? title.html : '') + (body ? body.html : '') + '</div></div>';
+      if (i < n - 1) svg += '<path d="M' + f1(x + bw + 8) + ' ' + f1(bh / 2) + 'H' + f1(x + bw + gap - 8) + '" class="dg-l" marker-end="url(#' + id + ')"/>';
+    });
+    if (d.loop) {
+      const yl = bh + 58;
+      svg += '<path d="M' + f1(w - bw / 2) + ' ' + f1(bh + 6) + 'V' + f1(yl) + 'H' + f1(bw / 2) + 'V' + f1(bh + 10) + '" class="dg-l dash" marker-end="url(#' + id + ')"/>';
+      const cap = tb(d.loop, { role: 'body', size: sv(26, 24), w: w - bw - 40, nowrap: true, what: 'the flow loop caption' });
+      html += dgAt(bw / 2 + 20, yl + 8, w - bw - 40, cap.html, 'text-align:center');
+    }
+    // how full the cards are decides whether the slide reads as thin
+    const content = Math.max(...parts.map((p) => 56 + 16 + (p.title ? p.title.h + 14 : 0) + (p.body ? p.body.h : 0))) + 2 * pad;
+    return dgWrap(w, h, svg, html, 'flow', Math.max(content * 1.5, bh * 0.56) + loopH);
   },
 
-  product(s, ctx) {
-    // With an image: proof points beside the picture. Without one the points take the
-    // full width as columns; there is never an empty frame.
-    if (!ctx.image) return headBlock(s, '', ctx) + columnsBlock(s.points) + sourceLine(s, ctx);
-    return headBlock(s, '', ctx) + '<div class="prod">' + pointsBlock(s.points, 'compact') +
-      '<div class="frame fillh">' + imgTag(ctx.image, 'fit', s.title) + '</div></div>' + sourceLine(s, ctx);
+  // Stacked trapezoids, figures inside, labels on leader lines; the last stage is the accent.
+  funnel(d, w, h) {
+    const stages = asArray(d.stages).slice(0, 5);
+    if (asArray(d.stages).length > 5) issue('the funnel has ' + d.stages.length + ' stages; 5 are drawn.');
+    const n = Math.max(1, stages.length);
+    const g = 10;
+    const sh = Math.min(170, (h - (n - 1) * g) / n);
+    const y0 = (h - (n * sh + (n - 1) * g)) / 2;
+    const fw = Math.min(w * 0.56, 760);
+    const labelX = fw + 110, labelW = w - labelX;
+    let svg = '', html = '';
+    stages.forEach((st, i) => {
+      const t0 = 1 - i * 0.72 / n, t1 = 1 - (i + 1) * 0.72 / n;
+      const y = y0 + i * (sh + g);
+      const a = fw * (1 - t0) / 2, b = fw * (1 - t1) / 2;
+      const last = i === n - 1;
+      svg += '<path d="M' + f1(a) + ' ' + f1(y) + 'H' + f1(fw - a) + 'L' + f1(fw - b) + ' ' + f1(y + sh) + 'H' + f1(b) + 'Z" class="dg-shape" fill="' + (last ? 'var(--accent)' : i % 2 ? 'var(--fill)' : 'var(--surface)') + '"/>';
+      svg += '<line x1="' + f1(fw - (a + b) / 2 + 14) + '" x2="' + f1(labelX - 16) + '" y1="' + f1(y + sh / 2) + '" y2="' + f1(y + sh / 2) + '" class="dg-h"/>';
+      const val = numBlock(st.value, fw * t1 - 30, ladder(Math.min(84, sh * 0.52), 30, 6), { what: 'funnel stage ' + (i + 1) + ' value' });
+      html += dgAt(0, y + (sh - val.h) / 2, fw, '<div data-ground="' + (last ? '--accent' : i % 2 ? '--fill' : '--surface') + '">' + val.html + '</div>', 'text-align:center;color:' + (last ? 'var(--on-accent)' : 'var(--ink)'));
+      let note = st.note;
+      const pv = i > 0 ? Number(String(stages[i - 1].value).replace(/[^\d.]/g, '')) : 0, cv = Number(String(st.value).replace(/[^\d.]/g, ''));
+      if (!note && i > 0 && pv > 0 && cv >= 0 && d.rates !== false) note = fmtNum(Math.round(cv * 1000 / pv) / 10) + '% of the stage above';
+      const lab = tb(st.label, { role: 'bodyb', sizes: LX.variant === 'read' ? [30, 27, 24] : [34, 30, 26], w: labelW, max: 2, maxH: sh - 30, what: 'funnel label ' + (i + 1), cls: last ? 'hi' : '' });
+      const nt = note ? label(note, labelW, { what: 'funnel note ' + (i + 1), size: LX.theme.monoSize + 2 }) : null;
+      html += dgAt(labelX, y + (sh - lab.h - (nt ? nt.h + 4 : 0)) / 2, labelW, lab.html + (nt ? nt.html : ''));
+    });
+    return dgWrap(w, h, svg, html, 'funnel', n * sh + (n - 1) * g);
   },
 
-  insight(s, ctx) {
-    // The claim is the slide; points and one supporting number sit below it.
-    const stat = s.stats[0];
-    const below = (s.points.length || stat)
-      ? '<div class="insight-body' + (stat ? ' with-stat' : '') + '">' + pointsBlock(s.points, 'compact') + (stat ? statsBlock([stat], 'column', 440, 96) : '') + '</div>'
-      : '';
-    return '<div class="insight">' + (s.kicker ? '<p class="kicker">' + txt(s.kicker) + '</p>' : '') +
-      '<h1 class="insight-title">' + txt(s.title) + '</h1>' +
-      (s.subtitle ? '<p class="statement-sub">' + txt(s.subtitle) + '</p>' : '') +
-      (s.body && ctx.variant === 'read' ? '<p class="body-text">' + txt(s.body) + '</p>' : '') +
-      below + '</div>' + sourceLine(s, ctx);
-  },
-
-  market(s, ctx) {
-    const widths = [100, 72, 50];
-    const colW = s.points.length ? 1064 : 1680;
-    const steps = s.stats.slice(0, 3).map((st, i) =>
-      '<div class="step' + (i === Math.min(2, s.stats.length - 1) ? ' step-focus' : '') + '" style="width:' + widths[i] + '%">' +
-      '<div class="stat-v" style="font-size:' + fitSize(st.value, colW * widths[i] / 100 - 72, 60) + 'px">' + txt(st.value) + '</div><div class="stat-l">' + txt(st.label) + statSourceParts(st, ctx).sup + '</div>' +
-      (statSourceParts(st, ctx).line ? '<div class="step-m stat-s">' + statSourceParts(st, ctx).line + '</div>' : '') + '</div>').join('');
-    const hasPoints = s.points.length > 0;
-    return headBlock(s, '', ctx) + '<div class="market' + (hasPoints ? ' with-points' : '') + '">' +
-      '<div class="steps">' + (steps || pointsBlock(s.points)) + '</div>' +
-      (hasPoints && steps ? '<div class="side">' + pointsBlock(s.points, 'compact') + '</div>' : '') + '</div>' + sourceLine(s, ctx);
-  },
-
-  traction(s, ctx) {
-    // The side column stacks stats and (with a chart) points; three or more items use
-    // the smaller stat size so the column holds what the capacity table promises.
-    const dense = s.stats.length + (s.chart ? s.points.length : 0) >= 3;
-    return headBlock(s, '', ctx) + '<div class="trac">' +
-      '<div class="chart-col">' + (s.chart ? chartBlock(s.chart, 1140, 600, s.source) : pointsBlock(s.points)) + '</div>' +
-      '<div class="side">' + statsBlock(s.stats, 'column' + (dense ? ' dense' : ''), 440, dense ? 72 : 96) + (s.chart ? pointsBlock(s.points, 'compact') : '') + '</div></div>' + sourceLine(s, ctx);
-  },
-
-  business_model(s, ctx) {
-    if (s.rows.length) return headBlock(s, '', ctx) + tableBlock(s.columns, s.rows, ctx.meta.company) + pointsBlock(s.points, 'compact under') + sourceLine(s, ctx);
-    const n = Math.max(1, s.stats.length);
-    return headBlock(s, '', ctx) + statsBlock(s.stats, 'row-' + n, Math.floor((1680 - 72 * (n - 1)) / n), n >= 4 ? 80 : 96) + pointsBlock(s.points, 'compact under') + sourceLine(s, ctx);
-  },
-
-  go_to_market(s, ctx) {
-    const n = Math.max(1, s.points.length);
-    return headBlock(s, '', ctx) + '<div class="flow flow-' + n + '">' + s.points.map((p, i) =>
-      '<div class="flow-step"><div class="flow-n">' + (i + 1) + '</div><div class="flow-t">' + txt(p) + '</div></div>').join('') + '</div>' +
-      (s.stats.length ? statsBlock(s.stats.slice(0, 2), 'row-2 under', 514, 96) : '') + sourceLine(s, ctx);
-  },
-
-  competition(s, ctx) {
-    if (s.rows.length) return headBlock(s, '', ctx) + tableBlock(s.columns, s.rows, ctx.meta.company) + pointsBlock(s.points.slice(0, 1), 'compact under') + sourceLine(s, ctx);
-    return headBlock(s, '', ctx) + pointsBlock(s.points) + sourceLine(s, ctx);
-  },
-
-  team(s, ctx) {
-    const n = Math.min(4, Math.max(2, s.team.length));
-    const initials = (name) => String(name || '').split(/\s+/).map((w) => w[0] || '').join('').slice(0, 2).toUpperCase();
-    return headBlock(s, '', ctx) + '<div class="team team-' + n + '">' + s.team.slice(0, 4).map((m, i) => {
-      const photo = ctx.teamPhotos[i] ? imgTag(ctx.teamPhotos[i], 'photo', m.name) : '<span>' + esc(initials(m.name)) + '</span>';
-      return '<div class="member"><div class="avatar">' + photo + '</div>' +
-        '<div class="m-name">' + txt(m.name) + '</div>' +
-        (m.role ? '<div class="m-role">' + txt(m.role) + '</div>' : '') +
-        (m.bio ? '<div class="m-bio">' + txt(m.bio) + '</div>' : '') + '</div>';
-    }).join('') + '</div>' + (s.points.length ? '<p class="team-note">' + txt(s.points[0]) + '</p>' : '') + sourceLine(s, ctx);
-  },
-
-  financials(s, ctx) {
-    if (s.rows.length && !s.chart) return headBlock(s, '', ctx) + tableBlock(s.columns, s.rows, ctx.meta.company) + pointsBlock(s.points, 'compact under') + sourceLine(s, ctx);
-    return headBlock(s, '', ctx) + '<div class="fin">' +
-      '<div class="chart-col">' + chartBlock(s.chart, 1080, 560, s.source) + '</div>' +
-      '<div class="side"><p class="side-label">Drivers</p>' + pointsBlock(s.points, 'compact') + statsBlock(s.stats, 'column small', 500, 64) + '</div></div>' + sourceLine(s, ctx);
-  },
-
-  ask(s, ctx) {
-    const funds = s.use_of_funds;
-    const total = funds.reduce((a, u) => a + (Number(u.pct) || 0), 0) || 100;
-    const bar = funds.length ? '<div class="funds">' + funds.map((u, i) => {
-      const w = (100 * (Number(u.pct) || 0)) / total;
-      return '<div class="seg" style="width:' + w.toFixed(2) + '%;background:var(--chart-' + (i + 1) + ')">' + (w >= 9 ? Math.round(Number(u.pct) || 0) + '%' : '') + '</div>';
-    }).join('') + '</div><div class="funds-legend">' + funds.map((u, i) =>
-      '<span class="leg"><i style="background:var(--chart-' + (i + 1) + ')"></i>' + txt(u.label) + ' ' + Math.round(Number(u.pct) || 0) + '%</span>').join('') + '</div>' : '';
-    const ms = s.milestones.length ? '<div class="ms-col"><p class="side-label">What it buys</p><ul class="ms">' + s.milestones.slice(0, 4).map((m) =>
-      '<li>' + (typeof m === 'string' ? txt(m) : '<span class="ms-when">' + txt(m.when) + '</span>' + txt(m.what)) + '</li>').join('') + '</ul></div>' : '';
-    // stats: amount, runway, allocation buckets when no use_of_funds bar is given
-    const ns = Math.min(3, s.stats.length);
-    const stats = ns ? statsBlock(s.stats.slice(0, 3), 'row-' + ns + ' ask-stats', Math.floor((1040 - 72 * (ns - 1)) / ns), 72) : '';
-    const words = String(s.title || '').split(/\s+/).length;
-    const sizeCls = words > 6 ? ' long' : words > 3 ? ' medium' : '';
-    return '<div class="ask">' + (s.kicker ? '<p class="kicker">' + txt(s.kicker) + '</p>' : '') +
-      '<h1 class="amount' + sizeCls + '">' + txt(s.title) + '</h1>' +
-      (s.subtitle ? '<p class="subtitle">' + txt(s.subtitle) + '</p>' : '') +
-      '<div class="ask-body"><div class="funds-col">' + (funds.length ? '<p class="side-label">Use of funds</p>' : '') + bar + stats + pointsBlock(s.points, 'compact') + '</div>' + ms + '</div></div>' + sourceLine(s, ctx);
-  },
-
-  roadmap(s, ctx) {
-    const items = s.milestones.slice(0, 6);
+  // One line, milestones as circles (filled when done), a marker for today.
+  timeline(d, w, h) {
+    const items = asArray(d.items).slice(0, 6).map((x) => (typeof x === 'string' ? { what: x } : (x || {})));
+    if (asArray(d.items).length > 6) issue('the timeline has ' + d.items.length + ' milestones; 6 are drawn.');
     const n = Math.max(1, items.length);
-    return headBlock(s, '', ctx) + '<div class="timeline tl-' + n + '">' + items.map((m) =>
-      '<div class="tl-node">' + (typeof m === 'string' ? '<div class="tl-what">' + txt(m) + '</div>' :
-        (m.when ? '<div class="tl-when">' + txt(m.when) + '</div>' : '') + '<div class="tl-what">' + txt(m.what) + '</div>' +
-        (m.proves ? '<div class="tl-proves">' + txt(m.proves) + '</div>' : '')) + '</div>').join('') + '</div>' +
-      pointsBlock(s.points, 'compact under') + sourceLine(s, ctx);
-  },
-
-  closing(s, ctx) {
-    // One-liner, the three hero facts, and how to reach you (subtitle).
-    const facts = s.points.length ? '<div class="hero-facts cols cols-' + Math.min(3, s.points.length) + '">' + s.points.slice(0, 3).map((p) =>
-      '<div class="pt"><span class="mark"></span>' + txt(p) + '</div>').join('') + '</div>' : '';
-    return '<div class="closing">' +
-      (ctx.logo ? imgTag(ctx.logo, 'cover-logo', ctx.meta.company + ' logo') : '') +
-      '<h1 class="cover-title">' + txt(s.title || ctx.meta.company) + '</h1>' + facts +
-      (s.subtitle ? '<p class="contact">' + txt(s.subtitle) + '</p>' : '') + '</div>';
-  },
-
-  appendix(s, ctx) {
-    let body = '';
-    if (s.chart) body += '<div class="fin"><div class="chart-col">' + chartBlock(s.chart, 1080, 560, s.source) + '</div><div class="side">' + pointsBlock(s.points, 'compact') + statsBlock(s.stats, 'column small', 500, 64) + '</div></div>';
-    else if (s.rows.length) body += tableBlock(s.columns, s.rows, ctx.meta.company) + pointsBlock(s.points, 'compact under');
-    else if (s.team.length) return HTML_RENDERERS.team(s, ctx);
-    else if (ctx.image) body += '<div class="grid-2 fill">' + pointsBlock(s.points) + '<div class="frame fillh">' + imgTag(ctx.image, 'fit') + '</div></div>';
-    else if (!s.stats.length) body += '<div class="grid-2"><div class="col wide">' + pointsBlock(s.points) + '</div></div>';
-    else body += '<div class="grid-2">' + pointsBlock(s.points) + statsBlock(s.stats, 'grid-2-stats', 370, 96) + '</div>';
-    return headBlock(s, '', ctx) + body + sourceLine(s, ctx);
-  },
-
-  case_study(s, ctx) { return HTML_RENDERERS.appendix(s, ctx); },
-
-  sources(s, ctx) {
-    const items = s.items || [];
-    if (!items.length) return headBlock(s, '', ctx) + pointsBlock(s.points);
-    if (s.groups) {
-      // Compact: one row per source file. The ids stay in facts.yaml (meta.sources: "full" prints them).
-      return headBlock(s, '', ctx) + '<p class="src-note">' + s.figures + ' figures from ' + s.fileCount + ' source ' + (s.fileCount === 1 ? 'file' : 'files') +
-        '. Each figure has an entry in the fact ledger (facts.yaml) that names its file and location.</p>' +
-        '<table class="src-tbl files"><colgroup><col style="width:46%"><col style="width:10%"><col style="width:24%"><col style="width:20%"></colgroup>' +
-        '<thead><tr><th>Source file</th><th>Figures</th><th>Kinds</th><th>Slides</th></tr></thead><tbody>' +
-        s.groups.map((g) => '<tr><td class="src-id">' + esc(g.file) + '</td><td class="num">' + g.count + '</td><td>' + esc(g.kinds) + '</td><td>' + esc(g.slides) + '</td></tr>').join('') +
-        '</tbody></table>';
+    const colW = w / n;
+    const tall = h > 420;
+    const tw0 = colW - 40;
+    let done = Number.isInteger(d.today) ? d.today : items.filter((it) => it.done).length;
+    const hasToday = d.today !== undefined || items.some((it) => it.done);
+    done = Math.max(0, Math.min(n, done));
+    const headH = hasToday ? 70 : 24;          // room above the line for the today marker
+    const cards = tall;                         // a tall cell: each milestone is a card that runs to the bottom
+    const pad = cards ? 30 : 0;
+    const cgap = cards ? Math.max(14, cs().gap) : 0;
+    const cw = cards ? (w - (n - 1) * cgap) / n : colW;
+    const tw1 = cards ? cw - 2 * pad : tw0;
+    const ly = cards ? headH : 0;
+    const cardH = h - headH - 46;
+    const fills = fillTones(LX.theme, LX.tone);
+    const cols = items.map((it, i) => {
+      const tone = cards && i === n - 1 ? fills[0] : null;
+      const prev = LX.tone; if (tone) LX.tone = tone;
+      const when = it.when ? tb(it.when, { role: 'display', sizes: tall ? (n > 4 ? [56, 48, 42, 36, 30] : [76, 66, 58, 50, 42, 34]) : [30, 26], w: tw1, max: 1, what: 'milestone ' + (i + 1) + ' date' }) : null;
+      const avail = (cards ? cardH - 2 * pad : h - headH - 60) - (when ? when.h + 14 : 0);
+      const what = it.what ? tb(it.what, { role: 'bodyb', sizes: tall ? PT_SIZES().slice(1) : [sv(24, 22)], w: tw1, maxH: avail * (it.proves ? 0.5 : 1), what: 'milestone ' + (i + 1) }) : null;
+      const proves = it.proves ? tb(it.proves, { role: 'body', sizes: tall ? PT_SIZES().slice(2) : [sv(24, 22)], w: tw1, maxH: avail - (what ? what.h + 14 : 0) - 14, what: 'milestone ' + (i + 1) + ' "proves" line', cls: 'mut' }) : null;
+      LX.tone = prev;
+      const list = [what, proves].filter(Boolean);
+      const textHtml = '<div class="vs" style="gap:14px">' + list.map((b) => b.html).join('') + '</div>';
+      return { tone, h: (when ? when.h + 14 : 0) + list.reduce((a, b) => a + b.h, 0) + Math.max(0, list.length - 1) * 14,
+        html: cards ? '<div class="cg cg-top">' + (when ? when.html : '') + '</div><div class="cg cg-bottom">' + textHtml + '</div>' : '<div class="vs" style="gap:14px">' + (when ? when.html : '') + textHtml + '</div>' };
+    });
+    const textH = Math.max(0, ...cols.map((c) => c.h));
+    const total = headH + 60 + textH;
+    const lineY = cards ? ly : Math.round(Math.max(0, (h - total) * 0.42) + headH);
+    const x = (i) => (cards ? i * (cw + cgap) + 30 : colW * i + 22);
+    const tx = done >= n ? w - 10 : (done === 0 ? 0 : (x(done - 1) + x(done)) / 2);
+    let svg = '<line x1="0" x2="' + f1(w) + '" y1="' + lineY + '" y2="' + lineY + '" class="dg-axis"/>';
+    let html = '';
+    if (hasToday) {
+      svg += '<rect x="0" y="' + (lineY - 5) + '" width="' + f1(tx) + '" height="10" fill="var(--accent)"/>';
+      svg += '<path d="M' + f1(tx) + ' ' + (lineY - 14) + 'l12 -20h-24z" fill="var(--accent)"/>';
+      const lab = label(d.today_label || 'Today', 160, {});
+      html += dgAt(Math.max(0, Math.min(w - 160, tx - 80)), lineY - 42 - lab.h, 160, lab.html, 'text-align:center');
     }
-    const rich = items.some((it) => it.label);
-    if (!rich) {
-      return headBlock(s, '', ctx) + '<ul class="src">' + items.map((it) =>
-        '<li><span class="src-n">' + it.ref + '</span><span class="src-id">' + esc(it.id) + '</span><span class="src-t">slide ' + esc(it.slide) + (it.title ? ': ' + esc(it.title) : '') + '</span></li>').join('') + '</ul>';
+    items.forEach((it, i) => {
+      const isDone = hasToday && i < done;
+      svg += '<circle cx="' + f1(x(i)) + '" cy="' + lineY + '" r="15" class="dg-node' + (isDone ? ' on' : '') + '"/>';
+      if (cards) {
+        svg += '<line x1="' + f1(x(i)) + '" x2="' + f1(x(i)) + '" y1="' + (lineY + 15) + '" y2="' + (lineY + 46) + '" class="dg-h"/>';
+        html += '<div class="dg-box' + (cols[i].tone ? ' filled' : '') + '"' + (cols[i].tone ? ' data-tone="' + cols[i].tone + '"' : '') + ' style="left:' + f1(i * (cw + cgap)) + 'px;top:' + (lineY + 46) + 'px;width:' + f1(cw) + 'px;height:' + f1(cardH) + 'px;padding:' + pad + 'px">' + cols[i].html + '</div>';
+      } else html += dgAt(x(i) - 16, lineY + 46, tw0, cols[i].html);
+    });
+    return dgWrap(w, h, svg, html, 'timeline', cards ? h : total);    return dgWrap(w, h, svg, html, 'timeline');
+  },
+
+  // TAM, SAM, SOM as circles that share the bottom tangent, each with its number and method.
+  market(d, w, h) {
+    const rings = asArray(d.rings).slice(0, 3);
+    const D = Math.min(h, w * 0.44);
+    const r = rings.length === 2 ? [D / 2, D * 0.27] : [D / 2, D * 0.33, D * 0.165];
+    const cx0 = D / 2, y0 = (h - D) / 2;
+    const fills = ['var(--fill)', 'var(--accent)', 'var(--c2)'];
+    const colW = Math.min(w - D - 96, 980);
+    const x0 = Math.max(0, (w - (D + 96 + colW)) / 2);      // centre the group when the cell is wider than it needs
+    const cx = x0 + cx0;
+    const colX = x0 + D + 96;
+    const rowH = h / Math.max(1, rings.length);
+    let svg = '', html = '';
+    rings.forEach((rg, i) => {
+      const cy = y0 + D - r[i];
+      svg += '<circle cx="' + f1(cx) + '" cy="' + f1(cy) + '" r="' + f1(r[i] - 2) + '" fill="' + fills[i] + '" class="dg-shape"/>';
+    });
+    rings.forEach((rg, i) => {
+      const dotY = y0 + D - 2 * r[i] + (i === rings.length - 1 && i > 0 ? r[i] : 30);
+      const rowY = i * rowH;
+      const val = numBlock(rg.value, colW, ladder(Math.min(150, rowH * 0.42), 44, 8), { what: 'market figure ' + (i + 1) });
+      const lab = tb(rg.label || rg.method || '', { role: 'body', sizes: PT_SIZES().slice(2), w: colW, maxH: rowH - val.h - 18, what: 'market label ' + (i + 1) });
+      const ty = rowY + Math.max(0, (rowH - val.h - 10 - lab.h) / 2);
+      const my = ty + val.h * 0.5;
+      svg += '<path d="M' + f1(cx) + ' ' + f1(dotY) + 'H' + f1(x0 + D + 28) + 'L' + f1(x0 + D + 56) + ' ' + f1(my) + 'H' + f1(colX - 14) + '" class="dg-h" fill="none"/><circle cx="' + f1(cx) + '" cy="' + f1(dotY) + '" r="5" fill="' + (i === 0 ? 'var(--ink)' : i === 1 ? 'var(--on-accent)' : 'var(--on-c2)') + '"/>';
+      html += dgAt(colX, ty, colW, '<div class="vs" style="gap:10px">' + val.html + lab.html + '</div>');
+    });
+    return dgWrap(w, h, svg, html, 'market', Math.max(D, h * 0.8));
+  },
+
+  // 2x2 with labelled axes. Competitors are named; the company is the filled dot.
+  matrix(d, w, h) {
+    const items = asArray(d.items).slice(0, 8);
+    const rivals = items.filter((it) => !it.us).length;
+    if (rivals < 2) issue('a 2x2 matrix needs at least two named competitors; the company alone in a corner reads as a tell. Add them to diagram.items or use a power_grid.');
+    const ax = (v) => (Array.isArray(v) ? { low: v[0], high: v[1], label: '' } : (v || {}));
+    const X = ax(d.x), Y = ax(d.y);
+    const mono = LX.theme.monoSize * 1.3;
+    const ML = 14 + mono + (Y.label ? mono + 8 : 0), MB = 14 + mono + (X.label ? mono + 8 : 0);
+    const S = Math.min(h - MB, w - ML);
+    const x0 = ML + (w - ML - S) / 2, y0 = 0;
+    let svg = '<rect x="' + f1(x0 + S / 2) + '" y="' + f1(y0) + '" width="' + f1(S / 2) + '" height="' + f1(S / 2) + '" fill="var(--accent)" fill-opacity=".16"/>' +
+      '<rect x="' + f1(x0) + '" y="' + f1(y0) + '" width="' + f1(S) + '" height="' + f1(S) + '" fill="none" class="dg-frame"/>' +
+      '<path d="M' + f1(x0 + S / 2) + ' ' + f1(y0) + 'V' + f1(y0 + S) + 'M' + f1(x0) + ' ' + f1(y0 + S / 2) + 'H' + f1(x0 + S) + '" class="dg-h dash"/>';
+    let html = '';
+    // axis ends on the first row outside the square, the axis name on a second row
+    const lab = (t, bw, what) => label(t, bw, { what });
+    const half = S / 2 - 12;
+    if (X.low) html += dgAt(x0, y0 + S + 12, half, lab(X.low, half, 'the low end of the x axis').html);
+    if (X.high) html += dgAt(x0 + S - half, y0 + S + 12, half, lab(X.high, half, 'the high end of the x axis').html, 'text-align:right');
+    if (X.label) html += dgAt(x0, y0 + S + 16 + mono, S, lab(X.label, S, 'the x axis label').html, 'text-align:center;color:var(--ink)');
+    // the y axis reads bottom to top
+    const rot = (t, top, bw, col, align, ink, what) => '<div class="dg-t dg-rot" style="left:' + f1(col) + 'px;top:' + f1(top) + 'px;width:' + f1(bw) + 'px;text-align:' + align + (ink ? ';color:var(--ink)' : '') + '">' + lab(t, bw, what).html + '</div>';
+    const c1 = x0 - 12 - mono, c2 = c1 - mono - 6;
+    if (Y.low) html += rot(Y.low, y0 + S, half, c1, 'left', 0, 'the low end of the y axis');
+    if (Y.high) html += rot(Y.high, y0 + half, half, c1, 'right', 0, 'the high end of the y axis');
+    if (Y.label) html += rot(Y.label, y0 + S, S, c2, 'center', 1, 'the y axis label');
+    items.forEach((it) => {
+      const px = x0 + S * Math.max(0.05, Math.min(0.95, Number(it.x) || 0)), py = y0 + S * (1 - Math.max(0.07, Math.min(0.93, Number(it.y) || 0)));
+      const size = it.us ? sv(28, 26) : sv(24, 22);
+      const tW = tw(it.name, LX.theme.roles.bodyb, size) + 6;
+      const off = it.us ? 48 : 22;
+      if (tW > S * 0.62) issue('matrix label "' + it.name + '" is too long (about ' + Math.floor(S * 0.62 / (size * 0.56)) + ' characters fit).');
+      svg += it.us ? '<circle cx="' + f1(px) + '" cy="' + f1(py) + '" r="20" fill="var(--accent)"/><circle cx="' + f1(px) + '" cy="' + f1(py) + '" r="36" fill="none" stroke="var(--accent)" stroke-width="2"/>'
+        : '<circle cx="' + f1(px) + '" cy="' + f1(py) + '" r="11" fill="var(--bg)" stroke="var(--ink)" stroke-width="2.5"/>';
+      // beside the dot when there is room, else centred above it
+      const right = px + off + tW <= x0 + S - 8, left = px - off - tW >= x0 + 8;
+      const lx = right ? px + off : left ? px - off - tW : Math.max(x0 + 8, Math.min(x0 + S - 8 - tW, px - tW / 2));
+      const ly = right || left ? py - size * 0.68 : py - (it.us ? 44 : 18) - size * 1.36;
+      html += dgAt(lx, ly, tW, '<div class="t f-bodyb' + (it.us ? ' hi' : '') + '" style="font-size:' + size + 'px;line-height:1.36;white-space:nowrap">' + txt(it.name) + '</div>');
+    });
+    return dgWrap(w, h, svg, html, 'matrix', S + MB);
+  },
+
+  power_grid(d, w, h) { return gridTable(asArray(d.columns), asArray(d.rows), w, h, { us: d.us, grid: true }); },
+
+  // Flywheel: nodes on a circle, arcs with arrowheads, a label in the centre.
+  loop(d, w, h) {
+    const nodes = asArray(d.nodes).slice(0, 5).map(stepOf);
+    if (asArray(d.nodes).length > 5) issue('the loop has ' + d.nodes.length + ' nodes; 5 are drawn.');
+    const n = Math.max(2, nodes.length);
+    // an even number of nodes starts off the vertical, so every label sits beside the circle
+    const ang = (i) => -Math.PI / 2 + (n % 2 ? 0 : Math.PI / n) + (2 * Math.PI * i) / n;
+    const sideW = Math.min(w > 1300 ? 440 : 330, w * 0.27);
+    // measure the labels first: the circle takes what they leave
+    const labs = nodes.map((nd, i) => {
+      const c = Math.cos(ang(i));
+      const side = Math.abs(c) > 0.3;
+      const bw = side ? sideW : Math.min(560, w);
+      const big = h > 520 && w > 1300;      // a large cell: larger labels, and a larger circle below
+      const t1 = tb(nd.title || nd.text || '', { role: 'bodyb', sizes: big ? (LX.variant === 'read' ? [38, 34, 30, 27, 25] : [42, 38, 34, 30, 28]) : (LX.variant === 'read' ? [30, 27, 25] : [34, 30, 28]), w: bw, max: side ? 3 : 1, what: 'loop node ' + (i + 1) });
+      const t2 = nd.title && nd.text ? tb(nd.text, { role: 'body', sizes: big ? PT_SIZES().slice(2) : [sv(24, 22)], w: bw, max: side ? 3 : 1, what: 'loop node ' + (i + 1) + ' text', cls: 'mut' }) : null;
+      return { side, bw, h: t1.h + (t2 ? t2.h + 6 : 0), html: '<div class="vs" style="gap:6px">' + t1.html + (t2 ? t2.html : '') + '</div>' };
+    });
+    const capH = Math.max(0, ...labs.filter((l) => !l.side).map((l) => l.h));
+    const R = Math.max(80, Math.min((h - 2 * (capH ? capH + 34 : 16)) / 2, (w - 2 * sideW - 80) / 2, 400));
+    if (R < 110) issue('the loop has too little room (' + Math.round(R) + ' px radius). Shorten the node labels or give the slide fewer points.');
+    const cx = w / 2, cy = h / 2;
+    const id = 'dg' + (++dgSeq);
+    let svg = '<defs><marker id="' + id + '" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--accent)"/></marker></defs>';
+    let html = '';
+    const gapA = 0.2;
+    for (let i = 0; i < n; i++) {
+      const a0 = ang(i) + gapA, a1 = ang(i + 1) - gapA;
+      svg += '<path d="M' + f1(cx + R * Math.cos(a0)) + ' ' + f1(cy + R * Math.sin(a0)) + 'A' + f1(R) + ' ' + f1(R) + ' 0 0 1 ' + f1(cx + R * Math.cos(a1)) + ' ' + f1(cy + R * Math.sin(a1)) + '" fill="none" stroke="var(--accent)" stroke-width="' + f1(Math.max(4, R / 50)) + '" marker-end="url(#' + id + ')"/>';
+      svg += '<circle cx="' + f1(cx + R * Math.cos(ang(i))) + '" cy="' + f1(cy + R * Math.sin(ang(i))) + '" r="' + f1(Math.max(12, R / 17)) + '" fill="var(--ink)"/>';
+      const lb = labs[i];
+      if (!lb) continue;
+      const c = Math.cos(ang(i)), s2 = Math.sin(ang(i));
+      const px = cx + (R + 40) * c, py = cy + (R + 34) * s2;
+      const bx = lb.side ? (c > 0 ? px : px - lb.bw) : cx - lb.bw / 2;
+      const by = lb.side ? Math.max(0, Math.min(h - lb.h, py - lb.h / 2)) : (s2 < 0 ? py - lb.h : py);
+      html += dgAt(bx, by, lb.bw, lb.html, lb.side ? (c > 0 ? '' : 'text-align:right') : 'text-align:center');
     }
-    // With facts.yaml: id, label, value, kind, as_of, file (deck-structure.md section 7)
-    return headBlock(s, '', ctx) + '<table class="src-tbl"><colgroup><col class="c-n"><col class="c-id"><col class="c-l"><col class="c-v"><col class="c-k"><col class="c-d"><col class="c-f"></colgroup><thead><tr><th>Ref</th><th>Ledger id</th><th>Label</th><th>Value</th><th>Kind</th><th>As of</th><th>Source file</th></tr></thead><tbody>' +
-      items.map((it) => '<tr><td class="src-n">' + it.ref + '</td><td class="src-id">' + esc(it.id) + '</td><td>' + esc(it.label || '') + '<span class="src-m">slide ' + esc(it.slide) + '</span></td><td class="num">' + esc(it.value || '') + '</td><td>' + esc(it.kind || '') + '</td><td class="num">' + esc(it.asOf || '') + '</td><td class="file">' + esc(it.file || '') + (it.method ? '<span class="src-m">' + esc(it.method) + '</span>' : '') + '</td></tr>').join('') +
-      '</tbody></table>';
+    if (d.center) { const c = tb(d.center, { role: 'display', sizes: [72, 64, 56, 50, 44, 38, 32, 28, 24], w: R * 1.3, max: 4, maxH: R * 1.2, what: 'the loop centre label' }); html += dgAt(cx - R * 0.65, cy - c.h / 2, R * 1.3, c.html, 'text-align:center'); }
+    return dgWrap(w, h, svg, html, 'loop', 2 * R + 2 * (capH ? capH + 34 : 16));
   },
 
-  custom_html(s, ctx) {
-    return (s.title ? headBlock(s, '', ctx) : '') + '<div class="custom">' + (s.html || '') + '</div>';
+  // A stack: flat rhombi from bottom to top, the top layer is the accent; names beside them.
+  layers(d, w, h) {
+    const layers = asArray(d.layers).slice(0, 5).map(stepOf);
+    if (asArray(d.layers).length > 5) issue('the stack has ' + d.layers.length + ' layers; 5 are drawn.');
+    const n = Math.max(1, layers.length);
+    // the widest rhombus whose stack still fits the height: total = 2 * RH + step * (n - 1), step = 0.95 * RH
+    const RW = Math.min(w * 0.46, 680, (h / (0.32 * (2 + 0.95 * (n - 1)))));
+    const RH = RW * 0.32;
+    const step = n > 1 ? RH * 0.95 : 0;
+    const total = RH * 2 + step * (n - 1);
+    const y0 = (h - total) / 2;
+    const colX = RW + 110, colW = w - colX;
+    let svg = '', html = '';
+    for (let i = n - 1; i >= 0; i--) {      // bottom layer first
+      const y = y0 + i * step;
+      const fill = i === 0 ? 'var(--accent)' : (i % 2 ? 'var(--surface)' : 'var(--fill)');
+      svg += '<path d="M' + f1(RW / 2) + ' ' + f1(y) + 'L' + f1(RW) + ' ' + f1(y + RH) + 'L' + f1(RW / 2) + ' ' + f1(y + 2 * RH) + 'L0 ' + f1(y + RH) + 'Z" fill="' + fill + '" class="dg-shape lay"/>';
+    }
+    layers.forEach((ly, i) => {
+      const y = y0 + i * step + RH;
+      svg += '<line x1="' + f1(RW + 10) + '" x2="' + f1(colX - 18) + '" y1="' + f1(y) + '" y2="' + f1(y) + '" class="dg-h"/>';
+      const rowH = n > 1 ? step : h;
+      const t1 = tb(ly.title || ly.text || '', { role: 'display', sizes: [52, 46, 40, 34, 30, 26], w: colW, max: 1, maxH: rowH * 0.5, what: 'layer ' + (i + 1) + ' name' });
+      const t2 = ly.title && ly.text ? tb(ly.text, { role: 'body', sizes: PT_SIZES().slice(1), w: Math.min(colW, 900), maxH: Math.max(34, rowH - t1.h - 22), what: 'layer ' + (i + 1) + ' text', cls: 'mut' }) : null;
+      const bh = t1.h + (t2 ? t2.h + 6 : 0);
+      html += dgAt(colX, y - Math.min(bh / 2, t1.h * 0.6), colW, '<div class="vs" style="gap:6px">' + t1.html + (t2 ? t2.html : '') + '</div>');
+    });
+    return dgWrap(w, h, svg, html, 'layers', total);
   },
 
-  statement(s, ctx) {
-    const badge = s.unknownType ? '<div class="warn-badge">Unknown slide type "' + esc(s.unknownType) + '", shown as statement</div>' : '';
-    return badge + '<div class="statement">' + (s.kicker ? '<p class="kicker">' + txt(s.kicker) + '</p>' : '') +
-      '<h1 class="statement-title">' + txt(s.title) + '</h1>' +
-      (s.subtitle ? '<p class="statement-sub">' + txt(s.subtitle) + '</p>' : '') +
-      (s.body && ctx.variant === 'read' ? '<p class="body-text">' + txt(s.body) + '</p>' : '') +
-      pointsBlock(s.points, 'compact under') + '</div>';
-  },
-
-  two_column(s, ctx) {
-    const cols = s.columns.slice(0, 2).map((c) => (typeof c === 'string' ? { title: c } : c || {}));
-    while (cols.length < 2) cols.push({});
-    return headBlock(s, '', ctx) + '<div class="two">' + cols.map((c) =>
-      '<div class="two-col">' + (c.title ? '<h2>' + txt(c.title) + '</h2>' : '') +
-      (c.body ? '<p class="two-body">' + txt(c.body) + '</p>' : '') + pointsBlock(asArray(c.points).slice(0, MAX_POINTS), 'compact') + '</div>').join('') + '</div>' + sourceLine(s, ctx);
+  // Two panels: before is outlined and muted, after is the accent block. Side by side
+  // in a wide cell, stacked in a narrow one.
+  before_after(d, w, h) {
+    const vertical = w < 780;
+    const gap = vertical ? 76 : 96;
+    const pw = vertical ? w : (w - gap) / 2, ph = vertical ? (h - gap) / 2 : h, pad = 34;
+    const fills = fillTones(LX.theme, LX.tone);
+    const panel = (side, x, y, tone, name) => {
+      const p = d[side] || {};
+      const prev = LX.tone; if (tone) LX.tone = tone;
+      const iw = pw - 2 * pad, ih = ph - 2 * pad;
+      const lab = label(p.label || name, iw, { what: 'the "' + side + '" label' });
+      const val = p.value != null ? numBlock(p.value, iw, ladder(Math.min(170, Math.round(ih * 0.36)), 56, 10), { what: 'the "' + side + '" value', cls: side === 'before' ? 'strike' : '' }) : null;
+      const used = lab.h + (val ? val.h + 18 : 0);
+      const pts0 = asArray(p.points).slice(0, 4);
+      const text = p.text ? tb(p.text, { role: 'body', size: sv(28, 25), w: iw, maxH: (ih - used - 30) * (pts0.length ? 0.45 : 1), what: 'the "' + side + '" text' }) : null;
+      const pts = pts0.length ? pointList(pts0.map((t) => ({ text: String(t) })), iw, { size: sv(24, 22), what: 'the "' + side + '" points', maxH: ih - used - (text ? text.h + 18 : 0) - 30 }) : null;
+      LX.tone = prev;
+      return '<div class="dg-box' + (tone ? ' filled' : ' ghost') + '"' + (tone ? ' data-tone="' + tone + '"' : '') + ' style="left:' + f1(x) + 'px;top:' + f1(y) + 'px;width:' + f1(pw) + 'px;height:' + f1(ph) + 'px;padding:' + pad + 'px"><div class="cg cg-top">' + lab.html + '</div><div class="cg cg-bottom" style="gap:18px">' + [val, text, pts].filter(Boolean).map((b) => b.html).join('') + '</div></div>';
+    };
+    const id = 'dg' + (++dgSeq);
+    const svg = arrowDef(id) + (vertical
+      ? '<path d="M' + f1(w / 2) + ' ' + f1(ph + 14) + 'V' + f1(ph + gap - 14) + '" class="dg-l thick" marker-end="url(#' + id + ')"/>'
+      : '<path d="M' + f1(pw + 16) + ' ' + f1(h / 2) + 'H' + f1(pw + gap - 16) + '" class="dg-l thick" marker-end="url(#' + id + ')"/>');
+    return dgWrap(w, h, svg, panel('before', 0, 0, null, 'Before') + (vertical ? panel('after', 0, ph + gap, fills[0], 'After') : panel('after', pw + gap, 0, fills[0], 'After')), 'ba');
   },
 };
 
-function footerBlock(s, i, ctx) {
-  const left = (ctx.logoSmall && s.type !== 'cover' && s.type !== 'closing' ? imgTag(ctx.logoSmall, 'foot-logo', '') : '') + esc(ctx.meta.footer || '');
-  const right = s.type === 'cover' ? '' : String(i + 1);
-  return '<div class="foot"><span class="foot-l">' + left + '</span><span class="foot-r">' + right + '</span></div>';
+function diagramBlock(d, w, h) {
+  const kind = String(d.kind || '').toLowerCase().replace(/-/g, '_');
+  if (!DIAGRAMS[kind]) { issue('diagram kind "' + d.kind + '" is not one of ' + DIAGRAM_KINDS.join(', ') + '.'); return rawBlock(h, '<div style="height:' + Math.round(h) + 'px"></div>'); }
+  return DIAGRAMS[kind](d, w, h);
 }
+
+// Table drawn as a hairline grid. true and false become filled and hollow dots; the
+// company's column (or row) gets a full-height accent fill. Used for power grids and
+// for every plain table.
+function gridTable(columns, rows, w, h, o) {
+  o = o || {};
+  const T = LX.theme;
+  if (!o._size) {
+    // the largest type at which the table fits its panel, like a headline's ladder
+    const sizes = o.ref ? [24, 22, 20] : (LX.variant === 'read' ? [32, 29, 26, 24, 22] : [36, 32, 28, 26, 24]);
+    const was = LX.quiet; LX.quiet = true;
+    let pick = sizes[sizes.length - 1];
+    for (const sz of sizes) { const c0 = LX.count || 0; const r0 = gridTable(columns, rows, w, h, Object.assign({}, o, { _size: sz })); const ok = (LX.count || 0) === c0 && r0.need <= h; LX.count = c0; if (ok) { pick = sz; break; } }
+    LX.quiet = was;
+    return gridTable(columns, rows, w, h, Object.assign({}, o, { _size: pick }));
+  }
+  const company = HCTX && HCTX.meta ? String(HCTX.meta.company || '').toLowerCase() : '';
+  const cells = rows.map((r) => (Array.isArray(r) ? r : (r.cells || [r.name].concat(asArray(r.values)))));
+  const nc = Math.max(columns.length, ...cells.map((r) => r.length), 1);
+  const cols = columns.length ? columns.slice() : Array(nc).fill('').map((_, i) => (i === 0 ? '' : 'Col ' + i));
+  while (cols.length < nc) cols.push('');
+  if (nc > 7) issue('the table has ' + nc + ' columns; 7 fit. Drop or merge columns.');
+  let usCol = Number.isInteger(o.us) ? o.us : cols.findIndex((c, i) => i > 0 && company && String(c).toLowerCase() === company);
+  const usRow = cells.findIndex((r) => company && String(r[0]).toLowerCase() === company);
+  if (usCol < 0 && o.grid && usRow < 0) usCol = 1;
+  const size = o._size;
+  const monoSize = T.monoSize + (o.ref ? 0 : Math.max(0, Math.round((size - 24) / 3)));
+  // column widths: the label column takes what its longest cell needs (up to 34 percent)
+  const need0 = Math.max(tw(cols[0], T.roles.mono, monoSize), ...cells.map((r) => tw(String(r[0] == null ? '' : r[0]), T.roles.bodyb, size))) + 40;
+  const w0 = nc === 1 ? w : Math.max(w * 0.16, Math.min(w * 0.34, need0));
+  const wc = nc > 1 ? (w - w0) / (nc - 1) : 0;
+  const colW = (j) => (o.widths ? w * o.widths[j] : (j === 0 ? w0 : wc));
+  const padX = 20;
+  const headB = cols.map((c, j) => tb(c, j === usCol ? { role: 'display', sizes: [Math.round(size * 1.25), size, 26, 22], w: colW(j) - 2 * padX, max: 2, what: 'a table header' } : { role: 'mono', size: monoSize, lh: 1.3, w: colW(j) - 2 * padX, max: 2, cls: 'lbl', what: 'a table header' }));
+  const headH = Math.max(56, Math.max(...headB.map((b) => b.h)) + 28);
+  const isDot = (v) => v === true || v === false || v === 'yes' || v === 'no' || v === 'true' || v === 'false';
+  LX.brk = !!o.ref;      // reference tables may break ids and paths after _ / : . #
+  const rowB = cells.map((r, i) => cols.map((_, j) => {
+    const v = r[j];
+    if (v == null || v === '') return { h: 0, html: j === 0 ? '' : '<span class="tb-no"></span>' };
+    if (isDot(v)) { const on = v === true || v === 'yes' || v === 'true'; return { h: 26, html: '<span class="tb-dot' + (on ? ' on' : '') + '" style="width:' + Math.round(size) + 'px;height:' + Math.round(size) + 'px" role="img" aria-label="' + (on ? 'yes' : 'no') + '"></span>' }; }
+    return tb(v, { role: j === 0 || j === usCol || i === usRow ? 'bodyb' : 'body', size, w: colW(j) - 2 * padX, max: o.ref ? 6 : 3, what: 'a table cell ("' + String(v).slice(0, 24) + '")' });
+  }));
+  LX.brk = false;
+  // rows are padded generously when there is room and tightened before anything is reported
+  let minRow = rowB.map((r) => Math.max(o.ref ? 26 : 34, ...r.map((b) => b.h)) + (o.ref ? 14 : 26));
+  if (!o.ref && headH + minRow.reduce((a, b) => a + b, 0) > h) minRow = minRow.map((x) => x - 10);
+  const need = headH + minRow.reduce((a, b) => a + b, 0);
+  if (need > h * 1.01) issue('the table needs about ' + Math.round((need / h - 1) * 100) + ' percent more height than it has (' + cells.length + ' rows). Cut a row, shorten the cells that wrap, or move a point to the notes.');
+  const extra = Math.max(0, Math.min((h - need) / Math.max(1, cells.length), o.ref ? 16 : 90));
+  const usTone = fillTones(T, LX.tone)[0];
+  let html = '<div class="tb-r tb-h" style="height:' + f1(headH) + 'px">' + headB.map((b, j) => '<div class="tb-c' + (j === usCol ? ' us" data-ground="--bg" data-tone="' + usTone : '') + '" style="width:' + f1(colW(j)) + 'px;padding:0 ' + padX + 'px">' + b.html + '</div>').join('') + '</div>';
+  rowB.forEach((r, i) => {
+    html += '<div class="tb-r' + (i === usRow ? ' usr' : '') + '" style="height:' + f1(minRow[i] + extra) + 'px">' + r.map((b, j) => '<div class="tb-c' + (j === 0 ? ' rh' : '') + (j === usCol ? ' us" data-ground="--bg" data-tone="' + usTone : '') + '" style="width:' + f1(colW(j)) + 'px;padding:0 ' + padX + 'px">' + b.html + '</div>').join('') + '</div>';
+  });
+  const th = Math.min(h, headH + minRow.reduce((a, b) => a + b + extra, 0));
+  // the accent column is one nested tone behind the cells, so its type picks the right ink
+  const band = usCol > 0 ? '<div class="tb-us" data-tone="' + usTone + '" style="left:' + f1(w0 + (usCol - 1) * wc) + 'px;width:' + f1(wc) + 'px;height:' + f1(th) + 'px"></div>' : '';
+  return { h: th, need, html: '<div class="tb' + (usCol > 0 ? ' has-us' : '') + (o.ref ? ' ref' : '') + '" style="width:' + Math.round(w) + 'px;height:' + f1(th) + 'px" ">' + band + html + '</div>' };
+}
+// --------------------------------------------------------------------------------------
+// 4d. Slide layouts
+// --------------------------------------------------------------------------------------
+// Three families share the stage: the mosaic (a title cell, a hero number cell and
+// unequal cells for chart, diagram, points and further numbers), the colour-block split
+// (text beside a full-height panel in another tone) and the full-bleed slides (cover,
+// section, statement, quote, closing). Every renderer returns the inner HTML of a slide.
+
+const BODY = () => sv(28, 25);
+const SMALL = () => sv(24, 22);
+const LEAD = () => sv(34, 29);
+const PT_SIZES = () => (LX.variant === 'read' ? [36, 33, 30, 27, 25, 22] : [42, 38, 34, 30, 27, 24]);
+const TYPE_LABEL = {
+  problem: 'The problem', solution: 'The solution', product: 'Product', insight: 'Insight', market: 'Market', traction: 'Traction',
+  business_model: 'Business model', go_to_market: 'Go to market', competition: 'Competition', team: 'Team', financials: 'Financials',
+  ask: 'The ask', roadmap: 'Roadmap', appendix: 'Appendix', case_study: 'Case study', sources: 'Appendix', quote: 'In their words',
+};
+const eyebrow = (s) => (s.kicker != null && s.kicker !== '' ? s.kicker : (TYPE_LABEL[s.type] || ''));
+
+// Points as rows: an icon, a number or a small mark, then the text. items: {text, icon, title}.
+function pointList(items, w, o) {
+  o = o || {};
+  if (o.sizes && o.maxH) {
+    // the largest size at which the list fits its height
+    const was = LX.quiet; LX.quiet = true;
+    let pick = o.sizes[o.sizes.length - 1];
+    for (const sz of o.sizes) { const c0 = LX.count || 0; const b = pointList(items, w, Object.assign({}, o, { sizes: null, size: sz, maxH: 0 })); const ok = (LX.count || 0) === c0 && b.h <= o.maxH; LX.count = c0; if (ok) { pick = sz; break; } }
+    LX.quiet = was;
+    return pointList(items, w, Object.assign({}, o, { sizes: null, size: pick, maxH: 0 }));
+  }
+  const size = o.size || BODY();
+  const hasIcon = items.some((it) => it.icon);
+  const markW = o.numbered ? 58 : hasIcon ? 60 : 34;
+  const padY = o.padY !== undefined ? o.padY : Math.round(size * (size <= 26 ? 0.46 : 0.6));
+  let h = 0;
+  const rows = items.map((it, i) => {
+    const tt = it.title ? tb(it.title, { role: 'bodyb', size, w: w - markW, max: 2, what: (o.what || 'a point') + ' title' }) : null;
+    const tx = tb(it.text, { role: 'body', size, w: w - markW, what: o.what || 'a point', cls: tt ? 'mut' : '' });
+    const th = (tt ? tt.h + 4 : 0) + tx.h;
+    const rh = Math.max(th, hasIcon ? 40 : 0) + 2 * padY;
+    h += rh;
+    const mark = o.numbered ? '<span class="pt-n f-mono" style="font-size:' + LX.theme.monoSize + 'px">' + two(i + 1) + '</span>' : (it.icon ? icon(it.icon, 38, 'pt-i') : (hasIcon ? icon('', 38, 'pt-i') : '<span class="pt-m"></span>'));
+    return '<li style="padding:' + padY + 'px 0;min-height:' + f1(rh) + 'px"><span class="pt-k" style="width:' + markW + 'px;height:' + f1(size * 1.36) + 'px">' + mark + '</span><div class="pt-t">' + (tt ? tt.html : '') + tx.html + '</div></li>';
+  });
+  if (o.maxH && h > o.maxH * 1.012) issue((o.what || 'the points') + ' are overfull by about ' + Math.max(1, Math.round((h / o.maxH - 1) * 100)) + ' percent. Shorten them or cut one.');
+  return { h, html: '<ul class="pts">' + rows.join('') + '</ul>' };
+}
+const pointItems = (s, from, to) => s.points.slice(from || 0, to).map((p, i) => Object.assign({ text: p }, (s.pmeta && s.pmeta[(from || 0) + i]) || {}));
+
+// The blocks of one stat: numeral, label, optional delta, and its source in the read variant.
+function statBlocks(st, w, sizes, o) {
+  o = o || {};
+  const sp = statSourceParts(st, HCTX);
+  const out = [numBlock(st.value, w, sizes, { what: o.what || 'a stat value' })];
+  if (st.label || sp.sup) {
+    const lb = tb(st.label || '', { role: 'body', size: o.labelSize || SMALL(), w, max: o.maxLabel || 3, what: (o.what || 'a stat') + ' label', cls: 'st-l' });
+    if (sp.sup) lb.html = lb.html.replace(/<\/div>$/, sp.sup + '</div>');
+    out.push(lb);
+  }
+  if (st.delta) out.push(tb(st.delta, { role: 'bodyb', size: SMALL(), w, max: 1, what: 'a stat delta', cls: 'st-d' }));
+  const srcKey = sp.text || sp.line;
+  const dup = sp.line && ((LX.capText && LX.capText.indexOf(srcKey) >= 0) || (LX.statSrc && LX.statSrc.indexOf(srcKey) >= 0));
+  if (sp.line && !dup && LX.statSrc && !LX.quiet) LX.statSrc.push(srcKey);
+  if (sp.line && !dup) {
+    const mono = LX.theme.roles.mono;
+    let line = sp.line;
+    if (tw(sp.text, mono, 16) > w) { const short = sp.text.split(', ').map((x) => x.replace(/^.*\//, '')).join(', '); line = tw(short, mono, 16) <= w ? esc(short) : ''; }
+    if (line) out.push({ h: 23, html: '<div class="t f-mono st-s" style="font-size:16px;line-height:1.4;white-space:nowrap">' + line + '</div>' });
+  }
+  return out;
+}
+// A cell that a number owns: numeral and label at the bottom, optional icon or trend at the top.
+function statCell(r, st, o) {
+  o = o || {};
+  if (!o.labelSize && r.h > 330 && r.w > 420) o = Object.assign({}, o, { labelSize: BODY() });
+  return cell(r, { tone: o.tone, what: o.what || 'a stat cell', gap: 12, fix: 'Shorten the stat label.' }, (w, h) => {
+    const top = [];
+    if (o.eyebrow) top.push(label(o.eyebrow, w, {}));
+    if (asArray(st.trend).length > 1) top.push(rawBlock(48, '<div class="st-tr">' + sparkSvg(asArray(st.trend), Math.min(220, Math.round(w * 0.6)), 44, true) + '</div>'));
+    else if (st.icon) top.push(rawBlock(48, icon(st.icon, 44)));
+    const sizes = o.sizes || ladder(Math.min(200, Math.round(r.h * 0.42)), 48);
+    const topH = top.reduce((a2, b2) => a2 + b2.h + 12, 0);
+    // the numeral steps down until numeral, label and what sits above them fit the cell
+    let from = 0;
+    const was = LX.quiet; LX.quiet = true;
+    for (; from < sizes.length - 1; from++) { const c0 = LX.count || 0; const bl = statBlocks(st, w, sizes.slice(from), o); LX.count = c0; if (bl.reduce((a2, b2) => a2 + b2.h, 0) + (bl.length - 1) * 12 + topH <= h) break; }
+    LX.quiet = was;
+    return { top, bottom: statBlocks(st, w, sizes.slice(from), o) };
+  });
+}
+
+// Title block parts: eyebrow label, headline (steps down its size ladder), subtitle and,
+// in the read variant, the body paragraph.
+function headParts(s, w, h, o) {
+  o = o || {};
+  const T = LX.theme;
+  const out = [];
+  const eb = o.label !== undefined ? o.label : eyebrow(s);
+  if (eb) out.push(label(eb, w, { what: 'the kicker', cls: 'eb' }));
+  const sub = s.subtitle && !o.noSub ? tb(s.subtitle, { role: 'body', size: o.subSize || LEAD(), lh: 1.3, w: Math.min(w, o.subW || 1320), max: 3, what: 'the subtitle', cls: 'sub', mw: true }) : null;
+  const body = s.body && LX.variant === 'read' ? tb(s.body, { role: 'body', size: 25, w: Math.min(w, 1320), max: 4, what: 'the body paragraph', cls: 'bodyp', mw: true }) : null;
+  const rest = (eb ? out[0].h + 18 : 0) + (sub ? sub.h + 18 : 0) + (body ? body.h + 18 : 0);
+  if (s.title) out.push(tb(s.title, { role: 'display', sizes: o.sizes || ladder(T.titleSize, Math.round(T.titleSize * 0.62)), w: o.titleW || w, max: o.max || 4, maxH: h - rest, em: true, what: 'the title', cls: 'title', tag: 'h1', mw: !!o.titleW }));
+  if (sub) out.push(sub);
+  if (body) out.push(body);
+  return out;
+}
+
+// The top band of a mosaic slide: the title cell and up to two number cells beside it.
+// It takes as many grid rows as the title needs (2 to 4) and returns where the body starts.
+function band(s, heroes, o) {
+  o = o || {};
+  const k = Math.min(2, heroes.length);
+  const titleCols = k === 0 ? 12 : k === 1 ? 8 : 7;
+  const plain = cs().plainPad === 0;
+  let rows = k ? 3 : 2;
+  for (; rows < 4; rows++) {
+    const r = grid(0, 0, titleCols, rows);
+    const ih = r.h - (plain ? 26 : 2 * cs().pad), iw = r.w - (plain ? 28 : 2 * cs().pad);
+    const was = LX.quiet; LX.quiet = true; const before = LX.count || 0;
+    const parts = headParts(s, iw, ih, o);
+    LX.quiet = was;
+    const used = parts.reduce((a, b) => a + b.h, 0) + (parts.length - 1) * 18;
+    const clean = (LX.count || 0) === before; LX.count = before;
+    if (clean && used <= ih) break;
+  }
+  const tr = grid(0, 0, titleCols, rows);
+  let html = cell(tr, { kind: 'plain', what: 'the title block', gap: 18, padX: plain ? 0 : undefined, pad: plain ? 0 : undefined, style: plain ? 'padding-right:28px' : '', fix: 'Shorten the title or the subtitle.' },
+    (w, h) => ({ top: headParts(s, plain ? w - 28 : w, plain ? h - 26 : h, o) }));
+  if (k) {
+    const fills = fillTones(LX.theme, LX.tone);
+    const hr = grid(titleCols, 0, 12 - titleCols, rows);
+    const rects = k === 1 ? [hr] : splitRect(hr, 2, 'col');
+    heroes.slice(0, 2).forEach((st, i) => { html += statCell(rects[i], st, { tone: fills[i] || fills[0], what: 'the ' + (i ? 'second' : 'first') + ' stat cell', sizes: ladder(k === 1 ? 170 : 104, 48) }); });
+  }
+  return { html, top: rows };
+}
+
+// ---- images and frames ---------------------------------------------------------------
+// An image fitted into w x h without cropping, inside a browser or phone frame when asked.
+function imageBox(img, w, h, o) {
+  o = o || {};
+  const dims = img.file && img.file.file ? imageDims(HCTX.rasters && HCTX.rasters[img.file.file] ? HCTX.rasters[img.file.file] : img.file.file) : null;
+  const ar = dims ? dims.width / dims.height : (img.frame === 'phone' ? 0.46 : 1.6);
+  const frame = img.frame === 'browser' || img.frame === 'phone' ? img.frame : 'none';
+  const chromeH = frame === 'browser' ? 52 : frame === 'phone' ? 28 : 0, chromeW = frame === 'phone' ? 28 : frame === 'browser' ? 4 : 0;
+  const shadow = LX.theme.cell === 'card' || LX.theme.cell === 'block' ? 14 : 0;
+  let iw = w - chromeW - shadow, ih = iw / ar;
+  if (ih > h - chromeH - shadow) { ih = h - chromeH - shadow; iw = ih * ar; }
+  const fw = iw + chromeW, fh = ih + chromeH;
+  const tag = '<img src="' + esc(img.src) + '" alt="' + esc(o.alt || '') + '" style="width:' + f1(iw) + 'px;height:' + f1(ih) + 'px">';
+  const inner = frame === 'browser' ? '<div class="fr-bar"><i></i><i></i><i></i><span></span></div>' + tag : frame === 'phone' ? '<div class="fr-scr">' + tag + '</div>' : tag;
+  return { w: fw, h: fh, html: '<div class="fr fr-' + frame + (o.cls ? ' ' + o.cls : '') + '" style="width:' + f1(fw) + 'px;height:' + f1(fh) + 'px' + (o.style ? ';' + o.style : '') + '">' + inner + '</div>' };
+}
+// One or two images in a w x h area; the second overlaps the first at the lower right.
+function imagesBlock(imgs, w, h, centre) {
+  if (imgs.length < 2) { const b = imageBox(imgs[0], w, h, {}); return { h, html: '<div class="imgs' + (centre ? ' ctr' : '') + '" style="width:' + f1(w) + 'px;height:' + f1(h) + 'px">' + b.html + '</div>' }; }
+  const a = imageBox(imgs[0], w * 0.88, h * 0.84, {});
+  const b = imageBox(imgs[1], w * 0.38, h * 0.6, { cls: 'over', style: 'position:absolute;right:64px;bottom:44px' + (imgs[1].frame === 'phone' ? ';transform:rotate(5deg);transform-origin:bottom right' : '') });
+  return { h, html: '<div class="imgs" style="width:' + f1(w) + 'px;height:' + f1(h) + 'px">' + a.html + b.html + '</div>' };
+}
+
+// Logo wall: wordmarks set in the display face, or image files, in a hairline strip.
+function logosBlock(logos, w, h) {
+  const list = logos.slice(0, 6);
+  if (logos.length > 6) issue(logos.length + ' logos; 6 are drawn.');
+  const cw = w / list.length;
+  const html = list.map((lg) => {
+    if (lg.src) return '<div class="lg-c"><img src="' + esc(lg.src) + '" alt="' + esc(lg.name || '') + '" style="max-height:' + Math.round(h * 0.46) + 'px;max-width:' + Math.round(cw - 48) + 'px"></div>';
+    const b = tb(lg.name, { role: 'display', sizes: [30, 26, 22], w: cw - 36, max: 1, what: 'logo name "' + lg.name + '"' });
+    return '<div class="lg-c">' + b.html + '</div>';
+  }).join('');
+  return { h, html: '<div class="logos" style="height:' + Math.round(h) + 'px">' + html + '</div>' };
+}
+
+// The logo: as it is on a light ground; on a dark or coloured ground it sits on a light
+// chip unless meta.logo_light names a version made for dark grounds.
+function logoBlock(src, h) {
+  const alt = HCTX.logoLight;
+  const o = LX.theme.tones[LX.tone];
+  const needChip = luminance(o.bg) < 0.45 && !alt;
+  if (!needChip) return rawBlock(h, '<img class="logo" src="' + esc(alt && luminance(o.bg) < 0.45 ? alt : src) + '" alt="" style="height:' + h + 'px">');
+  return rawBlock(h + 28, '<div class="logo-chip"><img class="logo" src="' + esc(src) + '" alt="" style="height:' + h + 'px"></div>');
+}
+
+// The main visual of a slide, by priority: diagram, chart, image, table.
+function visualOf(s) { return s.diagram ? 'diagram' : s.chart ? 'chart' : (LX.imgs && LX.imgs.length) ? 'image' : (s.rows && s.rows.length) ? 'table' : null; }
+function visualBlock(s, w, h, kind) {
+  if (kind === 'diagram') return diagramBlock(s.diagram, w, h);
+  if (kind === 'chart') return chartBlock(s.chart, w, h, s.chart.source || s.source);
+  if (kind === 'image') return imagesBlock(LX.imgs, w, h);
+  if (kind === 'table') return gridTable(s.columns, s.rows, w, h, { grid: s.type === 'competition' });
+  return rawBlock(0, '');
+}
+// A cell that holds the main visual. Charts and tables sit in a framed cell, diagrams and
+// images on the open ground.
+function visualCell(s, r, kind) {
+  const open = kind === 'diagram' || kind === 'image' || (kind === 'table');
+  const hair = LX.theme.cell === 'hairline' || LX.theme.cell === 'rule';
+  return cell(r, { kind: open && !hair ? 'plain' : undefined, what: 'the ' + kind + ' cell', cls: 'vis vis-' + kind, pad: open && !hair ? 0 : undefined, slack: kind !== 'image' }, (w, h) => ({ top: [visualBlock(s, w, h, kind)] }));
+}
+
+// Side column of a mosaic: further stats as cells, then points, then sparklines.
+function sideCells(s, r, stats, items, o) {
+  o = o || {};
+  const fills = fillTones(LX.theme, LX.tone);
+  const parts = [];
+  stats.forEach((st, i) => parts.push({ wt: 1, draw: (rr) => statCell(rr, st, { tone: i === 0 && o.fillFirst !== false ? (o.tone || fills[1] || fills[0]) : null, what: 'a stat cell', sizes: ladder(Math.min(120, Math.round(rr.h * 0.4)), 44) }) }));
+  if (s.sparklines && s.sparklines.length && !o.noSpark) parts.push({ wt: Math.max(1, s.sparklines.length * 0.45), draw: (rr) => cell(rr, { what: 'the sparkline cell' }, (w) => ({ top: [label(s.sparkline_label || 'Trend', w, {})], bottom: [sparkRows(s.sparklines, w)] })) });
+  if (items.length) parts.push({ wt: Math.max(1, items.length * 0.75), draw: (rr) => cell(rr, { what: 'the points cell', fix: 'Shorten the points, cut one, or cut a stat.' }, (w, h) => ({ mid: [pointList(items, w, { sizes: PT_SIZES().slice(1), maxH: h })] })) });
+  if (!parts.length) return '';
+  return splitRect(r, parts.length, 'row', parts.map((p) => p.wt)).map((rr, i) => parts[i].draw(rr)).join('');
+}
+
+// The standard mosaic body under the band: main visual (or points) and a side column.
+function mosaicBody(s, top, o) {
+  o = o || {};
+  const rows = 8 - top;
+  const kind = o.kind !== undefined ? o.kind : visualOf(s);
+  const stats = o.stats || [];
+  const items = o.items || [];
+  const hasLogos = s.logos && s.logos.length && o.logos !== false;
+  const lr = hasLogos ? 1 : 0;
+  let html = '';
+  const sideNeeded = kind && (stats.length || items.length || (s.sparklines && s.sparklines.length));
+  const mainCols = sideNeeded ? (o.mainCols || 8) : 12;
+  const mainR = grid(o.flip && sideNeeded ? 12 - mainCols : 0, top, mainCols, rows - lr);
+  const sideR = sideNeeded ? grid(o.flip ? 0 : mainCols, top, 12 - mainCols, rows - lr) : null;
+  if (kind) { html += visualCell(s, mainR, kind); if (sideR) html += sideCells(s, sideR, stats, items, o); }
+  else {
+    // no visual: the numbers own the stage, the points sit beneath them
+    const R = grid(0, top, 12, rows - lr);
+    const fills = fillTones(LX.theme, LX.tone);
+    const statRow = (r) => splitRect(r, stats.length, 'col', stats.length === 3 ? [5, 4, 3.4] : stats.length === 2 ? [5, 4] : null).map((rr, i) => statCell(rr, stats[i], { tone: i === 0 ? (fills[1] || fills[0]) : null, sizes: ladder(Math.min(180, Math.round(rr.h * 0.42)), 48) })).join('');
+    const pointsArea = (r) => (items.length <= 3 && items.length > 1 && r.h < 430
+      ? cardRow(r, items, { what: 'point', fill: false, equal: true })
+      : cell(r, { what: 'the points cell', slack: true, fix: 'Shorten the points or cut one.' }, (w, h) => ({ mid: [pointList(items, Math.min(w, 1400), { sizes: PT_SIZES(), maxH: h })] })));
+    if (stats.length && items.length) { const [a, b] = splitRect(R, 2, 'row', [1, Math.max(0.7, Math.min(2.2, items.length * 0.55))]); html += statRow(a) + pointsArea(b); }
+    else if (stats.length) html += statRow(R);
+    else if (items.length) html += pointsArea(R);
+    if (s.sparklines && s.sparklines.length) issue('`sparklines` need a chart, diagram or image beside them on this slide type.');
+  }
+  if (hasLogos) html += cell(grid(0, 7, 12, 1), { what: 'the logo strip', pad: 0, cls: 'lg-cell' }, (w, h) => ({ top: [logosBlock(s.logos, w, h)] }));
+  return html;
+}
+
+// Cells across the stage, one per item, the first one filled: hero facts, steps, pillars.
+function cardRow(r, items, o) {
+  o = o || {};
+  const n = items.length;
+  if (!n) return '';
+  const fills = fillTones(LX.theme, LX.tone);
+  const weights = o.equal || n < 3 ? null : (n === 3 ? [5, 4, 3.4] : [4, 3.2, 3.2, 3]);
+  const rects = splitRect(r, n, 'col', weights);
+  const draw = (tSizes, bSizes, sink) => rects.map((rr, i) => cell(rr, { tone: i === (o.fillAt || 0) && o.fill !== false ? fills[0] : (i === 1 && o.second ? fills[1] : null), what: (o.what || 'a card') + ' ' + (i + 1), fix: 'Shorten it.' }, (w, h) => {
+    const it = items[i];
+    const top = [it.icon ? rawBlock(52, icon(it.icon, 48)) : tb(two(i + 1), { role: 'num', size: 44, lh: 1, w, max: 1, cls: 'idx' })];
+    const bottom = [];
+    const title = it.title ? tb(it.title, { role: 'display', sizes: tSizes, w, max: 2, what: (o.what || 'a card') + ' title' }) : null;
+    if (title) bottom.push(title);
+    const body = tb(it.text, { role: 'body', sizes: bSizes, w, maxH: h - 76 - (title ? title.h + 18 : 0), what: (o.what || 'a card') + ' ' + (i + 1) });
+    bottom.push(body);
+    if (sink) sink.push({ t: title ? title.size : 999, b: body.size });
+    return { top, bottom, over: o.arrows && i < n - 1 ? '<span class="arr">' + icon('arrow-right', 34) + '</span>' : '' };
+  })).join('');
+  // first every card alone, then all of them at the smallest sizes any card needed
+  const got = [];
+  const was = LX.quiet; LX.quiet = true; const c0 = LX.count || 0;
+  draw([44, 40, 36, 32, 28], o.size ? [o.size] : PT_SIZES(), got);
+  LX.count = c0; LX.quiet = was;
+  return draw([Math.min(...got.map((g) => g.t))], [Math.min(...got.map((g) => g.b))]);
+}
+
+// Colour-block split: text on the slide's ground, a full-height panel in another tone.
+function splitSlide(s, o) {
+  const T = LX.theme;
+  const fills = fillTones(T, LX.tone);
+  const PW = o.wide ? 860 : 740;
+  const left = o.side === 'left';
+  const panelR = { x: left ? 0 : STAGE_W - PW, y: 0, w: PW, h: STAGE_H };
+  const textR = { x: left ? PW + 72 : FRAME.x, y: FRAME.y, w: STAGE_W - PW - 72 - FRAME.x, h: FRAME.h };
+  const tone = o.tone || fills[0];
+  let html = cell(panelR, { kind: 'bleed', tone, what: 'the panel', pad: 96, padX: 72, gap: 28, fix: o.fix || 'Shorten the panel content.' }, (w, h) => o.panel(w, h));
+  LX.panel = { side: left ? 'left' : 'right', tone };
+  LX.panelW = PW;
+  html += cell(textR, { kind: 'plain', pad: 0, what: 'the text column', gap: 22, fix: 'Shorten the title or the points, or cut a point.' }, (w, h) => {
+    if (!o.bottom) {
+      // nothing under the title: set it large and anchor it to the bottom, like a poster
+      const parts = headParts(s, w, h - 60, { label: '', sizes: ladder(Math.round(T.titleSize * 1.7), Math.round(T.titleSize * 0.7)), max: 6 });
+      return { top: [label(eyebrow(s), w, { cls: 'eb' })], bottom: parts };
+    }
+    const top = headParts(s, w, h * 0.6, { sizes: ladder(Math.round(T.titleSize * 1.45), Math.round(T.titleSize * 0.66)), max: 5 });
+    const used = top.reduce((a2, b2) => a2 + b2.h, 0) + (top.length - 1) * 22;
+    return { top, bottom: o.bottom(w, h - used - 48) };
+  });
+  return html;
+}
+// Numbered points for a panel: big index, then the text.
+function panelPoints(items, w, h, size) {
+  const n = items.length;
+  if (!size) {
+    const was = LX.quiet; LX.quiet = true;
+    size = PT_SIZES().find((sz) => panelPoints(items, w, h, sz).h <= h) || PT_SIZES()[PT_SIZES().length - 1];
+    LX.quiet = was;
+  }
+  const rows = items.map((it, i) => {
+    const idx = tb(two(i + 1), { role: 'num', size: 64, lh: 0.9, w: 110, max: 1, cls: 'idx' });
+    const tt = it.title ? tb(it.title, { role: 'bodyb', size, w: w - 120, max: 2, what: 'a point title' }) : null;
+    const tx = tb(it.text, { role: 'body', size, w: w - 120, what: 'a point' });
+    const rh = Math.max(64, (tt ? tt.h + 4 : 0) + tx.h);
+    return { h: rh, html: '<div class="pp" style="min-height:' + f1(rh) + 'px"><div style="width:120px;flex:none">' + idx.html + '</div><div>' + (tt ? tt.html : '') + tx.html + '</div></div>' };
+  });
+  const h0 = rows.reduce((a, b) => a + b.h, 0) + (n - 1) * 57;
+  return { h: h0, html: '<div class="pps">' + rows.map((r) => r.html).join('<hr class="hr">') + '</div>' };
+}
+// What a split panel shows: the diagram, the image, the stats, or the points as numbers.
+function panelFor(s, o) {
+  o = o || {};
+  return (w, h) => {
+    if (s.diagram) return { mid: [diagramBlock(s.diagram, w, h)] };
+    if (LX.imgs && LX.imgs.length) {
+      const stats = s.stats.slice(0, 2);
+      const sh = stats.length ? 190 : 0;
+      const parts = { top: [imagesBlock(LX.imgs, w, h - sh - (sh ? 28 : 0))] };
+      if (stats.length) parts.bottom = [rawBlock(sh, '<div class="hs" style="height:' + sh + 'px">' + stats.map((st) => '<div style="flex:1;min-width:0">' + vs(statBlocks(st, (w - 40 * (stats.length - 1)) / stats.length, ladder(88, 44), { maxLabel: 2 }), 10).html + '</div>').join('') + '</div>')];
+      return parts;
+    }
+    if (s.stats.length) {
+      const stats = s.stats.slice(0, o.maxStats || 2);
+      const blocks = [];
+      stats.forEach((st, i) => {
+        if (i) blocks.push(rawBlock(1, '<hr class="hr">'));
+        blocks.push(vs(statBlocks(st, w, i === 0 && stats.length < 3 ? ladder(250, 72) : ladder(stats.length > 2 ? 112 : 150, 56), { labelSize: i === 0 ? BODY() : SMALL(), what: 'a stat' }), 14));
+      });
+      return { bottom: blocks };
+    }
+    return { mid: [panelPoints(pointItems(s), w, h)] };
+  };
+}
+
+// Use of funds: a donut with the largest share in the hole and the buckets beside it.
+function fundsBlock(funds, w) {
+  const list = funds.slice(0, 5);
+  if (funds.length > 5) issue(funds.length + ' use-of-funds buckets; 5 are drawn. Merge the smallest.');
+  const stacked = w < 760;
+  const D = stacked ? Math.min(460, w * 0.78) : Math.min(380, w * 0.5);
+  const lw = stacked ? w : w - D - 44;
+  // the legend is set as large as its labels allow (two lines each, three at the smallest size)
+  const fitsAt = (sz, lines) => list.every((f) => wrapText(f.label, LX.theme.roles.body, sz, (lw - 30 - 96) * WRAP_SAFETY - 1).lines <= lines);
+  const size = [sv(32, 28), sv(28, 25)].find((sz) => fitsAt(sz, 2)) || SMALL();
+  const rows = list.map((f, i) => {
+    const b = tb(f.label, { role: 'body', size, w: lw - 30 - 96, max: size === SMALL() ? 3 : 2, what: 'use-of-funds label "' + String(f.label).slice(0, 20) + '"' });
+    return { h: b.h, html: '<div class="fd-r" style="min-height:' + f1(b.h) + 'px"><i style="background:' + DONUT_COLORS[i % 5] + '"></i>' + b.html + '<b class="t f-bodyb" style="font-size:' + size + 'px;line-height:1.36">' + esc(fmtNum(Number(f.pct) || 0)) + '%</b></div>' };
+  });
+  const lh = rows.reduce((a, b) => a + b.h, 0) + (rows.length - 1) * 14;
+  const fh = stacked ? D + 40 + lh : Math.max(D, lh);
+  return { h: fh, html: '<div class="funds' + (stacked ? ' stk' : '') + '" style="min-height:' + f1(fh) + 'px">' + donutSvg(list, Math.round(D)) + '<div class="fd-l" style="width:' + f1(lw) + 'px;gap:14px">' + rows.map((r) => r.html).join('') + '</div></div>' };
+}
+
+// Milestones as rows: a date in the display face, then what will be true.
+function milestoneRows(ms, w, o) {
+  o = o || {};
+  if (o.sizes && o.maxH) {
+    const was = LX.quiet; LX.quiet = true;
+    let pick = o.sizes[o.sizes.length - 1];
+    for (const sz of o.sizes) { const c0 = LX.count || 0; const b = milestoneRows(ms, w, { size: sz }); const ok = (LX.count || 0) === c0 && b.h <= o.maxH; LX.count = c0; if (ok) { pick = sz; break; } }
+    LX.quiet = was;
+    return milestoneRows(ms, w, { size: pick });
+  }
+  const size = o.size || SMALL();
+  const padY = Math.round(size * 0.55);
+  const rows = ms.map((m, i) => {
+    const it = typeof m === 'string' ? { what: m } : (m || {});
+    const whenW = it.when ? Math.min(w * 0.32, Math.max(150, tw(it.when, LX.theme.roles.bodyb, size) + 36)) : 0;
+    const when = it.when ? tb(it.when, { role: 'bodyb', size, w: whenW - 16, max: 2, what: 'milestone ' + (i + 1) + ' date', cls: 'ms-w' }) : null;
+    const what = tb([it.what, it.proves].filter(Boolean).join('. '), { role: 'body', size, w: w - whenW - 34, what: 'milestone ' + (i + 1) });
+    const rh = Math.max(what.h, when ? when.h : 0) + 2 * padY;
+    return { h: rh, html: '<li style="min-height:' + f1(rh) + 'px;padding:' + padY + 'px 0"><span class="ms-d" style="top:' + f1(padY + size * 0.68 - 7) + 'px"></span>' + (when ? '<div style="width:' + f1(whenW) + 'px;flex:none">' + when.html + '</div>' : '') + '<div>' + what.html + '</div></li>' };
+  });
+  return { h: rows.reduce((a, b) => a + b.h, 0), html: '<ul class="ms">' + rows.map((r) => r.html).join('') + '</ul>' };
+}
+
+// Decoration for cover and section slides: the theme's signature, kept clear of the text.
+function decorHtml(zone, seedText) {
+  const T = LX.theme;
+  const fills = fillTones(T, LX.tone);
+  const z = zone;
+  const box = (x, y, w, h, tone, extra) => '<div class="dc" ' + (tone ? 'data-tone="' + tone + '" ' : '') + 'style="left:' + f1(x) + 'px;top:' + f1(y) + 'px;width:' + f1(w) + 'px;height:' + f1(h) + 'px' + (extra ? ';' + extra : '') + '"></div>';
+  if (T.decor === 'blocks') return box(z.x, 0, z.w, z.h * 0.42, fills[0]) + box(z.x, z.h * 0.42, z.w * 0.5, z.h * 0.58, fills[1] || fills[0]) + box(z.x + z.w * 0.5, z.h * 0.42, z.w * 0.5, z.h * 0.58, fills[2] || null, fills[2] ? '' : 'background:var(--accent-2)');
+  if (T.decor === 'shapes') return '<div class="dc shape" style="left:' + f1(z.x + z.w * 0.1) + 'px;top:-190px;width:680px;height:680px;border-radius:50%;background:' + T.tones[fills[1] || fills[0]].bg + '"></div>' +
+    '<div class="dc shape" style="left:' + f1(z.x - 40) + 'px;top:' + f1(z.h - 330) + 'px;width:400px;height:400px;border-radius:64px;transform:rotate(-12deg);background:var(--accent-2)"></div>';
+  if (T.decor === 'mosaic') {
+    const g = splitRect({ x: z.x, y: FRAME.y, w: STAGE_W - z.x - FRAME.x, h: FRAME.h }, 3, 'row', [3, 2, 3]);
+    const a = splitRect(g[0], 2, 'col', [2, 3]), b = splitRect(g[2], 2, 'col', [3, 2]);
+    const c = (r, tone) => '<div class="cell' + (tone ? ' filled' : '') + '" ' + (tone ? 'data-tone="' + tone + '" ' : '') + 'style="left:' + f1(r.x) + 'px;top:' + f1(r.y) + 'px;width:' + f1(r.w + 1) + 'px;height:' + f1(r.h + 1) + 'px"></div>';
+    return c(a[0]) + c(a[1], fills[0]) + c(g[1]) + c(b[0], fills[1]) + c(b[1]);
+  }
+  // an oversized, cropped initial as texture (outline, never behind text)
+  const ch = esc(String(seedText || '').trim().charAt(0).toUpperCase() || '1');
+  return '<div class="dc ghost f-num" aria-hidden="true" style="left:' + f1(z.x + z.w * 0.08) + 'px;top:' + f1(z.h * 0.16) + 'px;font-size:' + Math.round(z.h * 0.98) + 'px">' + ch + '</div>';
+}
+
+// ---- slide renderers -----------------------------------------------------------------
+const RENDER = {
+  cover(s) {
+    const T = LX.theme, meta = HCTX.meta;
+    const fills = fillTones(T, LX.tone);
+    const stats = s.stats.slice(0, 3);
+    if (s.stats.length > 3) issue(s.stats.length + ' cover stats; 3 are drawn.');
+    const PW = 640;
+    const textW = STAGE_W - PW - FRAME.x - 60;
+    let html = stats.length
+      ? cell({ x: STAGE_W - PW, y: 0, w: PW, h: STAGE_H }, { kind: 'bleed', tone: fills[0], pad: 96, padX: 72, gap: 34, what: 'the cover stats panel' }, (w) => {
+        const blocks = [];
+        stats.forEach((st, i) => { if (i) blocks.push(rawBlock(1, '<hr class="hr">')); blocks.push(vs(statBlocks(st, w, ladder(124, 56), { maxLabel: 2, what: 'a cover stat' }), 12)); });
+        return { bottom: blocks };
+      })
+      : decorHtml({ x: STAGE_W - PW, y: 0, w: PW, h: STAGE_H }, s.title || meta.company);
+    const logo = LX.imgs && LX.imgs.length ? LX.imgs[0].src : HCTX.logo;
+    if (stats.length) { LX.panel = { side: 'right', tone: fills[0] }; LX.panelW = PW; }
+    html += cell({ x: FRAME.x, y: FRAME.y, w: textW, h: FRAME.h }, { kind: 'plain', pad: 0, gap: 30, what: 'the cover text', fix: 'Shorten the title or the subtitle.' }, (w, h) => {
+      const top = [];
+      if (logo) top.push(logoBlock(logo, 72));
+      if (s.kicker) top.push(label(s.kicker, w, { what: 'the kicker', cls: 'eb' }));
+      const bottom = [tb(s.title || meta.company, { role: 'display', sizes: ladder(Math.min(300, Math.round(T.bigSize * 1.9)), 72), lh: T.bigLh, w, max: 3, maxH: h * 0.56, em: true, what: 'the cover title', cls: 'title big', tag: 'h1' })];
+      const sub = s.subtitle || meta.tagline;
+      if (sub) bottom.push(tb(sub, { role: 'body', size: sv(42, 38), lh: 1.24, w: Math.min(w, 1080), max: 3, what: 'the cover subtitle', cls: 'sub', mw: true }));
+      return { top, bottom };
+    });
+    return html;
+  },
+
+  section(s) {
+    const T = LX.theme;
+    const mine = T.tones[LX.tone];
+    const tone = fillTones(T, LX.tone).find((t) => contrast(mine.ink, T.tones[t].bg) >= 3) || null;
+    const PW = 640;
+    let html = '<div class="dc" ' + (tone ? 'data-tone="' + tone + '"' : '') + ' style="left:0;top:0;width:' + PW + 'px;height:' + STAGE_H + 'px' + (tone ? '' : ';background:var(--surface)') + '"></div>';
+    if (tone) { LX.panel = { side: 'left', tone }; LX.panelW = PW; }
+    const numTxt = String(s.number != null ? s.number : two(s.sectionNo || 1));
+    // the numeral crosses the seam of the colour block and stops short of the title column
+    const numSize = Math.min(700, Math.floor(700 / Math.max(1, tw(numTxt, T.roles.num, 1))));
+    html += '<div class="sec-n f-num" aria-hidden="true" style="left:44px;top:' + f1(150) + 'px;font-size:' + numSize + 'px">' + esc(numTxt) + '</div>';
+    html += cell({ x: PW + 170, y: FRAME.y, w: STAGE_W - PW - 170 - FRAME.x, h: FRAME.h }, { kind: 'plain', pad: 0, gap: 28, what: 'the section title', fix: 'Shorten the section title.' }, (w, h) => ({
+      top: [label(s.kicker || 'Section ' + numTxt, w, { cls: 'eb' })],
+      bottom: [tb(s.title, { role: 'display', sizes: ladder(Math.round(T.bigSize * 0.78), 56), lh: T.bigLh, w, max: 4, maxH: h * 0.6, em: true, what: 'the section title', cls: 'title big', tag: 'h1' })]
+        .concat(s.subtitle ? [tb(s.subtitle, { role: 'body', size: LEAD(), lh: 1.3, w, max: 3, what: 'the subtitle', cls: 'sub' })] : []),
+    }));
+    return html;
+  },
+
+  statement(s) {
+    const T = LX.theme;
+    const badge = s.unknownType ? '<div class="warn-badge">Unknown slide type "' + esc(s.unknownType) + '", shown as statement</div>' : '';
+    const pts = pointItems(s).slice(0, 3);
+    const stripH = pts.length ? 210 : 0;
+    let html = badge + cell({ x: FRAME.x, y: FRAME.y, w: FRAME.w, h: FRAME.h - stripH }, { kind: 'plain', pad: 0, gap: 34, what: 'the statement', fix: 'Shorten the statement.' }, (w, h) => {
+      const top = s.kicker ? [label(s.kicker, w, { cls: 'eb', what: 'the kicker' })] : [];
+      const sub = s.subtitle ? tb(s.subtitle, { role: 'body', size: sv(38, 34), lh: 1.28, w: Math.min(w, 1400), max: 3, what: 'the subtitle', cls: 'sub', mw: true }) : null;
+      const body = s.body && LX.variant === 'read' ? tb(s.body, { role: 'body', size: 25, w: Math.min(w, 1320), max: 4, what: 'the body paragraph', cls: 'bodyp', mw: true }) : null;
+      const title = tb(s.title, { role: 'display', sizes: ladder(T.bigSize, 60), lh: T.bigLh, w: Math.min(w, 1700), max: 5, maxH: h - (top.length ? 60 : 0) - (sub ? sub.h + 34 : 0) - (body ? body.h + 34 : 0), em: true, what: 'the statement', cls: 'title big', tag: 'h1' });
+      return { top, bottom: [title, sub, body] };
+    });
+    if (pts.length) html += splitRect({ x: FRAME.x, y: FRAME.y + FRAME.h - stripH + 30, w: FRAME.w, h: stripH - 30 }, pts.length, 'col').map((r, i) => cell(r, { kind: 'plain', pad: 0, cls: 'strip', what: 'statement point ' + (i + 1), style: 'padding-top:22px;padding-right:32px' }, (w, h) => ({ top: [tb(pts[i].text, { role: 'body', size: BODY(), w: w - 32, maxH: h - 22, what: 'statement point ' + (i + 1) })] }))).join('');
+    return html;
+  },
+
+  quote(s) {
+    const T = LX.theme;
+    const fills = fillTones(T, LX.tone);
+    const st = s.stat || s.stats[0];
+    const tw0 = st ? 1150 : 1560;
+    let html = cell({ x: FRAME.x, y: FRAME.y, w: tw0, h: FRAME.h }, { kind: 'plain', pad: 0, gap: 36, what: 'the quote', fix: 'Shorten the quote.' }, (w, h) => {
+      const who = [s.by || s.name, s.role].filter(Boolean);
+      const photo = LX.imgs && LX.imgs.length ? LX.imgs[0].src : null;
+      // a picture only when there is a photo: `by` is often a role, and its first letter is not a monogram
+      const av = photo ? '<img class="q-av" src="' + esc(photo) + '" alt="">' : '<span class="q-bar"></span>';
+      const aw = photo ? 150 : 34;
+      const name = tb(s.by || s.name || '', { role: 'bodyb', size: sv(34, 30), w: w - aw, max: 1, what: 'the quote attribution' });
+      const role = s.role ? label(s.role, w - aw, { max: 2, what: 'the quote role', cls: 'eb' }) : null;
+      const foot = who.length ? rawBlock(Math.max(photo ? 112 : 0, name.h + (role ? role.h + 8 : 0)), '<div class="q-by">' + av + '<div class="vs" style="gap:8px">' + name.html + (role ? role.html : '') + '</div></div>') : null;
+      const markH = 150;
+      // the quote is the picture: as large as the stage allows
+      const q = tb(s.quote || s.title, { role: 'display', sizes: ladder(Math.round(T.bigSize * 0.8), Math.round(T.titleSize * 0.6)), lh: Math.min(1.12, T.titleLh + 0.04), w, max: 7, maxH: h - 70 - markH - 36 * 3 - (foot ? foot.h : 0), em: true, what: 'the quote', cls: 'title q-t', tag: 'blockquote' });
+      return { top: [label(eyebrow(s), w, { cls: 'eb' })], mid: [rawBlock(markH, '<div class="q-m f-em" aria-hidden="true" style="height:' + markH + 'px">\u201c</div>'), q, foot] };
+    });
+    if (st) html += statCell(grid(8, 1, 4, 6), st, { tone: fills[0], what: 'the quote metric', sizes: ladder(200, 56), labelSize: BODY() });
+    return html;
+  },
+
+  problem(s) {
+    const hasPanelStuff = s.diagram || (LX.imgs && LX.imgs.length) || s.stats.length;
+    return splitSlide(s, { panel: panelFor(s), bottom: hasPanelStuff && s.points.length ? (w, h) => [pointList(pointItems(s), w, { sizes: PT_SIZES(), maxH: h })] : null });
+  },
+  solution(s) {
+    const hasPanelStuff = s.diagram || (LX.imgs && LX.imgs.length) || s.stats.length;
+    return splitSlide(s, { side: 'left', wide: !!(s.diagram || (LX.imgs && LX.imgs.length)), tone: fillTones(LX.theme, LX.tone)[1], panel: panelFor(s), bottom: hasPanelStuff && s.points.length ? (w, h) => [pointList(pointItems(s), w, { sizes: PT_SIZES(), maxH: h })] : null });
+  },
+
+  product(s) {
+    const b = band(s, s.stats.slice(0, 1));
+    const kind = visualOf(s);
+    if (kind) {
+      const im = kind === 'image' && LX.imgs[0].file && LX.imgs[0].file.file ? imageDims(LX.imgs[0].file.file) : null;
+      const portrait = kind === 'image' && LX.imgs.length === 1 && (LX.imgs[0].frame === 'phone' || (im && im.width / im.height < 0.9));
+      // a portrait screen gets a full-height panel of its own
+      if (portrait && s.stats.length) issue('`stats` are not drawn on a product slide with a tall image: the image takes the panel.');
+      if (portrait) return splitSlide(s, { side: 'left', tone: fillTones(LX.theme, LX.tone)[1] || fillTones(LX.theme, LX.tone)[0], panel: (w, h) => ({ mid: [imagesBlock(LX.imgs, w, h, true)] }), bottom: s.points.length ? (w, h) => [pointList(pointItems(s), w, { sizes: PT_SIZES(), maxH: h })] : null });
+      return b.html + mosaicBody(s, b.top, { kind, items: pointItems(s), mainCols: 8 });
+    }
+    return b.html + cardRow(grid(0, b.top, 12, 8 - b.top), pointItems(s).slice(0, 4), { what: 'product point', equal: true });
+  },
+
+  insight(s) {
+    const T = LX.theme;
+    const fills = fillTones(T, LX.tone);
+    const st = s.stats[0];
+    const pts = pointItems(s).slice(0, 3);
+    const kind = visualOf(s);
+    if (kind) { const b = band(s, st ? [st] : []); return b.html + mosaicBody(s, b.top, { kind, items: pointItems(s) }); }
+    const rows = pts.length ? 5 : 8;
+    let html = cell(grid(0, 0, st ? 8 : 12, rows), { kind: cs().plainPad === 0 ? 'plain' : undefined, what: 'the insight', gap: 22, style: cs().plainPad === 0 ? 'padding-right:40px;padding-bottom:26px' : '', fix: 'Shorten the title.' }, (w, h) => ({
+      top: [label(eyebrow(s), w, { cls: 'eb' })],
+      bottom: headParts(s, w - 40, h - 60, { label: '', sizes: ladder(Math.round(T.titleSize * 1.34), Math.round(T.titleSize * 0.7)), max: 6 }),
+    }));
+    if (st) html += statCell(grid(8, 0, 4, rows), st, { tone: fills[0], what: 'the stat cell', sizes: ladder(190, 56) });
+    if (pts.length) html += cardRow(grid(0, 5, 12, 3), pts, { what: 'insight point', fill: false, equal: true });
+    return html;
+  },
+
+  market(s) {
+    const b = band(s, []);
+    const auto = !s.diagram && (s.stats.length === 3 || s.stats.length === 2) ? { kind: 'market', rings: s.stats.map((st) => ({ value: st.value, label: st.label })) } : null;
+    if (auto || s.diagram) {
+      const d = s.diagram || auto;
+      const items = pointItems(s).slice(0, 2);
+      const R = grid(0, b.top, 12, 8 - b.top);
+      const plain = cs().plainPad === 0;
+      const was = LX.quiet; LX.quiet = true;
+      const noteH = items.length ? pointList(items, R.w - 2 * cs().pad, { size: SMALL(), padY: 10 }).h + 2 * (plain ? 0 : 26) + (plain ? 18 : 0) : 0;
+      LX.quiet = was;
+      const dr = { x: R.x, y: R.y, w: R.w, h: R.h - (noteH ? noteH + cs().gap : 0) };
+      let html = b.html + cell(dr, { kind: plain ? 'plain' : undefined, what: 'the market diagram', pad: plain ? 0 : undefined, slack: true }, (w, h) => ({ top: [diagramBlock(d, w, h)] }));
+      if (items.length) html += cell({ x: R.x, y: dr.y + dr.h + cs().gap, w: R.w, h: noteH }, { kind: plain ? 'plain' : undefined, pad: plain ? 0 : 26, what: 'the notes under the market diagram', fix: 'Shorten the notes.' }, (w) => ({ bottom: [pointList(items, w, { size: SMALL(), padY: 10 })] }));
+      return html;
+    }
+    const b2 = band(s, s.stats.slice(0, 1));
+    return b2.html + mosaicBody(s, b2.top, { stats: s.stats.slice(1), items: pointItems(s) });
+  },
+
+  traction(s) {
+    const kind = visualOf(s);
+    const b = band(s, s.stats.slice(0, 1));
+    return b.html + mosaicBody(s, b.top, { kind, stats: s.stats.slice(1), items: pointItems(s) });
+  },
+  case_study(s) { return RENDER.traction(s); },
+
+  business_model(s) {
+    const kind = visualOf(s);
+    if (kind === 'table') { const b = band(s, []); return b.html + tableBody(s, b.top); }
+    const b = band(s, s.stats.slice(0, 1));
+    const rest = s.stats.slice(1);
+    if (kind || s.points.length) return b.html + mosaicBody(s, b.top, { kind, stats: rest, items: pointItems(s) });
+    // numbers only: unequal cells across the stage
+    return b.html + (rest.length ? splitRect(grid(0, b.top, 12, 8 - b.top), rest.length, 'col', rest.length === 3 ? [5, 4, 3.4] : null).map((r, i) => statCell(r, rest[i], { tone: i === 1 ? fillTones(LX.theme, LX.tone)[1] : null, sizes: ladder(150, 56) })).join('') : '');
+  },
+
+  go_to_market(s) {
+    const kind = visualOf(s);
+    const b = band(s, s.stats.slice(0, 2));
+    if (kind) return b.html + mosaicBody(s, b.top, { kind, items: pointItems(s) });
+    return b.html + cardRow(grid(0, b.top, 12, 8 - b.top), pointItems(s).slice(0, 4), { what: 'go-to-market step', arrows: true, equal: true, fillAt: Math.min(3, s.points.length) - 1 });
+  },
+
+  competition(s) {
+    const b = band(s, []);
+    if (s.diagram) return b.html + mosaicBody(s, b.top, { kind: 'diagram', items: pointItems(s), mainCols: 7 });
+    return b.html + tableBody(s, b.top);
+  },
+
+  team(s) {
+    const b = band(s, []);
+    const T = LX.theme;
+    const people = s.team.slice(0, 4);
+    if (s.team.length > 4) issue(s.team.length + ' people on the team slide; 4 are drawn. Keep founders and key hires.');
+    const pt = s.points[0];
+    const ph = pt ? 84 : 0;
+    const area = grid(0, b.top, 12, 8 - b.top);
+    area.h -= ph;
+    const swatch = ['var(--accent)', 'var(--c2)', 'var(--ink)', 'var(--fill)'];
+    const swInk = ['var(--on-accent)', 'var(--on-c2)', 'var(--bg)', 'var(--ink)'];
+    const beside = people.length <= 2;      // one or two people: picture left, words beside it
+    // two passes: the first measures every tile's words, so all pictures get the same height
+    let common = Infinity;
+    const tiles = (pass) => splitRect(area, people.length, 'col').map((r, i) => {
+      const pad = cs().pad;
+      const sideW = beside ? Math.round(Math.min(r.h, r.w * 0.42)) : 0;
+      let bandH = 0;
+      const inner = cell(r, { what: 'team member ' + (i + 1), gap: 12, cls: 'tm', style: beside ? 'padding-left:' + (sideW + pad) + 'px' : '', fix: 'Shorten the proof line.' }, (w0, h) => {
+        const m = people[i] || {};
+        const w = beside ? w0 - sideW : w0;
+        const name = tb(m.name || '', { role: 'display', sizes: beside ? [64, 56, 48, 40, 34] : [48, 44, 40, 36, 32, 28], w, max: 2, what: 'a team member name' });
+        const role = m.role ? label(m.role, w, { max: 2, what: 'a team member role', cls: 'eb' }) : null;
+        const minBand = beside ? 0 : Math.round(h * 0.34);
+        const bio = m.bio ? tb(m.bio, { role: 'body', sizes: PT_SIZES(), w, maxH: h - minBand - name.h - (role ? role.h + 12 : 0) - 40, what: 'the proof line of ' + (m.name || 'a team member') }) : null;
+        const textH = name.h + (role ? role.h + 12 : 0) + (bio ? bio.h + 12 + 6 : 0);
+        bandH = beside ? r.h : Math.round(r.h - pad - textH - 30);
+        if (pass === 1) common = Math.min(common, bandH); else if (!beside) bandH = common;
+        return beside ? { top: [role], bottom: [name, bio ? gapBlock(6) : null, bio] } : { top: [rawBlock(bandH - pad, '<div style="height:' + (bandH - pad) + 'px"></div>'), name, role, bio ? gapBlock(6) : null, bio] };
+      });
+      const m = people[i] || {};
+      const photo = LX.teamPhotos && LX.teamPhotos[i];
+      const init = String(m.name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x.charAt(0).toUpperCase()).join('');
+      const bw = beside ? sideW : r.w, bh = bandH;
+      const fs = Math.round(Math.min(bh * 0.62, bw * 0.5));
+      const band = '<div class="tm-b f-num" data-ground="' + ['--accent', '--c2', '--ink', '--fill'][i % 4] + '" style="left:0;top:0;' + (beside ? 'bottom:0;width:' + f1(bw) + 'px' : 'right:0;height:' + f1(bh) + 'px') + ';background:' + swatch[i % 4] + ';color:' + swInk[i % 4] + ';font-size:' + fs + 'px">' +
+        (photo ? '<img src="' + esc(photo) + '" alt="' + esc(m.name || '') + '">' : '<span aria-hidden="true">' + esc(init) + '</span>') + '</div>';
+      return inner.replace(/(<div class="cell[^>]*>)/, '$1' + band);
+    }).join('');
+    let html = '';
+    if (people.length) { const was = LX.quiet; LX.quiet = true; const c0 = LX.count || 0; tiles(1); LX.count = c0; LX.quiet = was; html = tiles(2); }
+    if (pt) html += cell({ x: area.x, y: area.y + area.h + 20, w: area.w, h: ph - 20 }, { kind: 'plain', pad: 0, what: 'the point under the team' }, (w) => ({ mid: [pointList([Object.assign({ text: pt }, (s.pmeta && s.pmeta[0]) || {})], w, { padY: 0 })] }));
+    return b.html + html;
+  },
+
+  financials(s) {
+    const kind = visualOf(s);
+    if (kind === 'table') { const b = band(s, []); return b.html + tableBody(s, b.top); }
+    const b = band(s, s.stats.slice(0, 1));
+    return b.html + mosaicBody(s, b.top, { kind, stats: s.stats.slice(1), items: pointItems(s), flip: true });
+  },
+
+  ask(s) {
+    const ms = s.milestones.slice(0, 4);
+    if (s.milestones.length > 4) issue(s.milestones.length + ' milestones on the ask; 4 are drawn.');
+    return splitSlide(s, {
+      panel: (w, h) => {
+        if (s.diagram) return { mid: [diagramBlock(s.diagram, w, h)] };
+        if (s.use_of_funds.length) return { top: [label(s.funds_label || 'Use of funds', w, {})], bottom: [fundsBlock(s.use_of_funds, w)] };
+        return panelFor(s, { maxStats: 3 })(w, h);
+      },
+      fix: 'Shorten the use-of-funds labels or the stat labels.',
+      bottom: (w, h) => (ms.length ? [label(s.milestones_label || 'What it buys', w, {}), milestoneRows(ms, w, { sizes: PT_SIZES().slice(1), maxH: h - 50 - (s.points.length ? 70 : 0) })].concat(s.milestones.length && s.points.length ? [pointList(pointItems(s).slice(0, 1), w, { size: SMALL(), padY: 6 })] : []) : (s.points.length ? [pointList(pointItems(s), w, { sizes: PT_SIZES(), maxH: h })] : [])),
+    });
+  },
+
+  roadmap(s) {
+    const b = band(s, []);
+    const pt = s.points[0];
+    const ph = pt ? 84 : 0;
+    const area = grid(0, b.top, 12, 8 - b.top);
+    area.h -= ph;
+    const d = s.diagram || { kind: 'timeline', items: s.milestones.slice(0, 6), today: s.today };
+    if (!s.diagram && s.milestones.length > 6) issue(s.milestones.length + ' milestones; 6 are drawn.');
+    let html = b.html + cell(area, { what: 'the roadmap', kind: 'plain', pad: 0, slack: true }, (w, h) => ({ top: [diagramBlock(d, w, h)] }));
+    if (pt) html += cell({ x: area.x, y: area.y + area.h + 20, w: area.w, h: ph - 20 }, { kind: 'plain', pad: 0, what: 'the point under the roadmap' }, (w) => ({ mid: [pointList([Object.assign({ text: pt }, (s.pmeta && s.pmeta[0]) || {})], w, { padY: 0 })] }));
+    return html;
+  },
+
+  closing(s) {
+    const T = LX.theme;
+    const pts = pointItems(s).slice(0, 3);
+    const hasLogos = s.logos && s.logos.length;
+    const rows = pts.length ? 5 : 8;
+    const logo = HCTX.logo;
+    let html = cell(grid(0, 0, 12, rows - (hasLogos && !pts.length ? 1 : 0)), { kind: 'plain', pad: 0, gap: 28, what: 'the closing title', style: 'padding-bottom:30px', fix: 'Shorten the closing line.' }, (w, h) => {
+      const top = [];
+      if (logo) top.push(logoBlock(logo, 60));
+      else if (s.kicker) top.push(label(s.kicker, w, { cls: 'eb' }));
+      const sub = s.subtitle ? tb(s.subtitle, { role: 'mono', size: sv(24, 22), lh: 1.3, w, max: 2, what: 'the contact line', cls: 'lbl contact' }) : null;
+      const title = tb(s.title, { role: 'display', sizes: ladder(Math.round(T.bigSize * 0.86), 56), lh: T.bigLh, w: Math.min(w, 1700), max: 4, maxH: h - 30 - (top.length ? 100 : 0) - (sub ? sub.h + 28 : 0), em: true, what: 'the closing title', cls: 'title big', tag: 'h1' });
+      return { top, bottom: [title, sub] };
+    });
+    if (pts.length) html += cardRow(grid(0, 5, 12, hasLogos ? 2 : 3), pts, { what: 'closing point' });
+    if (hasLogos) html += cell(grid(0, 7, 12, 1), { what: 'the logo strip', pad: 0, cls: 'lg-cell' }, (w, h) => ({ top: [logosBlock(s.logos, w, h)] }));
+    return html;
+  },
+
+  appendix(s) {
+    const kind = visualOf(s);
+    if (kind === 'table') { const b = band(s, []); return b.html + tableBody(s, b.top); }
+    const b = band(s, kind ? [] : s.stats.slice(0, 1));
+    if (kind) return b.html + mosaicBody(s, b.top, { kind, stats: s.stats.slice(0, 2), items: pointItems(s), flip: kind === 'chart' });
+    return b.html + mosaicBody(s, b.top, { stats: s.stats.slice(1), items: pointItems(s) });
+  },
+
+  two_column(s) {
+    const b = band(s, []);
+    const fills = fillTones(LX.theme, LX.tone);
+    const cols = s.columns.slice(0, 2).map((c) => (typeof c === 'object' && c ? c : { title: String(c || '') }));
+    return b.html + splitRect(grid(0, b.top, 12, 8 - b.top), Math.max(1, cols.length), 'col').map((r, i) => cell(r, { tone: i === 1 ? fills[0] : null, what: 'column ' + (i + 1), gap: 20, fix: 'Shorten the points or cut one.' }, (w, h) => {
+      const c = cols[i] || {};
+      const top = [];
+      if (c.title) top.push(tb(c.title, { role: 'display', sizes: [44, 38, 32], w, max: 2, what: 'a column heading' }));
+      if (c.body) top.push(tb(c.body, { role: 'body', size: BODY(), w, what: 'a column body' }));
+      const pts = asArray(c.points).slice(0, 5).map((p) => (typeof p === 'object' && p ? p : { text: String(p) }));
+      const used = top.reduce((a2, b2) => a2 + b2.h + 20, 0);
+      if (pts.length) top.push(pointList(pts, w, { sizes: PT_SIZES().slice(1), maxH: h - used }));
+      return { top };
+    })).join('');
+  },
+
+  sources(s) {
+    const b = band(s, [], { label: 'Appendix' });
+    const area = grid(0, b.top, 12, 8 - b.top);
+    const items = s.items || [];
+    const hair = LX.theme.cell === 'hairline' || LX.theme.cell === 'rule';
+    if (!items.length) return b.html + cell(area, { what: 'the sources' }, (w) => ({ top: [pointList(pointItems(s), w, {})] }));
+    return b.html + cell(area, { kind: hair ? undefined : 'plain', pad: hair ? 30 : 0, what: 'the sources table', gap: 16, cls: 'ref' }, (w, h) => {
+      const was = LX.variant; LX.refSize = 20;
+      let note = null, table;
+      if (s.groups) {
+        note = tb(s.figures + ' figures from ' + s.fileCount + ' source ' + (s.fileCount === 1 ? 'file' : 'files') + '. Each figure has an entry in the fact ledger (facts.yaml) that names its file and location.', { role: 'body', size: 22, w, max: 2, cls: 'mut' });
+        table = gridTable(['Source file', 'Figures', 'Kinds', 'Slides'], s.groups.map((g) => [g.file, String(g.count), g.kinds, g.slides]), w, h - note.h - 16, { ref: true, widths: [0.46, 0.1, 0.24, 0.2] });
+      } else if (!items.some((it) => it.label)) {
+        table = gridTable(['Ref', 'Ledger id', 'Used on'], items.map((it) => [String(it.ref), it.id, 'slide ' + it.slide + (it.title ? ': ' + (stripEm(it.title).length > 64 ? stripEm(it.title).slice(0, 62).trim() + '...' : stripEm(it.title)) : '')]), w, h, { ref: true, widths: [0.08, 0.42, 0.5] });
+      } else {
+        table = gridTable(['Ref', 'Ledger id', 'Label', 'Value', 'Kind', 'As of', 'Source file'], items.map((it) => [String(it.ref), it.id, it.label || '', it.value || '', it.kind || '', it.asOf || '', it.file || '']), w, h, { ref: true, widths: [0.05, 0.2, 0.25, 0.1, 0.1, 0.09, 0.21] });
+      }
+      LX.refSize = 0; LX.variant = was;
+      return { top: [note, table] };
+    });
+  },
+
+  custom_html(s) {
+    const b = s.title ? band(s, []) : { html: '', top: 0 };
+    const r = grid(0, b.top, 12, 8 - b.top);
+    return b.html + '<div class="custom" style="left:' + f1(r.x) + 'px;top:' + f1(r.y) + 'px;width:' + f1(r.w) + 'px;height:' + f1(r.h) + 'px">' + (s.html || '') + '</div>';
+  },
+};
+
+// A table under the band, with an optional point below it.
+function tableBody(s, top) {
+  const pts = pointItems(s).slice(0, 2);
+  const area = grid(0, top, 12, 8 - top);
+  const hair = LX.theme.cell === 'hairline' || LX.theme.cell === 'rule';
+  return cell(area, { kind: hair ? undefined : 'plain', pad: hair ? 30 : 0, what: 'the table', slack: true, gap: 18, fix: 'Cut a row, shorten the cells that wrap, or move the point to the notes.' }, (w, h) => {
+    const pl = pts.length ? pointList(pts, w, { size: SMALL(), padY: 10 }) : null;
+    return { top: [gridTable(s.columns, s.rows, w, h - (pl ? pl.h + 18 : 0), { grid: s.type === 'competition' })], bottom: pl ? [pl] : [] };
+  });
+}
+
+// Running head and page count in the theme's wording; the source caption at the foot.
+function marginalia(s, i, ctx) {
+  const T = LX.theme;
+  const total = ctx.total;
+  const co = String(ctx.meta.company || '');
+  const sec = s.sectionTitle && s.type !== 'section' ? s.sectionTitle : '';
+  const quiet = s.type === 'cover';
+  let left = co + (sec ? ' / ' + sec : '');
+  if (T.marg === 'chapter' && s.sectionNo && sec) left = 'Chapter ' + two(s.sectionNo) + ' / ' + sec;
+  const right = quiet ? '' : (T.marg === 'sheet' ? 'Sheet ' + two(i + 1) + ' of ' + two(total) : two(i + 1) + ' / ' + two(total));
+  const maxLeft = 1200;
+  if (tw(left, T.roles.mono, T.monoSize) > maxLeft) left = co;
+  // on a slide with a full-height panel, the marginalia on that side take the panel's tone
+  const pt = (side) => (LX.panel && LX.panel.side === side ? ' data-ground="--bg" data-tone="' + LX.panel.tone + '"' : '');
+  let html = '<div class="mg mg-l f-mono"' + pt('left') + ' style="font-size:' + T.monoSize + 'px">' + esc(left) + '</div>' + (right ? '<div class="mg mg-r f-mono"' + pt('right') + ' style="font-size:' + T.monoSize + 'px">' + esc(right) + '</div>' : '');
+  if (T.decor === 'crosshair') html += '<i class="cross" style="left:28px;top:28px"></i><i class="cross" style="right:28px;top:28px"></i><i class="cross" style="left:28px;bottom:28px"></i><i class="cross" style="right:28px;bottom:28px"></i>';
+  const foot = ctx.meta.footer ? esc(ctx.meta.footer) : '';
+  // room for the caption: up to the footer, or on a split slide only the half it sits on
+  const footW = foot && !quiet ? tw(ctx.meta.footer, T.roles.mono, 16) + 40 : 0;
+  const PWs = LX.panel ? (LX.panelW || 740) : 0;
+  const capMax = !LX.panel ? FRAME.w - footW : (LX.panel.side === 'left' ? PWs - FRAME.x - 40 : STAGE_W - PWs - FRAME.x - 40);
+  let cap = '';
+  if (s.source && !(s.chart && visualOf(s) === 'chart')) {
+    // fewer files, then "and N more", until the line fits
+    for (let k = 3; k >= 1; k--) {
+      CAPTION_MAX = k;
+      cap = captionHtml(s.source, ctx);
+      if (tw(cap.replace(/<[^>]+>/g, ''), T.roles.mono, 16) <= capMax) break;
+    }
+    CAPTION_MAX = 3;
+  }
+  if (cap) {
+    if (tw(cap.replace(/<[^>]+>/g, ''), T.roles.mono, 16) > capMax) issue('the source caption does not fit its line even with one file named. Give the ledger entry a short `cite_as`.');
+    html += '<p class="slide-source f-mono"' + pt('left') + ' data-max="' + Math.round(capMax) + '">' + cap + '</p>';
+  }
+  if (foot && !quiet) html += '<div class="foot f-mono"' + pt('right') + '>' + foot + '</div>';
+  return html;
+}
+// --------------------------------------------------------------------------------------
+// 4e. Stylesheet, slide shell and page assembly
+// --------------------------------------------------------------------------------------
 
 function renderSlideHtml(s, i, ctx) {
-  const render = HTML_RENDERERS[s.type] || HTML_RENDERERS.statement;
-  const slideCtx = Object.assign({}, ctx, { image: ctx.images[i] || null, teamPhotos: ctx.teamPhotos[i] || [] });
-  let inner = render(s, slideCtx);
-  // Everything after the header becomes the body block so light slides can balance vertically.
-  const cut = inner.indexOf('</header>');
-  if (inner.startsWith('<header') && cut >= 0) inner = inner.slice(0, cut + 9) + '<div class="body">' + inner.slice(cut + 9) + '</div>';
-  return '<section class="slide s-' + s.type + (i === 0 ? ' active' : '') + '" data-index="' + (i + 1) + '" data-type="' + esc(s.type) + '" aria-label="Slide ' + (i + 1) + '">' +
-    inner + footerBlock(s, i, ctx) + '</section>';
+  const T = ctx.theme;
+  LX.no = i + 1; LX.type = s.type; LX.tone = s.tone || T.base; LX.count = 0;
+  LX.panel = null;
+  // a stat repeats its source file only when neither the slide caption nor an earlier stat names it
+  LX.capText = captionText(s.chart && s.chart.source ? [s.source, s.chart.source] : s.source, ctx) || '';
+  LX.statSrc = [];
+  LX.imgs = (ctx.slideImages && ctx.slideImages[i]) || [];
+  LX.teamPhotos = (ctx.teamPhotos && ctx.teamPhotos[i]) || [];
+  const render = RENDER[s.type] || RENDER.statement;
+  const inner = render(s);
+  const tone = T.tones[LX.tone];
+  const bg = toneBackground(tone);
+  return '<section class="slide s-' + s.type + (i === 0 ? ' active' : '') + '" data-tone="' + LX.tone + '" data-index="' + (i + 1) + '" data-type="' + esc(s.type) + '" aria-label="Slide ' + (i + 1) + (s.title ? ': ' + esc(stripEm(s.title)) : '') + '">' +
+    inner + marginalia(s, i, ctx) + (bg.grain ? '<div class="grain" style="opacity:' + bg.grain + '"></div>' : '') + '</section>';
 }
-
-// ---- stylesheet ----------------------------------------------------------------------
 
 function printRules(prefix) {
   const p = prefix ? prefix + ' ' : '';
@@ -1039,243 +2623,241 @@ function printRules(prefix) {
   ].join('\n');
 }
 
+// Theme-dependent rules: type roles, tones, backgrounds, how cells and emphasis are drawn.
+function themeCss(T) {
+  const out = [];
+  const R = T.roles;
+  out.push(':root{--font-display:' + R.display.css.match(/font-family:([^;]+)/)[1] + ';--font-body:' + R.body.css.match(/font-family:([^;]+)/)[1] + ';--radius:' + T.radius + 'px;--gap:' + CELL_STYLE[T.cell].gap + 'px}');
+  ['display', 'em', 'num', 'body', 'bodyb', 'mono'].forEach((k) => out.push('.f-' + k + '{' + R[k].css + '}'));
+  out.push('body,.slide{' + R.body.css + '}');
+  Object.keys(T.tones).forEach((t) => {
+    const o = T.tones[t];
+    const mark = isHex(T.T[t + '-mark']) ? T.T[t + '-mark'].toUpperCase() : (T.T.mark === 'accent' ? o.accent : o.accent2);
+    const onMark = bestOn(mark, [o.ink, o.bg]);
+    out.push('[data-tone="' + t + '"]{' + toneVars(o) + '--mark:' + mark + ';--on-mark:' + onMark + ';background-color:var(--bg);color:var(--ink)}');
+    // the slide's own line colour: nested cells keep the line of the slide they sit on
+    const line = T.cell === 'rule' ? rgbaOf(o.ink, 0.22) : T.cell === 'outline' ? rgbaOf(o.ink, 0.38) : o.rule;
+    out.push('.slide[data-tone="' + t + '"]{--line:' + line + ';background:' + toneBackground(o).css + '}');
+    // emphasis: a highlighter block where the theme asks for one, and wherever the accent
+    // cannot be told from the ink
+    const mark0 = emMode(T, t) === 'mark';
+    out.push('[data-tone="' + t + '"]{--em-bg:' + (mark0 ? 'var(--mark)' : 'transparent') + ';--em-ink:' + (mark0 ? 'var(--on-mark)' : 'var(--accent-t)') + ';--em-pad:' + (mark0 ? '.12em' : '0') + '}');
+  });
+  // the highlighter band is kept inside the line, so tight headlines do not cover the line above
+  out.push('.em{font-style:normal;background:linear-gradient(transparent 14%,var(--em-bg) 14%,var(--em-bg) 90%,transparent 90%);color:var(--em-ink);padding:0 var(--em-pad);-webkit-box-decoration-break:clone;box-decoration-break:clone}');
+  if (T.emMode === 'serif') out.push('.em{' + R.em.css + ';font-size:' + T.emScale + 'em}');
+  // cells
+  const c = T.cell;
+  if (c === 'hairline' || c === 'rule') out.push('.cell{border:1px solid var(--line)}.cell.filled{border-color:var(--line)}.dg-box{border:1px solid var(--line)}.dg-box.filled{border-color:transparent}');
+  if (c === 'block') out.push('.cell{background:var(--surface)}.dg-box{background:var(--surface);border:3px solid var(--ink)}.dg-shape{stroke:var(--ink);stroke-width:3}.fr{border:3px solid var(--ink);box-shadow:12px 12px 0 var(--ink)}');
+  if (c === 'outline') out.push('.cell{border:1.5px solid var(--line);border-radius:var(--radius)}.cell.filled{border-color:transparent}.dg-box{border:1.5px solid var(--line);border-radius:var(--radius)}.dg-box.filled{border-color:transparent}');
+  if (c === 'card') out.push('.cell{background:var(--surface);border:2px solid var(--line);border-radius:var(--radius);box-shadow:8px 8px 0 var(--line)}.dg-box{background:var(--surface);border:2px solid var(--ink);border-radius:var(--radius);box-shadow:6px 6px 0 var(--ink)}.dg-shape{stroke:var(--ink);stroke-width:2}.fr{border:2px solid var(--ink);box-shadow:12px 12px 0 var(--ink)}.dc.shape{border:2px solid var(--ink)}');
+  if (c === 'soft') out.push('.cell{background:var(--surface);border-radius:var(--radius)}.dg-box{background:var(--surface);border-radius:var(--radius)}');
+  out.push('.cell.plain,.cell.bleed{background:none;border:0;box-shadow:none;border-radius:0}.cell.filled,.cell.bleed.filled{background:var(--bg)}');
+  if (T.T['num-color'] === 'accent') out.push('.num{color:var(--accent-t)}');
+  if (T.marg === 'chapter') out.push('.mg-l{color:var(--accent-t)}');
+  if (c === 'card' || c === 'soft' || c === 'rule') out.push('.tm-m{border-radius:50%}');
+  return out.join('\n');
+}
+
 function baseCss() {
   return `
 *,*::before,*::after{box-sizing:border-box}
 html,body{margin:0;padding:0;height:100%;background:#000}
-body{font-family:var(--font-body);font-synthesis:none;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body{font-synthesis:none;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .viewport{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#000}
 .stage{position:relative;width:${STAGE_W}px;height:${STAGE_H}px;flex:none;transform-origin:center center}
-.slide{position:absolute;inset:0;width:${STAGE_W}px;height:${STAGE_H}px;overflow:hidden;padding:96px 120px 120px;background:var(--bg);color:var(--ink);visibility:hidden;opacity:0;pointer-events:none;transition:opacity .22s ease;font-size:30px;line-height:1.4}
+.slide{position:absolute;inset:0;width:${STAGE_W}px;height:${STAGE_H}px;overflow:hidden;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .22s ease;font-size:28px;line-height:1.36;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .slide.active{visibility:visible;opacity:1;pointer-events:auto}
-.slide{display:flex;flex-direction:column}
-.head{flex:none}
-.body{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-start}
-.s-solution .body,.s-insight .body,.s-two_column .body,.s-go_to_market .body,.s-roadmap .body,.s-team .body,.s-business_model .body,.s-market .body,.s-statement .body{justify-content:center;padding-bottom:48px}
 html.noscale .viewport{position:static;display:block;overflow:hidden;width:${STAGE_W}px;height:${STAGE_H}px}
 html.noscale .slide{transition:none}
 html.noscale .hud{display:none}
-img{max-width:100%}
+img{max-width:100%;display:block}
+.grain{position:absolute;inset:0;pointer-events:none;z-index:5;background:url(${grainDataUri()}) 0 0/192px 192px}
 
-/* type scale, fixed in px for the 1920x1080 stage */
-.kicker{font-size:24px;line-height:1.3;color:var(--accent);margin:0 0 20px;font-weight:500}
-.title{font-family:var(--font-display);font-weight:var(--display-weight);letter-spacing:var(--display-tracking);font-size:64px;line-height:1.08;margin:0;max-width:1440px;text-wrap:balance}
-.subtitle{font-size:30px;line-height:1.4;color:var(--muted);margin:24px 0 0;max-width:1240px}
-.head{margin:0 0 56px}
-.side-label{font-size:22px;color:var(--muted);margin:0 0 20px;font-weight:500}
+/* text */
+.t{margin:0;padding:0;font-style:normal}
+.title{text-wrap:balance;margin:0}
+.nb{white-space:nowrap}
+blockquote.t{margin:0}
+.lbl{color:var(--muted);white-space:nowrap}
+.lbl.eb{color:var(--accent-t)}
+.lbl.contact{color:var(--ink);white-space:normal}
+.sub,.mut,.bodyp,.st-l{color:var(--muted)}
+.hi{color:var(--accent-t)}
+.st-d{color:var(--accent-2t)}
+.st-s{color:var(--muted)}
+.vs{display:flex;flex-direction:column}
+.hr{border:0;height:1px;background:var(--hair);margin:0;width:100%;flex:none}
+sup.fn{font-size:1em;line-height:inherit;vertical-align:baseline;margin-left:.3em;font-variant-numeric:tabular-nums}
+.needs{display:inline-block;padding:0 .35em;border:3px dashed #E0A100;color:#8A5C00;background:#FFF3D1;border-radius:6px;font-weight:600;font-size:.72em;line-height:1.5;white-space:nowrap;vertical-align:.1em;letter-spacing:0;text-transform:none;font-family:var(--font-body)}
+.warn-badge{position:absolute;top:24px;right:420px;background:#E0A100;color:#1A1A1A;font-size:20px;line-height:1;padding:10px 14px;border-radius:4px;font-weight:600;z-index:6}
 
-.points{list-style:none;margin:0;padding:0;font-size:30px;line-height:1.4}
-.points li{position:relative;padding:22px 0 22px 44px;border-top:1px solid var(--rule)}
-.points li:first-child{border-top:0;padding-top:0}
-.points li::before{content:"";position:absolute;left:0;top:calc(22px + .55em);width:12px;height:12px;background:var(--accent)}
-.points li:first-child::before{top:.55em}
-.points.compact{font-size:26px}
-.points.compact li{padding:16px 0 16px 36px}
-.points.compact li:first-child{padding-top:0}
-.points.compact li::before{top:calc(16px + .5em);width:10px;height:10px}
-.points.compact li:first-child::before{top:.5em}
-.points.under{margin-top:48px;max-width:1200px}
+/* numerals */
+.num{white-space:nowrap;font-variant-numeric:tabular-nums lining-nums;margin:0}
+.num sup{font-size:.36em;line-height:1;vertical-align:top;position:relative;top:.16em;margin-left:.05em;letter-spacing:0;font-variant-numeric:normal}
+.num.strike{text-decoration:line-through;text-decoration-thickness:.06em;color:var(--muted)}
+.idx{color:var(--accent-t)}
 
-.stats{display:grid;gap:40px}
-.stats.column{grid-template-columns:1fr;gap:44px}
-.stats.small .stat-v{font-size:64px}
-.stats.grid-2-stats{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-content:start}
-.stat-v{font-family:var(--font-display);font-weight:var(--display-weight);letter-spacing:var(--display-tracking);font-size:96px;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
-.stat-l{font-size:26px;line-height:1.3;color:var(--muted);margin-top:12px}
-.stat-s{font-size:20px;line-height:1.3;color:var(--muted);margin-top:6px;opacity:.85}
-.stats.big .stat-v{font-size:168px}
-.stats.big.two{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:48px}
-.stats.big.two .stat-v{font-size:120px}
-.stats.dense{gap:28px}
-.stats.dense .stat-v{font-size:72px}
-.stats.dense .stat-l{font-size:22px;margin-top:8px}
-.stats.row-1,.stats.row-2,.stats.row-3,.stats.row-4{grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:72px;align-items:start}
-.stats.row-4 .stat-v{font-size:80px}
-.stats.under{margin-top:72px;max-width:1100px}
-.stats.ask-stats{margin-top:16px}
-.body-text{font-size:28px;line-height:1.45;margin:28px 0 0;max-width:1240px}
-.slide-source{position:absolute;left:120px;right:120px;bottom:100px;margin:0;font-size:20px;line-height:1.3;color:var(--muted)}
-sup.fn{font-size:.6em;line-height:0;vertical-align:.5em;color:var(--muted);margin-left:.15em;font-variant-numeric:tabular-nums}
-html[data-variant="read"] .points{font-size:27px}
-html[data-variant="read"] .points li{padding-top:18px;padding-bottom:18px}
-html[data-variant="read"] .points.compact{font-size:25px}
-html[data-variant="read"] .points.compact li{padding-top:14px;padding-bottom:14px}
-html[data-variant="read"] .points li:first-child{padding-top:0}
-html[data-variant="read"] .title{font-size:58px}
+/* cells */
+.cell{position:absolute;display:flex;flex-direction:column;justify-content:space-between;min-width:0}
+.cg{display:flex;flex-direction:column;min-width:0}
+.cg-mid{margin:auto 0}
+.cg-bottom{margin-top:auto}
+.cell.strip{box-shadow:inset 0 2px 0 var(--ink)}
+.arr{position:absolute;right:calc(var(--gap) / -2 - 23px);top:50%;margin-top:-23px;width:46px;height:46px;border-radius:50%;background:var(--ink);color:var(--bg);display:grid;place-items:center;z-index:3}
+.dc{position:absolute;pointer-events:none}
+.dc.ghost{line-height:.8;white-space:nowrap;color:transparent;-webkit-text-stroke:2px var(--hair);opacity:.9}
+.sec-n{position:absolute;line-height:.8;white-space:nowrap;color:var(--ink);z-index:1}
+.cross{position:absolute;width:36px;height:36px;opacity:.75}
+.cross::before,.cross::after{content:"";position:absolute;background:var(--ink)}
+.cross::before{left:17px;top:0;width:2px;height:36px}
+.cross::after{top:17px;left:0;height:2px;width:36px}
+.mg{position:absolute;top:44px;color:var(--muted);white-space:nowrap;line-height:1.3;z-index:2}
+.mg-l{left:72px}.mg-r{right:72px}
+.mg[data-tone],.slide-source[data-tone],.foot[data-tone]{background:none}
+.slide-source{position:absolute;left:72px;bottom:30px;margin:0;font-size:16px;line-height:1.3;color:var(--muted);white-space:nowrap;z-index:2}
+.foot{position:absolute;right:72px;bottom:30px;font-size:16px;line-height:1.3;color:var(--muted);white-space:nowrap;z-index:2}
+.logo{object-fit:contain;object-position:left center;max-width:420px}
+.logo-chip{display:inline-flex;align-self:flex-start;padding:14px 20px;background:#FFFFFF;border-radius:calc(var(--radius) * .5 + 4px)}
+.custom{position:absolute;overflow:hidden}
 
-.needs{display:inline-block;padding:0 .35em;border:3px dashed #E0A100;color:#B57A00;background:rgba(224,161,0,.10);border-radius:6px;font-weight:600;font-size:.72em;line-height:1.5;white-space:nowrap;vertical-align:.1em;font-family:var(--font-body);letter-spacing:0}
-.warn-badge{position:absolute;top:24px;right:120px;background:#E0A100;color:#1A1A1A;font-size:20px;line-height:1;padding:10px 14px;border-radius:4px;font-weight:600;z-index:2}
+/* icons */
+.ico{fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none;display:block}
 
-.foot{position:absolute;left:120px;right:120px;bottom:48px;display:flex;justify-content:space-between;align-items:center;font-size:20px;line-height:1;color:var(--muted)}
-.foot-l{display:flex;align-items:center;gap:16px}
-.foot-logo{height:26px;width:auto;opacity:.85}
-.foot-r{font-variant-numeric:tabular-nums}
+/* points */
+.pts{list-style:none;margin:0;padding:0}
+.pts li{display:flex;align-items:flex-start;border-top:1px solid var(--hair)}
+.pts li:first-child{border-top:0}
+.pt-k{flex:none;display:flex;align-items:center}
+.pt-m{width:12px;height:12px;background:var(--accent)}
+.pt-n,.pt-i{color:var(--accent-t)}
+.pt-t{min-width:0;flex:1}
+.pps{display:flex;flex-direction:column;gap:28px}
+.pp{display:flex;align-items:flex-start}
+.ms{list-style:none;margin:0;padding:0}
+.ms li{display:flex;align-items:flex-start;gap:0;border-top:1px solid var(--hair);position:relative;padding-left:34px !important}
+.ms-d{position:absolute;left:0;top:24px;width:14px;height:14px;border-radius:50%;background:var(--accent)}
+.ms-w{color:var(--ink)}
+.hs{display:flex;gap:40px;align-items:flex-end}
 
-.chart-wrap{flex:0 1 auto;min-height:0;display:flex;flex-direction:column}
-.chart-wrap svg{display:block;flex:0 1 auto;min-height:0;width:100%;height:auto}
-.chart-source{flex:none;font-size:20px;line-height:1.3;color:var(--muted);margin:16px 0 0}
+/* charts */
+.chart-b{display:flex;flex-direction:column}
+.chart{display:block;overflow:visible;flex:none}
+.chart-h{display:flex;justify-content:space-between;align-items:flex-start;gap:8px 30px;flex:none;line-height:1.3}
+.lgs{display:flex;gap:26px}
+.lg{display:inline-flex;align-items:center;gap:10px;white-space:nowrap}
+.lg i{width:14px;height:14px;display:inline-block}
+.cap{margin:0;height:34px;line-height:34px;color:var(--muted);white-space:nowrap;flex:none}
+.chart .ax{font-size:19px;fill:var(--muted)}
+.chart .ax.hi{fill:var(--accent-t)}
+.chart .vl{font-size:24px;fill:var(--ink)}
+.chart .vl.hi{fill:var(--accent-t)}
+.chart .vl.sm{font-size:18px;fill:var(--muted)}
+.chart .el{font-size:22px;fill:var(--muted)}
+.chart .hl{font-size:24px;fill:var(--ink)}
+.chart .an{font-size:20px;fill:var(--accent-2t)}
+.chart .an-l{stroke:var(--accent-2t);stroke-width:1.5}
+.chart .an-d{fill:var(--accent-2t)}
+.chart .grid{stroke:var(--hair);stroke-width:1}
+.chart .base{stroke:var(--ink);stroke-width:2}
+.donut{flex:none;display:block}
+.donut .dn{font-size:8.6px;fill:var(--ink);letter-spacing:-.03em}
+.funds{display:flex;align-items:center;gap:44px}
+.funds.stk{flex-direction:column;align-items:flex-start;gap:40px}
+.fd-l{display:flex;flex-direction:column}
+.fd-r{display:flex;align-items:baseline;gap:14px}
+.fd-r i{width:14px;height:14px;flex:none;display:inline-block;transform:translateY(1px)}
+.fd-r div.t{flex:1;min-width:0}
+.fd-r b{white-space:nowrap;text-align:right;width:82px;flex:none}
+.sparks{display:flex;flex-direction:column}
+.sp-row{display:flex;align-items:center;gap:18px;border-top:1px solid var(--hair)}
+.sp-row:first-child{border-top:0}
+.sp-n{flex:1;min-width:0;white-space:nowrap}
+.sp-v{text-align:right;white-space:nowrap}
+.spark{flex:none;display:block;overflow:visible;color:var(--ink)}
+.st-tr{display:flex;justify-content:flex-end;color:var(--ink)}
 
-/* cover and closing */
-.s-cover,.s-closing{padding:0}
-.cover-logo{position:absolute;left:120px;top:96px;height:72px;width:auto}
-.cover-mark{position:absolute;left:120px;top:96px;font-family:var(--font-display);font-weight:var(--display-weight);font-size:36px;line-height:1}
-.cover-main{position:absolute;left:120px;right:200px;bottom:200px}
-.cover-title{font-family:var(--font-display);font-weight:var(--display-weight);letter-spacing:var(--display-tracking);font-size:148px;line-height:.98;margin:0;max-width:1560px;text-wrap:balance}
-.cover-sub{font-size:40px;line-height:1.3;color:var(--muted);margin:40px 0 0;max-width:1240px}
-.cover-main.has-facts{bottom:168px}
-.cover-main.has-facts .cover-title{font-size:128px}
-.cover-facts{display:flex;gap:96px;margin-top:64px;padding-top:40px;border-top:1px solid var(--rule)}
-.cover-facts .stat-v{font-size:56px}
-.cover-facts .stat-l{font-size:22px;margin-top:8px}
-.closing{position:absolute;left:120px;right:120px;top:96px;bottom:160px;display:flex;flex-direction:column;justify-content:flex-end}
-.closing .cover-logo{top:0;left:0}
-.closing .cover-title{font-size:104px}
-.closing .hero-facts{margin-top:72px}
-.closing .hero-facts .pt{font-size:28px;padding-top:28px}
-.closing .hero-facts .pt .mark{margin-bottom:20px}
-.contact{font-size:28px;line-height:1.5;color:var(--muted);margin:64px 0 0}
-
-/* problem */
-.grid-2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:120px;align-items:start}
-.grid-2.narrow{gap:96px}
-.grid-2.fill{flex:1;min-height:0;grid-template-rows:minmax(0,1fr);align-items:stretch}
-.grid-2 .col.wide{grid-column:1 / -1;max-width:1100px}
-.grid-2.problem{align-items:center;flex:1;min-height:0}
-.frame.fillh{height:auto;min-height:0}
-
-/* solution columns */
-.cols{display:grid;gap:72px;align-items:start}
-.cols-1{grid-template-columns:1fr;max-width:1100px}.cols-2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
-.cols .pt{font-size:32px;line-height:1.4;padding-top:36px;border-top:1px solid var(--rule);position:relative}
-.cols .pt .mark{display:block;width:16px;height:16px;background:var(--accent);margin-bottom:28px}
-
-/* product */
-.prod{display:grid;grid-template-columns:600px 1fr;gap:96px;align-items:stretch;flex:1;min-height:0;grid-template-rows:minmax(0,1fr)}
-.frame{background:var(--surface);border:1px solid var(--rule);border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;height:600px;padding:24px}
-.frame .fit{max-width:100%;max-height:100%;object-fit:contain}
-.frame-empty{font-size:26px;color:var(--muted)}
-
-/* statement and insight */
-.statement{position:absolute;left:120px;right:160px;top:50%;transform:translateY(-50%);padding-bottom:40px}
-.statement-title{font-family:var(--font-display);font-weight:var(--display-weight);letter-spacing:var(--display-tracking);font-size:96px;line-height:1.04;margin:0;max-width:1560px;text-wrap:balance}
-.statement-sub{font-size:34px;line-height:1.4;color:var(--muted);margin:40px 0 0;max-width:1300px}
-.insight-title{font-family:var(--font-display);font-weight:var(--display-weight);letter-spacing:var(--display-tracking);font-size:72px;line-height:1.08;margin:0;max-width:1600px;text-wrap:balance}
-.insight-body{display:grid;grid-template-columns:1fr;gap:120px;margin-top:64px;align-items:start}
-.insight-body.with-stat{grid-template-columns:1fr 440px}
-.insight-body .stats{padding-top:8px}
-.team-note{font-size:24px;line-height:1.4;color:var(--muted);margin:56px 0 0}
-.tl-proves{font-size:22px;line-height:1.4;color:var(--muted);margin-top:10px}
-.src-tbl{width:100%;border-collapse:collapse;table-layout:fixed;font-size:19px;line-height:1.3;font-variant-numeric:tabular-nums}
-.src-tbl col.c-n{width:4%}.src-tbl col.c-id{width:19%}.src-tbl col.c-l{width:23%}.src-tbl col.c-v{width:15%}.src-tbl col.c-k{width:8%}.src-tbl col.c-d{width:9%}.src-tbl col.c-f{width:22%}
-.src-tbl th{text-align:left;font-weight:600;padding:10px 14px;border-bottom:2px solid var(--ink);color:var(--ink)}
-.src-tbl td{padding:9px 14px;border-bottom:1px solid var(--rule);vertical-align:top}
-.src-tbl.files{font-size:22px}
-.src-tbl.files td{padding:11px 14px}
-.src-note{font-size:22px;line-height:1.4;color:var(--muted);margin:0 0 28px;max-width:1300px}
-.src-tbl .src-n{color:var(--muted)}
-.src-tbl .src-id{font-weight:600;overflow-wrap:anywhere}
-.src-tbl .num{white-space:nowrap}
-.src-tbl .file{color:var(--muted);font-size:17px;overflow-wrap:anywhere}
-.src-tbl .src-m{display:block;font-size:16px;color:var(--muted);opacity:.85}
-
-/* market */
-.market{display:grid;grid-template-columns:1fr;gap:96px;align-items:start}
-.market.with-points{grid-template-columns:1fr 520px}
-.steps{display:flex;flex-direction:column;gap:16px}
-.step{min-width:440px;min-height:150px;background:var(--surface);padding:20px 36px;display:flex;flex-direction:column;justify-content:center;border-radius:6px}
-.step .stat-v{font-size:60px}
-.step .stat-l{font-size:22px;margin-top:6px}
-.step-m{font-size:20px;line-height:1.3;color:var(--muted);margin-top:6px}
-.step-focus{background:var(--accent);color:var(--bg)}
-.step-focus .stat-l,.step-focus .step-m{color:var(--bg);opacity:.85}
-
-/* traction and financials */
-.trac,.fin{display:grid;grid-template-columns:1fr 440px;gap:100px;align-items:stretch;flex:1;min-height:0;grid-template-rows:minmax(0,1fr)}
-.fin{grid-template-columns:1fr 500px}
-.chart-col{min-width:0;min-height:0;display:flex;flex-direction:column}
-.side{min-width:0;align-self:start}
-.side .stats{margin-bottom:40px}
-.side .points + .stats{margin-top:36px}
-
-/* flow (go to market) */
-.flow{display:grid;gap:56px;align-items:start}
-.flow-1{grid-template-columns:1fr;max-width:1000px}.flow-2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.flow-3{grid-template-columns:repeat(3,minmax(0,1fr))}.flow-4{grid-template-columns:repeat(4,minmax(0,1fr))}.flow-5{grid-template-columns:repeat(5,minmax(0,1fr))}
-.flow-n{font-family:var(--font-display);font-weight:var(--display-weight);font-size:72px;line-height:1;color:var(--muted)}
-.flow-t{font-size:28px;line-height:1.4;margin-top:24px;padding-top:24px;border-top:1px solid var(--rule)}
-.flow-4 .flow-t,.flow-5 .flow-t{font-size:26px}
+/* diagrams */
+.dg{position:relative;flex:none}
+.dg-s{position:absolute;left:0;top:0;overflow:visible}
+.dg-t{position:absolute}
+.dg-box{position:absolute;display:flex;flex-direction:column;justify-content:space-between}
+.dg-box.filled{background:var(--bg);color:var(--ink)}
+.dg-box.ghost{background:none;border:2px dashed var(--muted);box-shadow:none}
+.dg-l{stroke:var(--ink);stroke-width:3;fill:none}
+.dg-l.dash{stroke-dasharray:8 9}
+.dg-l.thick{stroke-width:5}
+.dg-h{stroke:var(--muted);stroke-width:1.5;fill:none}
+.dg-h.dash{stroke-dasharray:4 8}
+.dg-axis{stroke:var(--ink);stroke-width:3}
+.dg-node{fill:var(--bg);stroke:var(--ink);stroke-width:4}
+.dg-node.on{fill:var(--accent)}
+.dg-frame{stroke:var(--muted);stroke-width:1.5}
+.dg-shape.lay{stroke:var(--bg);stroke-width:3}
+.dg-rot{transform-origin:0 0;transform:rotate(-90deg)}
+.dg .ico{color:var(--accent-t)}
+.dg-funnel .num{color:inherit}
 
 /* tables */
-.tbl{width:100%;border-collapse:collapse;font-size:26px;line-height:1.3;font-variant-numeric:tabular-nums}
-.tbl th{text-align:left;font-weight:600;padding:16px 24px;border-bottom:2px solid var(--ink);color:var(--ink);vertical-align:bottom}
-.tbl td{padding:18px 24px;border-bottom:1px solid var(--rule);vertical-align:middle}
-.tbl td.c{text-align:center}
-.tbl th:not(:first-child){text-align:center}
-.tbl .rowhead{font-weight:500}
-.tbl .us{background:var(--surface)}
-.tbl .us .rowhead{font-weight:700}
-.tbl .ck{color:var(--accent);vertical-align:middle}
-.tbl .no{color:var(--muted)}
+.tb{position:relative}
+.tb-us{position:absolute;top:0;z-index:0}
+.tb-r{display:flex;border-top:1px solid var(--hair);position:relative;z-index:1}
+.tb-h{border-top:0;box-shadow:inset 0 -2px 0 var(--ink)}
+.tb-c{display:flex;align-items:center;flex:none;min-width:0;background:none !important}
+.tb-c .t{min-width:0}
+.tb-r.usr{background:var(--surface)}
+.tb-dot{width:24px;height:24px;border-radius:50%;border:2.5px solid var(--muted);display:inline-block}
+.tb-dot.on{background:var(--ink);border-color:var(--ink)}
+.tb-no{width:18px;height:2px;background:var(--muted);display:inline-block}
 
-/* team */
-.team{display:grid;gap:0}
-.team-2{grid-template-columns:minmax(0,1fr) minmax(0,1fr);max-width:1300px}.team-3{grid-template-columns:repeat(3,minmax(0,1fr))}.team-4{grid-template-columns:repeat(4,minmax(0,1fr))}
-.member{padding:0 48px;border-left:1px solid var(--rule)}
-.member:first-child{border-left:0;padding-left:0}
-.avatar{width:160px;height:160px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:var(--display-weight);font-size:56px;line-height:1;color:var(--accent);overflow:hidden}
-.avatar .photo{width:100%;height:100%;object-fit:cover}
-.m-name{font-size:34px;line-height:1.2;font-weight:600;margin-top:36px}
-.m-role{font-size:24px;line-height:1.3;color:var(--muted);margin-top:8px}
-.m-bio{font-size:22px;line-height:1.45;color:var(--muted);margin-top:20px}
-.team-4 .m-bio{font-size:20px}
 
-/* ask */
-.ask .amount{font-family:var(--font-display);font-weight:var(--display-weight);letter-spacing:var(--display-tracking);font-size:128px;line-height:1;margin:0;text-wrap:balance}
-.ask .amount.medium{font-size:96px}
-.ask .amount.long{font-size:64px;line-height:1.08;max-width:1500px}
-.ask .subtitle{margin-top:28px}
-.stats.ask-stats .stat-v{font-size:72px}
-.ask-body{display:grid;grid-template-columns:1fr 520px;gap:120px;margin-top:72px;align-items:start}
-.funds{display:flex;height:84px;width:100%;gap:4px;border-radius:6px;overflow:hidden}
-.seg{display:flex;align-items:center;justify-content:center;color:var(--bg);font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;min-width:0}
-.funds-legend{display:flex;flex-wrap:wrap;gap:20px 40px;margin-top:24px;font-size:24px;line-height:1.3}
-.leg i{display:inline-block;width:16px;height:16px;margin-right:12px;vertical-align:-1px;border-radius:2px}
-.funds-col .points{margin-top:48px}
-.ms{list-style:none;margin:0;padding:0;font-size:26px;line-height:1.4}
-.ms li{padding:14px 0;border-top:1px solid var(--rule)}
-.ms li:first-child{border-top:0;padding-top:0}
-.ms-when{color:var(--muted);margin-right:16px;font-variant-numeric:tabular-nums}
+/* images, frames, logos, people */
+.imgs{position:relative;display:flex;align-items:center;justify-content:flex-start}
+.imgs.ctr{justify-content:center}
+.fr{flex:none;overflow:hidden;background:var(--surface);border-radius:calc(var(--radius) * .8)}
+.fr img{display:block;max-width:none}
+.fr-none{border:1px solid var(--hair)}
+.fr-browser{border:2px solid var(--ink);border-radius:16px}
+.fr-bar{height:48px;display:flex;align-items:center;gap:9px;padding:0 18px;border-bottom:2px solid var(--ink);background:var(--bg)}
+.fr-bar i{width:13px;height:13px;border-radius:50%;border:2px solid var(--ink);display:block}
+.fr-bar span{flex:1;height:24px;margin-left:14px;border-radius:12px;background:var(--surface)}
+.fr-phone{background:#16161A;border:0;border-radius:46px;padding:14px;box-shadow:none}
+.fr-scr{border-radius:32px;overflow:hidden}
+.fr.over{z-index:2}
+.logos{display:flex;align-items:stretch;width:100%}
+.lg-c{flex:1;display:grid;place-items:center;border-left:1px solid var(--hair);min-width:0}
+.lg-c:first-child{border-left:0}
+.lg-c img{filter:grayscale(1)}
+.lg-cell{background:none !important;box-shadow:inset 0 1px 0 var(--hair) !important}
+.tm-m{display:grid;place-items:center;line-height:1;flex:none}
+.cell.tm{overflow:hidden}
+.tm-b{position:absolute;display:grid;place-items:center;line-height:1;overflow:hidden;letter-spacing:-.04em}
+.tm-b img{width:100%;height:100%;object-fit:cover;filter:grayscale(1) contrast(1.05);max-width:none}
+.tm-p{overflow:hidden;border-radius:999px 999px 0 0;flex:none}
+.tm-p img{width:100%;height:100%;object-fit:cover;filter:grayscale(1) contrast(1.05);max-width:none}
+.q-m{font-size:400px;line-height:.82;color:var(--accent-t);overflow:hidden}
+.q-by{display:flex;align-items:stretch;gap:26px}
+.q-by .vs{justify-content:center}
+.q-bar{width:6px;background:var(--accent);flex:none}
+.q-av{width:112px;height:112px;border-radius:50%;flex:none;object-fit:cover}
+.mono-av{display:grid;place-items:center;background:var(--accent);color:var(--on-accent);font-size:50px;line-height:1}
 
-/* roadmap */
-.timeline{position:relative;display:grid;gap:48px;padding-top:48px;margin-top:40px}
-.tl-1{grid-template-columns:1fr;max-width:900px}.tl-2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.tl-3{grid-template-columns:repeat(3,minmax(0,1fr))}.tl-4{grid-template-columns:repeat(4,minmax(0,1fr))}.tl-5{grid-template-columns:repeat(5,minmax(0,1fr))}.tl-6{grid-template-columns:repeat(6,minmax(0,1fr))}
-.timeline::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--rule)}
-.tl-node{position:relative}
-.tl-node::before{content:"";position:absolute;left:0;top:-58px;width:20px;height:20px;border-radius:50%;background:var(--accent)}
-.tl-when{font-size:24px;line-height:1.3;color:var(--muted);font-variant-numeric:tabular-nums}
-.tl-what{font-size:28px;line-height:1.4;margin-top:12px}
-.tl-5 .tl-what,.tl-6 .tl-what{font-size:24px}
+/* staged entrance: on screen only, never in print, QA or reduced motion */
+@media screen and (prefers-reduced-motion: no-preference){
+  html:not(.noscale):not(.print) .slide.active>.cell,html:not(.noscale):not(.print) .slide.active>.sec-n{animation:rise .5s cubic-bezier(.2,.7,.2,1) both}
+  html:not(.noscale):not(.print) .slide.active>.cell:nth-of-type(2){animation-delay:.06s}
+  html:not(.noscale):not(.print) .slide.active>.cell:nth-of-type(3){animation-delay:.12s}
+  html:not(.noscale):not(.print) .slide.active>.cell:nth-of-type(4){animation-delay:.18s}
+  html:not(.noscale):not(.print) .slide.active>.cell:nth-of-type(n+5){animation-delay:.24s}
+  @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+}
 
-/* sources */
-.src{columns:2;column-gap:96px;list-style:none;margin:0;padding:0;font-size:22px;line-height:1.45}
-.src li{break-inside:avoid;padding:12px 0;border-bottom:1px solid var(--rule);display:flex;gap:20px;align-items:baseline}
-.src-n{color:var(--muted);min-width:48px;font-variant-numeric:tabular-nums;white-space:nowrap}
-.src-id{font-weight:600;white-space:nowrap}
-.src-t{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-/* two column */
-.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:120px;align-items:start}
-.two h2{font-family:var(--font-display);font-weight:var(--display-weight);font-size:40px;line-height:1.15;margin:0 0 28px;text-wrap:balance}
-.two-body{font-size:28px;line-height:1.45;margin:0 0 24px;color:var(--ink)}
-
-/* custom html */
-.custom{position:relative}
-
-/* viewer chrome, outside the stage */
+/* presenter chrome */
 .hud{position:fixed;right:18px;bottom:14px;font:14px/1 -apple-system,system-ui,sans-serif;color:#fff;opacity:.55;pointer-events:none;font-variant-numeric:tabular-nums}
 .notes{position:fixed;left:0;right:0;bottom:0;max-height:42vh;overflow:auto;background:rgba(18,18,20,.95);color:#ECECEC;font:18px/1.55 -apple-system,system-ui,sans-serif;padding:20px 32px 28px;z-index:10;white-space:pre-wrap;border-top:1px solid rgba(255,255,255,.12)}
 .notes[hidden]{display:none}
 .notes .notes-h{font-size:12px;letter-spacing:.02em;color:#9A9A9A;margin-bottom:10px}
-
 @media (prefers-reduced-motion: reduce){.slide{transition:none}}
 @page{size:${STAGE_W}px ${STAGE_H}px;margin:0}
 @media print{
@@ -1284,9 +2866,6 @@ ${printRules('')}
 ${printRules('html.print')}
 `;
 }
-
-// ---- viewer runtime (no external JS) -------------------------------------------------
-
 function runtimeJs() {
   return [
     '(function(){',
@@ -1373,30 +2952,250 @@ function googleFontsHref(families) {
   return parts.length ? 'https://fonts.googleapis.com/css2?' + parts.join('&') + '&display=swap' : '';
 }
 
-function buildHtml(deck, theme, themesCss, ctx) {
-  const { meta, slides } = deck;
-  const overrideCss = Object.keys(theme.overrides).length
-    ? ':root[data-theme]{' + Object.keys(theme.overrides).map((k) => '--' + k + ':' + theme.overrides[k] + ';').join('') + '}\n'
-    : '';
-  const fontsHref = googleFontsHref(theme.tokens.gfontsList);
+// ---- page assembly and the lint pass ------------------------------------------------
+
+// Fields a slide type has no place for; the lint names them instead of dropping them silently.
+const NOT_DRAWN = {
+  cover: 'chart points rows team milestones use_of_funds diagram logos sparklines',
+  section: 'chart points stats rows team milestones use_of_funds diagram logos sparklines image',
+  statement: 'chart stats rows team milestones use_of_funds diagram logos sparklines image',
+  quote: 'chart points rows team milestones use_of_funds diagram logos sparklines',
+  problem: 'chart rows team milestones use_of_funds logos sparklines',
+  solution: 'chart rows team milestones use_of_funds logos sparklines',
+  ask: 'chart rows team logos sparklines image',
+  team: 'chart stats image diagram milestones use_of_funds logos sparklines',
+  roadmap: 'chart stats image rows team use_of_funds logos sparklines',
+  competition: 'chart stats image team milestones use_of_funds logos sparklines',
+  market: 'chart image rows team milestones use_of_funds logos sparklines',
+  closing: 'chart stats image rows team milestones use_of_funds diagram sparklines',
+  two_column: 'chart stats points image rows team milestones use_of_funds diagram logos sparklines',
+  product: 'team milestones use_of_funds sparklines',
+  insight: 'team milestones use_of_funds logos sparklines',
+};
+function fieldLint(s) {
+  const has = { chart: !!s.chart, points: s.points.length, stats: s.stats.length, rows: s.rows.length, team: s.team.length, milestones: s.milestones.length, use_of_funds: s.use_of_funds.length, diagram: !!s.diagram, logos: (s.logos || []).length, sparklines: (s.sparklines || []).length, image: (s.images || []).length };
+  String(NOT_DRAWN[s.type] || 'team milestones use_of_funds').split(' ').forEach((f) => { if (has[f]) issue('`' + f + '` is not drawn on a ' + s.type + ' slide. Move it to a slide type that shows it.'); });
+  if (has.diagram && has.stats && ['problem', 'solution', 'ask'].includes(s.type)) issue('`stats` are not drawn beside a `diagram` on a ' + s.type + ' slide: the diagram takes the panel. Put the figure into the diagram or the title.');
+  if (s.type === 'product' && has.stats > 1) issue('a product slide draws one stat (the first); ' + has.stats + ' given.');
+  const vis = ['diagram', 'chart', 'image', 'rows'].filter((f) => has[f] && !String(NOT_DRAWN[s.type] || '').split(' ').includes(f));
+  if (vis.length > 1 && !['problem', 'solution', 'ask', 'team', 'roadmap', 'quote', 'cover'].includes(s.type) && !(s.type === 'competition')) issue('the slide has ' + vis.join(' and ') + '; only the ' + vis[0] + ' is drawn. One visual per slide.');
+}
+
+// Render every slide once. The same pass is the capacity lint: it returns the slide
+// HTML and the list of what does not fit.
+function renderDeck(deck, theme, ctx) {
   HCTX = ctx;
+  ctx.theme = theme; ctx.meta = deck.meta; ctx.total = deck.slides.length; ctx.variant = deck.meta.variant;
+  LX = { theme, variant: deck.meta.variant, tone: theme.base, no: 0, type: '', issues: [], slack: [], quiet: false, unknownIcons: [] };
+  chartSeq = 0; dgSeq = 0;
+  const html = deck.slides.map((s, i) => {
+    const out = renderSlideHtml(s, i, ctx);
+    fieldLint(s);
+    return out;
+  });
+  (ctx.toneRuns || []).forEach((n) => LX.issues.push('slide ' + n + ': the fourth slide in a row with the same tone. Remove an explicit `tone` or change one.'));
+  return { html, issues: LX.issues, slack: LX.slack, unknownIcons: LX.unknownIcons };
+}
+// Lint only (no files): used by --capacities and the test harness.
+function lintDeck(deck, theme, ctx) {
+  const c = Object.assign({ placeholders: [], slideImages: [], teamPhotos: [], logo: null, rasters: {} }, ctx || {});
+  return renderDeck(deck, theme, c).issues;
+}
+
+function buildHtml(deck, theme, ctx, slidesHtml) {
+  const { meta, slides } = deck;
+  const fontsHref = googleFontsHref(theme.gfonts);
   const notes = slides.map(notesText);
-  const body = slides.map((s, i) => renderSlideHtml(s, i, ctx)).join('\n');
   return '<!doctype html>\n<html lang="en" data-theme="' + esc(theme.name) + '" data-variant="' + esc(meta.variant) + '">\n<head>\n' +
     '<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
     '<title>' + esc(meta.company) + (meta.tagline ? ': ' + esc(meta.tagline) : '') + '</title>\n' +
     '<meta name="generator" content="startup-pitch build_deck.js">\n' +
     '<meta name="slide-count" content="' + slides.length + '">\n' +
-    '<meta name="color-scheme" content="light dark">\n' +
     (fontsHref ? '<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link href="' + fontsHref + '" rel="stylesheet">\n' : '') +
-    '<style>\n' + themesCss + '\n' + overrideCss + baseCss() + '\n</style>\n</head>\n<body>\n' +
-    '<div class="viewport"><div class="stage" id="stage">\n' + body + '\n</div></div>\n' +
+    '<style>\n' + themeCss(theme) + '\n' + baseCss() + '\n</style>\n</head>\n<body>\n' +
+    '<div class="viewport"><div class="stage" id="stage">\n' + slidesHtml.join('\n') + '\n</div></div>\n' +
     '<div class="hud" id="counter">1 / ' + slides.length + '</div>\n' +
     '<aside class="notes" id="notes" hidden></aside>\n' +
     '<script type="application/json" id="deck-notes">' + JSON.stringify(notes).replace(/</g, '\\u003c') + '</script>\n' +
     '<script>\n' + runtimeJs() + '\n</script>\n</body>\n</html>\n';
 }
 
+// Measure, in the installed Chrome, the type roles that font-metrics.json does not cover
+// (a deck that sets meta.font_display or meta.font_body). Without a browser or network the
+// family tables below are used, with their margins. `all` measures every role (used to
+// regenerate font-metrics.json after a theme changes).
+async function measureRoles(themes, all) {
+  const todo = [];
+  themes.forEach((T) => Object.keys(T.roles).forEach((k) => { const r = T.roles[k]; if ((all || !roleWidths(r)) && !todo.some((x) => x.css === r.css)) todo.push({ css: r.css, family: r.family, gf: T.gfonts }); }));
+  if (!todo.length) return {};
+  const got = {};
+  let browser;
+  try {
+    const pw = require('playwright-core');
+    const exe = findChrome();
+    browser = await pw.chromium.launch(exe ? { executablePath: exe } : { channel: 'chrome' });
+    const page = await browser.newPage();
+    const fams = [];
+    todo.forEach((t) => t.gf.forEach((g) => { if (!fams.includes(g)) fams.push(g); }));
+    for (let i = 0; i < fams.length; i += 6) {
+      await page.setContent('<html><head><link rel="stylesheet" href="' + googleFontsHref(fams.slice(i, i + 6)) + '"></head><body></body></html>', { waitUntil: 'load', timeout: 20000 });
+      const batch = todo.filter((t) => fams.slice(i, i + 6).some((g) => g.split(':')[0] === t.family));
+      const res = await page.evaluate(async ({ batch, glyphs }) => {
+        const out = {};
+        for (const t of batch) {
+          const span = document.createElement('span');
+          span.style.cssText = t.css + ';position:absolute;white-space:pre;font-size:100px;letter-spacing:0';
+          document.body.appendChild(span);
+          span.textContent = glyphs;
+          try { await document.fonts.load(getComputedStyle(span).fontStyle + ' ' + getComputedStyle(span).fontWeight + ' 100px "' + t.family + '"', glyphs); } catch (e) { /* checked below */ }
+          await document.fonts.ready;
+          if (!Array.from(document.fonts).some((x) => x.family.replace(/"/g, '') === t.family && x.status === 'loaded')) { span.remove(); continue; }
+          const ws = [];
+          for (const ch of glyphs) {
+            span.textContent = 'non' + ch + 'non'; const a = span.getBoundingClientRect().width;
+            span.textContent = 'nonnon'; const b = span.getBoundingClientRect().width;
+            ws.push(Math.round((a - b) * 10));
+          }
+          span.remove();
+          out[t.css] = ws;
+        }
+        return out;
+      }, { batch, glyphs: GLYPH_SET });
+      Object.assign(got, res);
+    }
+  } catch (e) { /* no browser or no network */ }
+  if (browser) await browser.close().catch(() => {});
+  const enc = {};
+  Object.keys(got).forEach((css) => { enc[css] = got[css].map((w) => Math.max(0, Math.min(1295, w)).toString(36).padStart(2, '0')).join(''); loadMetrics()[css] = enc[css]; delete metricCache[css]; });
+  return enc;
+}
+// --------------------------------------------------------------------------------------
+// 8. Capacity table
+// --------------------------------------------------------------------------------------
+// What fits is whatever the renderer lays out without a warning, so the table is found by
+// asking it: each form below is rendered with one field growing until the lint objects.
+// The same forms drive the test harness (decks at the limit must render clean).
+
+const SAMPLE_WORDS = 'operators pay 1,280 EUR per site per month; carriers book a dock slot in 40 seconds from their phone and the waiting time at live sites fell from 94 to 31 minutes within eight weeks of the first booking'.split(' ');
+// Text of exactly-or-just-under n characters, cut at a word; `seed` varies the words.
+function sampleText(n, seed) {
+  let s = '', i = (seed || 0) * 7;
+  while (true) {
+    const w = SAMPLE_WORDS[i % SAMPLE_WORDS.length]; i += 1 + ((seed || 0) % 3);
+    if ((s ? s.length + 1 : 0) + w.length > n) break;
+    s += (s ? ' ' : '') + w;
+  }
+  if (!s) s = SAMPLE_WORDS[0].slice(0, Math.max(1, n));
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+// The same with its second and third words emphasised, as a title would have.
+function sampleTitle(n, seed) {
+  const w = sampleText(n, seed).split(' ');
+  return w.length < 4 ? w.join(' ') : w.slice(0, 1).concat(['*' + w.slice(1, 3).join(' ') + '*'], w.slice(3)).join(' ');
+}
+const IMG_WIDE = 'assets/meridian-board.svg', IMG_TALL = 'assets/meridian-booking.svg';
+const st3 = (g) => [{ value: 'EUR 41k', label: g('stat label', 28) }, { value: '118%', label: g('stat label', 28) }, { value: '61', label: g('stat label', 28) }];
+const pts = (g, n, base) => Array.from({ length: n }, () => g('point', base || 70));
+const CHART8 = { kind: 'bar', labels: ['Jan 25', 'Apr 25', 'Jul 25', 'Oct 25', 'Jan 26', 'Apr 26', 'Jul 26', 'Oct 26'], series: [{ name: 'MRR', values: [4, 7, 12, 18, 25, 33, 37, 41] }], y_label: 'EUR k per month', source: 'fact:mrr_series' };
+const LINE5 = { kind: 'line', labels: ['Oct 26', 'Apr 27', 'Oct 27', 'Apr 28', 'Oct 28'], series: [{ name: 'Plan', values: [41, 62, 98, 145, 200] }, { name: 'Low case', values: [41, 52, 71, 98, 128] }], y_label: 'EUR k per month' };
+// name: [what the row is called, (g) => slide]. g(field, typicalLength) returns sample text.
+const FORMS = {
+  'cover (3 stats)': (g) => ({ type: 'cover', title: g('title', 9), subtitle: g('subtitle', 44), kicker: g('kicker', 26), stats: st3(g) }),
+  'cover': (g) => ({ type: 'cover', title: g('title', 9), subtitle: g('subtitle', 44), kicker: g('kicker', 26) }),
+  'section': (g) => ({ type: 'section', title: g('title', 30), subtitle: g('subtitle', 50) }),
+  'statement': (g) => ({ type: 'statement', title: g('title', 56), subtitle: g('subtitle', 70) }),
+  'statement (3 points)': (g) => ({ type: 'statement', title: g('title', 56), points: pts(g, 3, 50) }),
+  'quote (metric)': (g) => ({ type: 'quote', quote: g('quote', 90), by: g('name', 20), role: g('role', 36), stat: { value: '31 min', label: g('stat label', 34) } }),
+  'quote': (g) => ({ type: 'quote', quote: g('quote', 110), by: g('name', 20), role: g('role', 36) }),
+  'problem (stats)': (g) => ({ type: 'problem', title: g('title', 84), points: pts(g, 3, 80), stats: [{ value: '94 min', label: g('stat label', 34) }, { value: '61', label: g('stat label', 34) }] }),
+  'problem (points only)': (g) => ({ type: 'problem', title: g('title', 84), points: pts(g, 3, 80) }),
+  'problem (image)': (g) => ({ type: 'problem', title: g('title', 84), points: pts(g, 3, 80), image: IMG_WIDE }),
+  'solution (points only)': (g) => ({ type: 'solution', title: g('title', 76), points: pts(g, 3, 80) }),
+  'solution (before_after)': (g) => ({ type: 'solution', title: g('title', 76), points: pts(g, 2, 70), diagram: { kind: 'before_after', before: { label: g('label', 20), value: '94 min', text: g('diagram text', 26) }, after: { label: g('label', 20), value: '31 min', text: g('diagram text', 26) } } }),
+  'product (wide image)': (g) => ({ type: 'product', title: g('title', 66), points: pts(g, 3, 52), images: [{ src: IMG_WIDE, frame: 'browser' }, { src: IMG_TALL, frame: 'phone' }] }),
+  'product (tall image)': (g) => ({ type: 'product', title: g('title', 66), points: pts(g, 3, 60), images: [{ src: IMG_TALL, frame: 'phone' }] }),
+  'product (no image)': (g) => ({ type: 'product', title: g('title', 66), points: pts(g, 4, 60) }),
+  'insight (stat, 3 points)': (g) => ({ type: 'insight', title: g('title', 96), points: pts(g, 3, 80), stats: [{ value: '9 of 32', label: g('stat label', 30) }] }),
+  'insight (loop)': (g) => ({ type: 'insight', title: g('title', 96), stats: [{ value: '9 of 32', label: g('stat label', 30) }], diagram: { kind: 'loop', center: g('diagram text', 34), nodes: [1, 2, 3, 4].map(() => ({ title: g('node', 16), text: g('node', 20) })) } }),
+  'market (3 stats)': (g) => ({ type: 'market', title: g('title', 100), stats: [{ value: 'EUR 1.8B', label: g('stat label', 76) }, { value: 'EUR 185M', label: g('stat label', 76) }, { value: 'EUR 6.2M', label: g('stat label', 76) }], points: pts(g, 2, 110) }),
+  'market (3 stats, one missing)': (g) => ({ type: 'market', title: g('title', 100), stats: [{ value: '[needs number]', label: g('stat label', 76) }, { value: 'EUR 185M', label: g('stat label', 76) }, { value: 'EUR 6.2M', label: g('stat label', 76) }], points: pts(g, 2, 110) }),
+  'market (2 stats)': (g) => ({ type: 'market', title: g('title', 84), stats: [{ value: 'EUR 185M', label: g('stat label', 76) }, { value: 'EUR 494k', label: g('stat label', 76) }], points: pts(g, 1, 90) }),
+  'traction (chart, 3 stats, logos)': (g) => ({ type: 'traction', title: g('title', 62), chart: CHART8, stats: st3(g), logos: ['Nordfracht', 'Elbe Trans', 'Benelux Cargo', 'Hansa Freight'] }),
+  'traction (chart, 2 stats, 1 point)': (g) => ({ type: 'traction', title: g('title', 62), chart: CHART8, stats: st3(g).slice(0, 2), points: pts(g, 1, 60) }),
+  'traction (no chart)': (g) => ({ type: 'traction', title: g('title', 62), stats: st3(g).concat([{ value: '0', label: g('stat label', 28) }]), points: pts(g, 4, 70) }),
+  'business_model (4 stats)': (g) => ({ type: 'business_model', title: g('title', 84), stats: st3(g).concat([{ value: '9 months', label: g('stat label', 28) }]), points: pts(g, 1, 60) }),
+  'business_model (table)': (g) => ({ type: 'business_model', title: g('title', 84), columns: ['', 'Starter', 'Site', 'Network'], rows: [1, 2, 3, 4].map(() => [g('row label', 22), g('cell', 12), g('cell', 12), g('cell', 12)]), points: pts(g, 1, 80) }),
+  'go_to_market (2 stats, 3 steps)': (g) => ({ type: 'go_to_market', title: g('title', 90), points: pts(g, 3, 70), stats: [{ value: '34 days', label: g('stat label', 22) }, { value: 'EUR 9.8k', label: g('stat label', 22) }] }),
+  'go_to_market (funnel)': (g) => ({ type: 'go_to_market', title: g('title', 90), points: pts(g, 2, 60), stats: [{ value: '34 days', label: g('stat label', 22) }], diagram: { kind: 'funnel', stages: [410, 96, 31, 18].map((v) => ({ label: g('funnel label', 24), value: String(v) })) } }),
+  'competition (power grid)': (g) => ({ type: 'competition', title: g('title', 80), columns: ['', 'Meridian', g('header', 18), g('header', 18), g('header', 18)], rows: [[g('row label', 26), true, false, false, 'n/a']].concat([1, 2, 3, 4].map(() => [g('row label', 26), g('cell', 9), g('cell', 12), g('cell', 12), g('cell', 10)])), points: pts(g, 1, 80) }),
+  'competition (matrix)': (g) => ({ type: 'competition', title: g('title', 80), points: pts(g, 2, 80), diagram: { kind: 'matrix', x: { label: g('axis', 20), low: g('axis', 14), high: g('axis', 14) }, y: { label: g('axis', 20), low: g('axis', 14), high: g('axis', 14) }, items: [{ name: 'Meridian', x: 0.55, y: 0.88, us: true }, { name: g('item', 18), x: 0.86, y: 0.2 }, { name: g('item', 18), x: 0.3, y: 0.52 }, { name: g('item', 18), x: 0.12, y: 0.3 }] } }),
+  'team (4 people)': (g) => ({ type: 'team', title: g('title', 70), team: [1, 2, 3, 4].map(() => ({ name: g('name', 14), role: g('role', 18), bio: g('proof line', 70) })), points: pts(g, 1, 70) }),
+  'financials (chart, 4 drivers)': (g) => ({ type: 'financials', title: g('title', 84), chart: LINE5, points: pts(g, 4, 46) }),
+  'financials (chart, stat, 3 drivers)': (g) => ({ type: 'financials', title: g('title', 70), chart: LINE5, stats: [{ value: 'EUR 200k', label: g('stat label', 26) }], points: pts(g, 3, 46) }),
+  'financials (table)': (g) => ({ type: 'financials', title: g('title', 84), columns: ['', '2026', '2027', '2028'], rows: [1, 2, 3, 4, 5].map(() => [g('row label', 22), g('cell', 8), g('cell', 8), g('cell', 8)]), points: pts(g, 1, 80) }),
+  'ask (use of funds, milestones)': (g) => ({ type: 'ask', title: g('title', 64), subtitle: g('subtitle', 34), use_of_funds: [{ label: g('fund label', 22), pct: 50 }, { label: g('fund label', 22), pct: 35 }, { label: g('fund label', 22), pct: 15 }], milestones: [1, 2, 3].map(() => ({ when: 'Q2 2027', what: g('milestone', 46) })) }),
+  'ask (stats)': (g) => ({ type: 'ask', title: g('title', 64), subtitle: g('subtitle', 34), stats: st3(g), milestones: [1, 2, 3].map(() => g('milestone', 50)) }),
+  'roadmap (4 milestones)': (g) => ({ type: 'roadmap', title: g('title', 60), milestones: [1, 2, 3, 4].map((k) => ({ when: 'Q' + k + ' 2027', what: g('milestone', 30), proves: g('proves', 44), done: k === 1 })), points: pts(g, 1, 80) }),
+  'closing (3 points)': (g) => ({ type: 'closing', title: g('title', 44), points: pts(g, 3, 52), subtitle: g('subtitle', 56) }),
+  'appendix (text)': (g) => ({ type: 'appendix', kicker: 'Appendix', title: g('title', 70), stats: st3(g).slice(0, 2), points: pts(g, 4, 80) }),
+  'appendix (chart)': (g) => ({ type: 'appendix', kicker: 'Appendix', title: g('title', 70), chart: CHART8, points: pts(g, 3, 50), stats: [{ value: '118%', label: g('stat label', 26) }] }),
+  'appendix (flow)': (g) => ({ type: 'appendix', kicker: 'Appendix', title: g('title', 60), diagram: { kind: 'flow', loop: g('loop', 30), steps: [1, 2, 3, 4].map(() => ({ icon: 'link', title: g('step title', 14), text: g('step text', 56) })) } }),
+  'appendix (layers)': (g) => ({ type: 'appendix', kicker: 'Appendix', title: g('title', 60), points: pts(g, 1, 70), diagram: { kind: 'layers', layers: [1, 2, 3].map(() => ({ title: g('layer', 18), text: g('layer text', 50) })) } }),
+  'two_column': (g) => ({ type: 'two_column', title: g('title', 60), columns: [1, 2].map(() => ({ title: g('heading', 22), points: pts(g, 4, 46) })) }),
+  'case_study': (g) => ({ type: 'case_study', title: g('title', 70), stats: st3(g).slice(0, 2), points: pts(g, 3, 60), image: IMG_WIDE }),
+};
+
+// Lint issues of a few raw slides in one theme and variant (no files written).
+let PROBE_QUIET = false;
+function probe(rawSlides, themeName, variant, css) {
+  const ctx = { placeholders: [], missingFacts: [], kindMismatch: [] };
+  PROBE_QUIET = true;
+  let issues;
+  try {
+    const deck = normaliseDeck({ meta: { company: 'Meridian', theme: themeName, variant, sources: 'none' }, slides: [{ type: 'cover', title: 'Meridian' }].concat(rawSlides) }, ctx);
+    const theme = resolveTheme(deck.meta, css || loadThemesCss());
+    prepareDeck(deck, theme, ctx);
+    ctx.slideImages = deck.slides.map((s) => (s.images || []).map((im) => ({ src: im.src, file: null, frame: im.frame })));
+    ctx.teamPhotos = deck.slides.map(() => []);
+    issues = renderDeck(deck, theme, ctx).issues;
+  } finally { PROBE_QUIET = false; }
+  return issues;
+}
+// Fields of a form with their typical lengths, in the order the form asks for them.
+function formFields(make) {
+  const seen = {};
+  make((name, base) => { if (!(name in seen)) seen[name] = base; return sampleText(base, 0); });
+  return seen;
+}
+// Longest text of `field` (others typical, or all scaled together when field is null)
+// that still lints clean in every listed theme.
+function formLimit(make, field, themes, variant, css, seed) {
+  // a slide can land on any tone (the rhythm decides), and the emphasis is drawn differently per tone
+  const fits = (n) => themes.every((t) => ['light', 'dark', 'accent'].every((tone) => probe([Object.assign(make((name, base) => (name === 'title' || name === 'quote' ? sampleTitle : sampleText)(field === null ? Math.round(base * n / 100) : (name === field ? n : base), seed || 0)), { tone })], t, variant, css).length === 0));
+  let lo = 0, hi = field === null ? 400 : 420;
+  if (!fits(field === null ? 100 : 4)) return 0;
+  lo = field === null ? 100 : 4;
+  while (hi - lo > (field === null ? 4 : 2)) { const mid = Math.round((lo + hi) / 2); if (fits(mid)) lo = mid; else hi = mid; }
+  return lo;
+}
+
+function capacityMarkdown() {
+  const css = loadThemesCss();
+  const themes = themeNames(css);
+  const out = [];
+  out.push('| Slide type (form) | Longest text per field, in characters, `present / read` |');
+  out.push('|---|---|');
+  Object.keys(FORMS).forEach((name) => {
+    const make = FORMS[name];
+    const fields = formFields(make);
+    const cells = Object.keys(fields).map((f) => {
+      const p = formLimit(make, f, themes, 'present', css), r = formLimit(make, f, themes, 'read', css);
+      return f + ' ' + (p === r ? p : p + ' / ' + r);
+    });
+    out.push('| ' + name + ' | ' + cells.join('; ') + ' |');
+  });
+  return out.join('\n');
+}
 // ---- images --------------------------------------------------------------------------
 // Images named in deck.json are resolved against the deck.json folder, copied into
 // <out>/assets/ and embedded as data URIs so deck.html stays a single file.
@@ -1505,7 +3304,7 @@ async function stripZipFolders(file) {
   } catch (e) { /* keep the original archive */ }
 }
 
-async function buildPptx(deck, theme, outPath, ctx) {
+async function buildPptxNative(deck, theme, outPath, ctx) {
   let PptxGenJS;
   try { PptxGenJS = require('pptxgenjs'); } catch (e) {
     log('PPTX skipped: pptxgenjs is not installed. Run: npm install --prefix ' + path.relative(process.cwd(), __dirname).replace(/^$/, '.') + '   (or: cd scripts && npm install)');
@@ -2086,6 +3885,202 @@ async function buildPptx(deck, theme, outPath, ctx) {
 }
 
 // --------------------------------------------------------------------------------------
+// 5b. PPTX from the rendered deck: faithful (every slide a picture) and editable
+//     (a picture of the ground and shapes, native text boxes and native charts on top)
+// --------------------------------------------------------------------------------------
+// Both open deck.html in the installed Chrome through playwright-core. Without it the
+// build falls back to the native renderer above, which needs no browser.
+
+async function openDeckPage(htmlPath, scale) {
+  const pw = require('playwright-core');
+  const exe = findChrome();
+  let browser;
+  try { browser = await pw.chromium.launch(exe ? { executablePath: exe } : { channel: 'chrome' }); } catch (e) { browser = await pw.chromium.launch({ channel: 'msedge' }); }
+  const page = await browser.newPage({ viewport: { width: STAGE_W, height: STAGE_H }, deviceScaleFactor: scale });
+  await page.goto('file://' + htmlPath + '?noscale', { waitUntil: 'load' });
+  await page.evaluate(async () => { if (document.fonts) { await document.fonts.ready; await new Promise((r) => setTimeout(r, 250)); await document.fonts.ready; } });
+  return { browser, page };
+}
+// One slide as an image: PNG, or JPEG when grain and gradients make the PNG heavy.
+const SHOT_PNG_MAX = 900 * 1024;
+async function shootSlide(page, i) {
+  await page.evaluate((k) => window.deck.go(k), i);
+  await page.waitForTimeout(60);
+  const clip = { x: 0, y: 0, width: STAGE_W, height: STAGE_H };
+  let buf = await page.screenshot({ clip, type: 'png' });
+  let mime = 'image/png';
+  if (buf.length > SHOT_PNG_MAX) { buf = await page.screenshot({ clip, type: 'jpeg', quality: 90 }); mime = 'image/jpeg'; }
+  return { data: mime + ';base64,' + buf.toString('base64'), bytes: buf.length, mime };
+}
+function newPres(deck, theme) {
+  const PptxGenJS = require('pptxgenjs');
+  const pres = new PptxGenJS();
+  pres.layout = 'LAYOUT_WIDE';
+  pres.title = deck.meta.company + (deck.meta.tagline ? ': ' + deck.meta.tagline : '');
+  pres.company = deck.meta.company; pres.author = deck.meta.company;
+  // one layout with a title placeholder, so every slide has a name in the outline and the slide sorter
+  pres.defineSlideMaster({ title: 'DECK', background: { color: hex(theme.tones[theme.base].bg) }, objects: [{ placeholder: { options: { name: 'title', type: 'title', x: 0.5, y: 0.35, w: 12.3, h: 0.8, fontSize: 20, color: hex(theme.tones[theme.base].bg), align: 'left', valign: 'top', margin: 0 }, text: '' } }] });
+  return pres;
+}
+const slideName = (s, i) => stripEm(s.title || s.quote || (s.type === 'sources' ? 'Sources' : s.type.replace(/_/g, ' '))) || 'Slide ' + (i + 1);
+
+// faithful: pixel-identical to the PDF, text not editable.
+async function buildPptxFaithful(deck, theme, htmlPath, outPath) {
+  const { browser, page } = await openDeckPage(htmlPath, 2);
+  // Grain is noise, and noise at 3840 px does not compress: it would triple the file. The
+  // pictures leave it out unless PITCH_PPTX_GRAIN=1; everything else is as in the PDF.
+  if (!process.env.PITCH_PPTX_GRAIN) await page.addStyleTag({ content: '.grain{display:none !important}' });
+  const pres = newPres(deck, theme);
+  let bytes = 0, jpeg = 0;
+  try {
+    for (let i = 0; i < deck.slides.length; i++) {
+      const s = deck.slides[i];
+      const shot = await shootSlide(page, i);
+      bytes += shot.bytes; if (shot.mime === 'image/jpeg') jpeg += 1;
+      const slide = pres.addSlide({ masterName: 'DECK' });
+      slide.background = { color: hex(theme.tones[s.tone || theme.base].bg) };
+      slide.addText(slideName(s, i), { placeholder: 'title' });
+      slide.addImage({ data: shot.data, x: 0, y: 0, w: SW, h: SH, altText: slideName(s, i) });
+      const notes = notesText(s);
+      if (notes) slide.addNotes(notes);
+    }
+  } finally { await browser.close().catch(() => {}); }
+  await pres.writeFile({ fileName: outPath });
+  await stripZipFolders(outPath);
+  return { jpeg, bytes };
+}
+
+// Runs in the page: every piece of text of slide i with its box and style, and the charts.
+function extractScript() {
+  return function (i) {
+    const slide = document.querySelectorAll('.slide')[i];
+    const hexOf = (c) => { const m = String(c).match(/[\d.]+/g) || [0, 0, 0]; return m.slice(0, 3).map((v) => Math.round(Number(v)).toString(16).padStart(2, '0')).join('').toUpperCase(); };
+    const alphaOf = (c) => { const m = String(c).match(/[\d.]+/g) || []; return m.length > 3 ? Number(m[3]) : 1; };
+    const roleOf = (el) => { const m = (el.closest('[class*="f-"]') || el).className.match(/f-(display|em|num|bodyb|body|mono)/); return m ? m[1] : 'body'; };
+    // the highlighter colour of an emphasised phrase, when the tone draws one
+    const emBg = (el) => { const p = document.createElement('i'); p.style.color = 'var(--em-bg)'; el.appendChild(p); const c = getComputedStyle(p).color; p.remove(); return alphaOf(c) > 0.5 ? hexOf(c) : null; };
+    const texts = [];
+    const SEL = '.t,.num,.mg,.slide-source,.foot,.lg,.chart-h>span:first-child,.cap,.pt-n,.sec-n,.q-m,.tm-m,.tm-b,.mono-av,.warn-badge';
+    slide.querySelectorAll(SEL).forEach((el) => {
+      if (el.closest('.custom') || el.closest('.dc')) return;
+      if (el.parentElement && el.parentElement.closest(SEL) && !el.matches('.lg')) return;
+      const str = el.textContent.replace(/\s+/g, ' ').trim();
+      if (!str) return;
+      const st = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) return;
+      const size = parseFloat(st.fontSize);
+      const runs = [];
+      const walk = (node, inh) => {
+        node.childNodes.forEach((ch) => {
+          if (ch.nodeType === 3) { if (ch.textContent) runs.push(Object.assign({ text: ch.textContent.replace(/\s+/g, ' ') }, inh)); return; }
+          if (ch.nodeType !== 1 || ch.tagName === 'svg' || ch.tagName === 'I' || ch.tagName === 'IMG') return;
+          const cs = getComputedStyle(ch);
+          const bgc = cs.backgroundColor;
+          walk(ch, { color: hexOf(cs.color), bold: Number(cs.fontWeight) >= 600, italic: cs.fontStyle === 'italic', sup: ch.tagName === 'SUP' && !ch.classList.contains('fn'), role: roleOf(ch),
+            hl: ch.classList.contains('em') ? emBg(ch) : (alphaOf(bgc) > 0.5 && ch.classList.contains('needs') ? hexOf(bgc) : null), rel: parseFloat(cs.fontSize) / size });
+        });
+      };
+      walk(el, { color: hexOf(st.color), bold: Number(st.fontWeight) >= 600, italic: st.fontStyle === 'italic', sup: false, role: roleOf(el), hl: null, rel: 1 });
+      const lh = parseFloat(st.lineHeight);
+      texts.push({ x: r.left, y: r.top, w: r.width, h: r.height, size, lh: isFinite(lh) ? lh : size * 1.2, align: st.textAlign === 'center' ? 'center' : (st.textAlign === 'right' || st.textAlign === 'end' ? 'right' : 'left'),
+        upper: st.textTransform === 'uppercase', spacing: parseFloat(st.letterSpacing) || 0, nowrap: st.whiteSpace === 'nowrap' || st.whiteSpace === 'pre', rot: el.closest('.dg-rot') ? 270 : 0,
+        center: el.matches('.tm-m,.tm-b,.mono-av'), strike: /line-through/.test(st.textDecorationLine || st.textDecoration || ''), title: el.matches('h1.title,blockquote.title'), runs });
+    });
+    const charts = [];
+    slide.querySelectorAll('svg.chart').forEach((el) => {
+      const r = el.getBoundingClientRect();
+      const st = getComputedStyle(el);
+      const v = (n) => { const d = document.createElement('i'); d.style.color = 'var(' + n + ')'; el.parentElement.appendChild(d); const c = hexOf(getComputedStyle(d).color); d.remove(); return c; };
+      charts.push({ x: r.left, y: r.top, w: r.width, h: r.height, donut: el.classList.contains('donut'), colors: { accent: v('--accent'), fill: v('--fill'), muted: v('--muted'), ink: v('--ink'), bg: v('--bg'), series: [1, 2, 3, 4, 5].map((k) => v('--s' + k)) } });
+    });
+    return { texts, charts };
+  };
+}
+const PPTX_BG_CSS = 'html.pptx-bg .t,html.pptx-bg .t *,html.pptx-bg .num,html.pptx-bg .num *,html.pptx-bg .mg,html.pptx-bg .slide-source,html.pptx-bg .slide-source *,html.pptx-bg .foot,html.pptx-bg .lg,html.pptx-bg .chart-h>span:first-child,html.pptx-bg .cap,html.pptx-bg .cap *,html.pptx-bg .pt-n,html.pptx-bg .sec-n,html.pptx-bg .q-m,html.pptx-bg .tm-m,html.pptx-bg .tm-b,html.pptx-bg .mono-av,html.pptx-bg .warn-badge{color:transparent !important}' +
+  'html.pptx-bg .em,html.pptx-bg .needs{background:transparent !important;border-color:transparent !important}html.pptx-bg svg.chart{visibility:hidden}html.pptx-bg .lg i{visibility:hidden}html.pptx-bg .grain{display:none}' +
+  'html.pptx-bg .custom *{color:inherit}';
+
+// editable: the ground, cells, diagrams, icons, images and donuts are one picture per slide;
+// all text is native text at the measured position, bar, line and area charts are native charts.
+async function buildPptxEditable(deck, theme, htmlPath, outPath) {
+  const { browser, page } = await openDeckPage(htmlPath, 2);
+  const pres = newPres(deck, theme);
+  const web = deck.meta.pptx_fonts === 'web';
+  // safe faces: a serif display face (theme or meta.font_display) maps to Georgia, not to a sans
+  const SERIF = /serif|fraunces|newsreader|playfair|lora|merriweather|garamond|baskerville|crimson|spectral|caslon|cormorant|bitter|slab|georgia|times|libre bodoni|dm serif/i;
+  const isSerif = (r) => (!/sans/i.test(r.family) && SERIF.test(r.family)) || (!theme.overrides['font-display'] && /,\s*serif\s*$/.test(r.css.match(/font-family:([^;]+)/)[1]));
+  const safeDisplay = deck.meta.pptx_font_display || (isSerif(theme.roles.display) ? 'Georgia' : (theme.T['pptx-display'] || 'Arial'));
+  const safeBody = deck.meta.pptx_font_body || (theme.T['pptx-body'] || 'Arial');
+  const fmtCode = (ch) => { let d = 0; ch.series.forEach((se) => se.values.forEach((v) => { if (v != null) d = Math.max(d, Math.min(2, decimalsFor(v))); })); return d ? '#,##0.' + '0'.repeat(d) : '#,##0'; };
+  const faceOf = (role) => {
+    if (deck.meta.pptx_font_display && /display|num|em/.test(role)) return deck.meta.pptx_font_display;
+    if (deck.meta.pptx_font_body && /body/.test(role)) return deck.meta.pptx_font_body;
+    if (web) return theme.roles[role === 'bodyb' ? 'body' : role].family;
+    if (role === 'mono') return /mono/i.test(theme.roles.mono.family) ? 'Courier New' : safeDisplay;
+    if (role === 'em') return isSerif(theme.roles.em) ? 'Georgia' : safeDisplay;
+    return role === 'body' || role === 'bodyb' ? safeBody : safeDisplay;
+  };
+  const X = (px) => px / 144;
+  try {
+    for (let i = 0; i < deck.slides.length; i++) {
+      const s = deck.slides[i];
+      await page.evaluate((k) => window.deck.go(k), i);
+      const info = await page.evaluate(extractScript(), i);
+      await page.addStyleTag({ content: PPTX_BG_CSS }).catch(() => {});
+      await page.evaluate(() => document.documentElement.classList.add('pptx-bg'));
+      const shot = await shootSlide(page, i);
+      await page.evaluate(() => document.documentElement.classList.remove('pptx-bg'));
+      const slide = pres.addSlide({ masterName: 'DECK' });
+      slide.background = { color: hex(theme.tones[s.tone || theme.base].bg) };
+      slide.addText(slideName(s, i), { placeholder: 'title' });
+      slide.addImage({ data: shot.data, x: 0, y: 0, w: SW, h: SH });
+      // native charts
+      info.charts.forEach((c) => {
+        const C = c.colors;
+        const ch = s.chart;
+        if (!ch) return;
+        const kind = ch.kind;
+        const type = kind === 'line' ? pres.charts.LINE : kind === 'area' ? pres.charts.AREA : pres.charts.BAR;
+        const data = ch.series.slice(0, 5).map((se) => ({ name: se.name || ' ', labels: ch.labels, values: se.values.map((v) => (v == null ? '' : v)) }));
+        const multi = data.length > 1;
+        slide.addChart(type, data, {
+          x: X(c.x), y: X(c.y), w: X(c.w), h: X(c.h), barDir: kind === 'horizontal_bar' ? 'bar' : 'col', barGrouping: kind === 'stacked_bar' ? 'stacked' : 'clustered', barGapWidthPct: 45,
+          // one series of bars: every bar quiet, the latest one in the accent
+          chartColors: multi || kind === 'line' || kind === 'area' ? C.series.slice(0, data.length) : ch.labels.map((_, k) => (k === (kind === 'horizontal_bar' ? 0 : ch.labels.length - 1) ? C.accent : C.fill)),
+          catAxisLabelColor: C.muted, valAxisLabelColor: C.muted, catAxisLabelFontSize: 10, valAxisLabelFontSize: 10, catAxisLabelFontFace: faceOf('body'), valAxisLabelFontFace: faceOf('body'),
+          valGridLine: { color: C.fill, size: 0.5 }, catGridLine: { style: 'none' }, valAxisLineShow: false, catAxisLineShow: true, valAxisMinVal: 0,
+          showLegend: multi, legendPos: 't', legendColor: C.muted, legendFontSize: 10, legendFontFace: faceOf('body'), showValue: !!ch.show_values, dataLabelColor: C.ink, dataLabelFontSize: 10, dataLabelFormatCode: fmtCode(ch), valAxisLabelFormatCode: fmtCode(ch), lineSize: 3, lineDataSymbol: 'none',
+          catAxisOrientation: kind === 'horizontal_bar' ? 'maxMin' : 'minMax',
+        });
+      });
+      // native text, one box per text block
+      info.texts.forEach((t) => {
+        const runs = t.runs.filter((r) => r.text).map((r, k, all) => {
+          let text = t.upper ? r.text.toUpperCase() : r.text;
+          if (k === 0) text = text.replace(/^\s+/, '');
+          if (k === all.length - 1) text = text.replace(/\s+$/, '');
+          const o = { fontFace: faceOf(r.role), fontSize: Math.max(4, Math.round(t.size * r.rel * 0.5 * 10) / 10), color: r.color, bold: r.bold && !/display|num|em/.test(r.role) ? true : (r.role === 'display' || r.role === 'num') && theme.roles[r.role].weight >= 600, italic: r.italic, superscript: r.sup };
+          if (r.sup) o.fontSize = Math.max(4, Math.round(t.size * 0.5 * 10) / 10);
+          if (r.hl) o.highlight = r.hl;
+          if (t.strike) o.strike = 'sngStrike';
+          return { text, options: o };
+        }).filter((r) => r.text);
+        if (!runs.length) return;
+        let x = t.x, y = t.y, w = t.w, h = t.h;
+        if (t.rot) { const cx = t.x + t.w / 2, cy = t.y + t.h / 2; w = t.h; h = t.w; x = cx - w / 2; y = cy - h / 2; }
+        slide.addText(runs, { x: X(x), y: X(y), w: X(w + (t.nowrap ? 40 : 0)), h: X(h), margin: 0, valign: t.center ? 'middle' : 'top', align: t.center ? 'center' : t.align, wrap: !t.nowrap, fit: 'none',
+          lineSpacing: Math.round(t.lh * 0.5 * 10) / 10, charSpacing: Math.round(t.spacing * 0.5 * 10) / 10, rotate: t.rot || 0 });
+      });
+      const notes = notesText(s);
+      if (notes) slide.addNotes(notes);
+    }
+  } finally { await browser.close().catch(() => {}); }
+  await pres.writeFile({ fileName: outPath });
+  await stripZipFolders(outPath);
+  return true;
+}
+// --------------------------------------------------------------------------------------
 // 6. PPTX checks
 // --------------------------------------------------------------------------------------
 // Always: scripts/pptx_check.py, a structural check with the Python standard library.
@@ -2154,7 +4149,8 @@ function checkPptx(pptxPath, slideCount) {
 }
 
 // --------------------------------------------------------------------------------------
-// 7. QA screenshots and overflow check (--check, needs playwright-core)
+// --------------------------------------------------------------------------------------
+// 7. QA screenshots and render checks (--check, needs playwright-core)
 // --------------------------------------------------------------------------------------
 
 function findChrome() {
@@ -2168,33 +4164,62 @@ function findChrome() {
   return null;
 }
 
-// Runs inside the page: reports text that leaves the stage, overlaps a sibling, or
-// sits inside a container that scrolls.
+// Runs inside the page, on the active slide. Reports text that leaves the stage or the
+// content frame, is clipped, overlaps other text, is set below the size floor, or has
+// less than 4.5:1 contrast against the ground it sits on.
 function pageCheckScript() {
   return function (dims) {
     const W = dims.W, H = dims.H;
     const slide = document.querySelector('.slide.active');
     const issues = [];
     if (!slide) return ['no active slide'];
-    if (slide.scrollHeight > H + 1 || slide.scrollWidth > W + 1) issues.push('slide content overflows the stage: ' + slide.scrollWidth + 'x' + slide.scrollHeight);
+    const quote = (el) => '"' + (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40) + '"';
+    const rgba = (c) => { const m = String(c).match(/[\d.]+/g) || []; return { r: +m[0] || 0, g: +m[1] || 0, b: +m[2] || 0, a: m.length > 3 ? +m[3] : 1 }; };
+    const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b); };
+    const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    // the colour a piece of text sits on: a ground named by the renderer, else the nearest filled ancestor
+    const groundOf = (el) => {
+      const named = el.closest('[data-ground]');
+      if (named) { const probe = document.createElement('i'); probe.style.color = 'var(' + named.getAttribute('data-ground') + ')'; named.appendChild(probe); const c = rgba(getComputedStyle(probe).color); probe.remove(); if (c.a > 0.9) return c; el = named.parentElement || el; }
+      for (let p = el; p; p = p.parentElement) { const c = rgba(getComputedStyle(p).backgroundColor); if (c.a > 0.9) return c; if (p === slide) break; }
+      return rgba(getComputedStyle(slide).backgroundColor);
+    };
     const leaves = [];
     slide.querySelectorAll('*').forEach((el) => {
-      if (el.closest('svg') || el.closest('.custom')) return;
+      if (el.closest('.custom') || el.closest('.dc') || el.closest('[aria-hidden="true"]') || el.closest('.grain')) return;
+      const inSvg = !!el.closest('svg');
+      if (inSvg && el.tagName !== 'text') return;
       const hasText = Array.from(el.childNodes).some((nd) => nd.nodeType === 3 && nd.textContent.trim());
       if (!hasText) return;
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) return;
-      leaves.push({ el, r, label: (el.textContent || '').trim().slice(0, 40) });
-      if (r.right > W + 1 || r.bottom > H + 1 || r.left < -1 || r.top < -1) issues.push('text leaves the stage: "' + (el.textContent || '').trim().slice(0, 40) + '"');
-      if (!el.closest('.foot, .slide-source') && r.bottom > H - 100 && !el.classList.contains('warn-badge')) issues.push('text too close to the footer: "' + (el.textContent || '').trim().slice(0, 40) + '"');
-      let p = el.parentElement;
-      while (p && p !== slide) {
-        const cs = getComputedStyle(p);
-        if (cs.overflow === 'hidden' || cs.overflowY === 'hidden') {
-          if (p.scrollHeight > p.clientHeight + 2) issues.push('text clipped by its container: "' + (el.textContent || '').trim().slice(0, 40) + '"');
-          break;
-        }
-        p = p.parentElement;
+      const cs = getComputedStyle(el);
+      // size floor: running text against the body floor, marginalia and chart labels against the small one
+      let px = parseFloat(cs.fontSize);
+      if (inSvg) { const svg = el.closest('svg'); const vb = svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width ? svg.getBoundingClientRect().width / svg.viewBox.baseVal.width : 1; px *= vb; }
+      const small = inSvg || el.closest('.f-mono, .mg, .slide-source, .foot, .cap, .ref, .st-s, sup, .needs, .lg, .warn-badge, .lbl');
+      const floor = small ? dims.small : dims.body;
+      if (px < floor - 0.4) issues.push('text below the size floor (' + Math.round(px * 10) / 10 + 'px, floor ' + floor + 'px): ' + quote(el));
+      // contrast
+      if (!el.classList.contains('needs') && !el.closest('.needs') && !el.classList.contains('warn-badge')) {
+        const fg = rgba(inSvg ? cs.fill : cs.color);
+        if (fg.a > 0.5) { const cr = ratio(fg, groundOf(el)); if (cr < 4.5) issues.push('text contrast ' + cr.toFixed(1) + ':1 is under 4.5:1: ' + quote(el)); }
+      }
+      if (inSvg) return;
+      // an inline run is covered by its block, whose box is the one that can collide
+      if (cs.display !== 'inline') leaves.push({ el, r, label: (el.textContent || '').trim().slice(0, 40) });
+      if (r.right > W + 1 || r.bottom > H + 1 || r.left < -1 || r.top < -1) issues.push('text leaves the stage: ' + quote(el));
+      // an inline run (an emphasised phrase) is judged by the block it sits in
+      const inline = cs.display === 'inline';
+      if (!inline && !el.closest('.foot, .slide-source, .mg') && !el.classList.contains('warn-badge') && (r.bottom > H - 76 || r.top < 84 || r.left < 60 || r.right > W - 60)) issues.push('text outside the content frame: ' + quote(el));
+      if (el.matches('.slide-source') && el.getAttribute('data-max') && r.width > Number(el.getAttribute('data-max')) + 4) issues.push('the source caption is wider than the room it has (it crosses a panel edge or the footer): ' + quote(el));
+      if (el.matches('.t, .num') && el.scrollWidth > el.clientWidth + 2) issues.push('text is wider than its box: ' + quote(el));
+      // text must stay inside its cell
+      const box = el.closest('.cell, .dg-box');
+      if (box && !inline) { const b = box.getBoundingClientRect(); if (r.bottom > b.bottom + 2 || r.right > b.right + 2 || r.top < b.top - 2 || r.left < b.left - 2) issues.push('text leaves its cell: ' + quote(el)); }
+      for (let p = el.parentElement; p && p !== slide; p = p.parentElement) {
+        const ps = getComputedStyle(p);
+        if (ps.overflow === 'hidden' || ps.overflowY === 'hidden') { if (p.scrollHeight > p.clientHeight + 2 || p.scrollWidth > p.clientWidth + 2) issues.push('text clipped by its container: ' + quote(el)); break; }
       }
     });
     for (let i = 0; i < leaves.length; i++) {
@@ -2206,11 +4231,25 @@ function pageCheckScript() {
         if (ox > 6 && oy > 6) issues.push('text overlaps: "' + a.label + '" and "' + b.label + '"');
       }
     }
+    // neighbouring series colours (donut slices, stacked or grouped bars, lines, legend swatches) must be told apart
+    const seriesRun = (els, prop, what) => {
+      const cols = []; els.forEach((el) => { const c = getComputedStyle(el)[prop]; if (c && c !== 'none' && rgba(c).a > 0.5 && c !== cols[cols.length - 1]) cols.push(c); });
+      for (let k = 1; k < cols.length; k++) if (ratio(rgba(cols[k]), rgba(cols[k - 1])) < 1.25) { issues.push(what + ': two neighbouring series colours are too close to tell apart'); break; }
+    };
+    slide.querySelectorAll('svg.donut').forEach((d) => seriesRun(d.querySelectorAll('g circle'), 'stroke', 'donut'));
+    slide.querySelectorAll('.lgs, .fd-l').forEach((g) => seriesRun(g.querySelectorAll('i'), 'backgroundColor', 'chart legend'));
+    // images and charts must stay inside the stage too
+    slide.querySelectorAll('svg.chart, svg.donut, .dg, .fr, .tb').forEach((el) => {
+      if (el.closest('.custom')) return;
+      const r = el.getBoundingClientRect(); const box = el.closest('.cell');
+      if (!box) return; const b = box.getBoundingClientRect();
+      if (r.bottom > b.bottom + 3 || r.right > b.right + 3) issues.push('a ' + (el.classList[0] || 'block') + ' leaves its cell by ' + Math.round(Math.max(r.bottom - b.bottom, r.right - b.right)) + 'px');
+    });
     return Array.from(new Set(issues));
   };
 }
 
-async function runCheck(htmlPath, outDir, slideCount) {
+async function runCheck(htmlPath, outDir, slideCount, variant, slack) {
   let pw;
   try { pw = require('playwright-core'); } catch (e) {
     log('  --check skipped: playwright-core is not installed. Run: npm install --prefix ' + path.relative(process.cwd(), __dirname) + ' playwright-core   (uses your installed Chrome, no browser download)');
@@ -2236,30 +4275,30 @@ async function runCheck(htmlPath, outDir, slideCount) {
     await document.fonts.ready;
     await new Promise((r) => setTimeout(r, 250));
     await document.fonts.ready;
-    const loaded = Array.from(document.fonts).filter((f) => f.status === 'loaded' && !/Fallback/.test(f.family)).map((f) => f.family.replace(/"/g, ''));
+    const loaded = Array.from(document.fonts).filter((f) => f.status === 'loaded').map((f) => f.family.replace(/"/g, ''));
     return { loaded: Array.from(new Set(loaded)), linked: !!document.querySelector('link[href*="fonts.googleapis.com"]') };
   });
   if (fonts.loaded.length) log('  QA fonts: ' + fonts.loaded.join(', ') + ' (web fonts loaded)');
-  else if (fonts.linked) warn('web fonts did not load (offline or blocked); QA measured the fallback fonts, which are narrower. Re-run --check online before trusting a clean result.');
+  else if (fonts.linked) warn('web fonts did not load (offline or blocked); QA measured the fallback fonts. Re-run --check online before trusting a clean result.');
   const report = [];
   let issueCount = 0;
   for (let i = 0; i < slideCount; i++) {
     await page.evaluate((k) => window.deck.go(k), i);
     await page.evaluate(() => (document.fonts ? document.fonts.ready : null));
-    await page.waitForTimeout(120);
+    await page.waitForTimeout(100);
     const file = path.join(qaDir, 'slide-' + String(i + 1).padStart(2, '0') + '.png');
     await page.screenshot({ path: file, clip: { x: 0, y: 0, width: STAGE_W, height: STAGE_H } });
-    const issues = await page.evaluate(pageCheckScript(), { W: STAGE_W, H: STAGE_H });
+    const issues = await page.evaluate(pageCheckScript(), { W: STAGE_W, H: STAGE_H, body: FLOOR.body[variant] || FLOOR.body.present, small: FLOOR.small });
     issueCount += issues.length;
-    report.push({ slide: i + 1, file: path.relative(outDir, file), issues });
+    const thin = (slack || []).filter((m) => m.indexOf('slide ' + (i + 1) + ' ') === 0).map((m) => m.replace(/^slide \d+ \([^)]*\): /, 'slack: '));
+    report.push({ slide: i + 1, file: path.relative(outDir, file), issues, slack: thin });
     if (issues.length) log('  slide ' + (i + 1) + ': ' + issues.slice(0, 6).join('; ') + (issues.length > 6 ? '; +' + (issues.length - 6) + ' more' : ''));
   }
   await browser.close();
   fs.writeFileSync(path.join(qaDir, 'report.json'), JSON.stringify(report, null, 2));
-  log('  QA: ' + slideCount + ' screenshots in ' + rel(qaDir) + '/, ' + issueCount + ' issue' + (issueCount === 1 ? '' : 's') + ' (report.json)');
+  log('  QA: ' + slideCount + ' screenshots in ' + rel(qaDir) + '/, ' + issueCount + ' issue' + (issueCount === 1 ? '' : 's') + ((slack || []).length ? ', ' + slack.length + ' slack warning' + (slack.length === 1 ? '' : 's') : '') + ' (report.json)');
 }
 
-// --------------------------------------------------------------------------------------
 // 8a. Text measurement for the capacity lint
 // --------------------------------------------------------------------------------------
 // Advance widths of the glyphs in GLYPH_SET for 50 Google Fonts families (the theme faces
@@ -2373,562 +4412,31 @@ function wrapLines(text, widthPx, face, sizePx) {
   });
   return lines;
 }
-// A deck that sets font_display or font_body is measured in the installed Chrome when it
-// is available (about a second), so the lint is as exact for those faces as for the theme
-// faces. Without a browser, or offline, the built-in tables and their margins apply.
-async function measureFaces(theme, faces) {
-  const roles = ['display', 'body'].filter((k) => !faces[k].exact);
-  if (!roles.length) return faces;
-  let browser;
-  try {
-    const pw = require('playwright-core');
-    const exe = findChrome();
-    browser = await pw.chromium.launch(exe ? { executablePath: exe } : { channel: 'chrome' });
-    const page = await browser.newPage();
-    const href = googleFontsHref(theme.tokens.gfontsList);
-    await page.setContent('<html><head><link rel="stylesheet" href="' + href + '"></head><body></body></html>', { waitUntil: 'load', timeout: 15000 });
-    const spec = {};
-    roles.forEach((k) => { spec[k] = { family: faces[k].family, weight: k === 'display' ? faces[k].weight : 400, size: k === 'display' ? 64 : 30 }; });
-    const got = await page.evaluate(async ({ spec, glyphs }) => {
-      const out = {};
-      for (const k of Object.keys(spec)) {
-        const f = spec[k];
-        try { await document.fonts.load(f.weight + ' ' + f.size + 'px "' + f.family + '"', glyphs); } catch (e) { /* measured below */ }
-        if (!Array.from(document.fonts).some((x) => x.family.replace(/"/g, '') === f.family && x.status === 'loaded')) continue;
-        const span = document.createElement('span');
-        span.style.cssText = 'position:absolute;white-space:pre;font:' + f.weight + ' ' + f.size + 'px "' + f.family + '", monospace';
-        document.body.appendChild(span);
-        const ws = [];
-        for (const ch of glyphs) {
-          span.textContent = 'non' + ch + 'non'; const a = span.getBoundingClientRect().width;
-          span.textContent = 'nonnon'; const b = span.getBoundingClientRect().width;
-          ws.push(Math.round(((a - b) / f.size) * 1000));
-        }
-        span.remove();
-        out[k] = ws;
-      }
-      return out;
-    }, { spec, glyphs: GLYPH_SET });
-    const measured = [];
-    roles.forEach((k) => {
-      if (!got[k]) return;
-      const key = 'measured:' + faces[k].family + ':' + k;
-      const enc = got[k].map((w) => Math.max(0, Math.min(1295, w)).toString(36).padStart(2, '0')).join('');
-      FONT_W[key] = [enc, enc];
-      measured.push(faces[k].family);
-      faces[k] = Object.assign({}, faces[k], { family: key, exact: true });
-    });
-    if (measured.length) log('  fonts: ' + measured.join(' and ') + ' measured in Chrome for the capacity lint');
-  } catch (e) { /* no browser or no network: the built-in tables are used */ }
-  if (browser) await browser.close().catch(() => {});
-  return faces;
-}
-
-// The two faces of a deck, from the resolved theme (meta.font_display / font_body included).
-function facesOf(theme) {
-  const T = theme.tokens;
-  const own = (key, role) => (!theme.overrides[key] && FONT_W['theme:' + theme.name + ':' + role] ? 'theme:' + theme.name + ':' + role : null);
-  const d = own('font-display', 'display');
-  const b = own('font-body', 'body');
-  return {
-    display: { family: d || T.webDisplay, exact: !!d, weight: Math.min(800, Number(T['display-weight']) || 400), tracking: parseFloat(T['display-tracking']) || 0 },
-    body: { family: b || T.webBody, exact: !!b, weight: 400, tracking: 0 },
-  };
-}
-
-// --------------------------------------------------------------------------------------
-// 8. Capacity table and pre-flight lint
-// --------------------------------------------------------------------------------------
-// What each layout holds, in one place. Every number is a pixel measurement of the
-// stylesheet above (stage 1920x1080; the body runs from under the title to y = 940,
-// where the source caption sits) and is verified by rendering decks at the limit with
-// --check in both variants and all four themes. lintDeck() checks deck.json against it
-// before anything is rendered; `--capacities` prints the markdown table that
-// references/deck-structure.md carries.
-
-const PV = (present, read) => ({ present, read: read === undefined ? present : read });
-const pv = (x, v) => (x && typeof x === 'object' && 'present' in x ? x[v] : x);
-const len = (v) => String(v == null ? '' : v).length;
-// A text box: width and font size in px, the face it is set in (body or display) and an
-// optional weight. linesOf() lays the actual words out in it with the deck's fonts.
-let FACES = null;                                   // set per deck by lintDeck
-const bbox = (w, px, weight) => ({ w, px, kind: 'body', weight });
-const dbox = (w, px) => ({ w, px, kind: 'display' });
-// (a semibold run of a measured face is taken as four percent wider than its regular weight)
-const faceOf = (box) => (!box.weight ? FACES[box.kind] : FACES[box.kind].exact ? Object.assign({}, FACES[box.kind], { semibold: true }) : Object.assign({}, FACES[box.kind], { weight: box.weight }));
-// (a measured face needs almost no margin; a table face carries its own in textPx)
-const linesOf = (text, box) => (len(text) ? wrapLines(text, box.w * (faceOf(box).exact ? 0.997 : 0.99), faceOf(box), box.px) : 1);
-// Characters that fit on one line of a box, for the "fits up to N characters" hints.
-const SAMPLE = 'Operators pay 1,280 EUR per site per month; carriers book a dock slot in 40 seconds from their phone';
-const boxCpl = (box) => Math.max(6, Math.floor(box.w / (textPx(SAMPLE, faceOf(box), box.px) / SAMPLE.length)) - 3);
-
-// Character widths are measured with the web fonts loaded (not the local fallback faces).
-// Text is measured, not estimated: cplFor() names a body-text box (width, font size) and
-// linesOf() wraps the real words in it. BODY_EM (the widest theme body face, Albert Sans)
-// is only used for table and legend arithmetic.
-const BODY_EM = 0.464;
-const cplFor = (widthPx, fontPx) => bbox(widthPx, fontPx);
-
-// Display type differs by theme (Sora is 14 percent wider than Newsreader). For the
-// documentation: title is the number of characters per line of a slide title that every
-// sample headline kept within, max the same for three lines. The lint itself wraps the
-// actual title in the deck's display face.
-const DISPLAY = {
-  graphite: { title: PV(42, 49), max: PV(130, 150), f: 1 },
-  paper: { title: PV(42, 46), max: PV(130, 140), f: 1 },
-  signal: { title: PV(38, 44), max: PV(118, 138), f: 0.9 },
-  midnight: { title: PV(36, 41), max: PV(110, 128), f: 0.86 },
-};
-const TITLE_BOX = { present: dbox(1440, 64), read: dbox(1440, 58) };
-// Display sizes other than the slide title: box width and font size
-const OWN = { insight: dbox(1600, 72), statement: dbox(1560, 96), askLong: dbox(1500, 64), askMedium: dbox(1680, 96), colHeading: dbox(780, 40), closing: dbox(1560, 104) };
-const dcpl = (box) => box;
-
-// The standard slide head: 64px title (58px in read). Budgets assume two title lines.
-const HEADG = {
-  line: PV(69, 63),           // px per title line
-  kicker: 51,
-  subtitle: { base: 24, line: 42, cpl: cplFor(1240, 30), max: 160 },
-  body: { base: 28, line: 41, cpl: cplFor(1240, 28), max: 260 },
-};
-const BODY_PX = PV(650, 662);   // body height under a two-line title
-
-// Text column presets: padding per point, line height, characters per line. Points are
-// 30px (27px in read); compact points 26px (25px in read). Widths are the text width in px.
-const COL = {
-  wide: { pad: PV(44, 36), line: PV(42, 38), cpl: PV(cplFor(736, 30), cplFor(736, 27)) },      // half-width column
-  full: { pad: PV(44, 36), line: PV(42, 38), cpl: PV(cplFor(1096, 30), cplFor(1096, 27)) },    // chart-width column
-  compact: (w) => ({ pad: PV(32, 28), line: PV(36.4, 35), cpl: PV(cplFor(w, 26), cplFor(w, 25)) }),
-};
-// share: stats and points stacked in one side column. base = stat height without its label
-// lines (read adds the source line), gapStat = gap between stats, gap = gap to the points.
-const SIDE_CHART = { stats: 2, statLabel: 100, points: 5, pointChars: 160, col: COL.compact(464), share: { base: PV(76, 108), line: 34, cpl: cplFor(500, 26), gapStat: 44, gap: 36 }, chart: 1080 };
-const TABLE = { table: true, stats: 0, points: 2, pointChars: 180 };
-
-const CAPACITY = {
-  cover: { titleLines: 2, subtitle: 110, kicker: 70, stats: 3, statLabel: 60, statValue: 10, points: 0 },
-  problem: { stats: 2, statLabel: 90, points: 3, pointChars: 200, col: COL.wide },
-  'problem (image)': { stats: 0, points: 3, pointChars: 160, col: COL.compact(744) },
-  solution: { stats: 0, points: 3, pointChars: 220 },
-  'solution (image)': { stats: 0, points: 3, pointChars: 200, col: COL.wide },
-  product: { stats: 0, points: 4, pointChars: 140, col: COL.compact(564) },
-  'product (no image)': { stats: 0, points: 3, pointChars: 220 },
-  insight: { titleLines: 3, titleBox: OWN.insight, stats: 1, statLabel: 60, points: 3, pointChars: 220, col: COL.compact(1084) },
-  market: { stats: 3, statLabel: 130, points: 2, pointChars: 150, col: COL.compact(484) },
-  traction: { stats: PV(4, 3), statLabel: 100, points: 2, pointChars: 220, col: COL.compact(404), share: { base: PV(80, 112), line: 29, cpl: cplFor(440, 22), gapStat: 28, gap: 40 }, chart: 1140 },
-  'traction (no chart)': { stats: PV(4, 3), statLabel: 100, points: 5, pointChars: 220, col: COL.full, statsCol: { base: PV(80, 112), line: 29, cpl: cplFor(440, 22), gapStat: 28 } },
-  business_model: { stats: 4, statLabel: 84, points: 2, pointChars: 180, col: COL.compact(1164) },
-  'business_model (table)': TABLE,
-  go_to_market: { stats: 2, statLabel: 44, points: 4, pointChars: 160 },
-  competition: Object.assign({}, TABLE, { points: 1 }),
-  team: { stats: 0, points: 1, pointChars: 150, members: 4, name: 60, role: 80, bio: 200 },
-  financials: Object.assign({}, SIDE_CHART, { sideLabel: 49 }),
-  'financials (table)': Object.assign({}, TABLE, { points: 3 }),
-  ask: { titleLines: 3, titleBox: OWN.askLong, subtitle: 160, funds: 5, fundLabel: 90, stats: 0, milestones: 4, milestoneChars: 110, points: 1, pointChars: 160 },
-  'ask (stats)': { titleLines: 3, titleBox: OWN.askLong, subtitle: 160, stats: 3, statLabel: 66, milestones: 4, milestoneChars: 110, points: 0 },
-  roadmap: { stats: 0, milestones: 5, when: 14, what: 70, proves: 90, points: 1, pointChars: 150 },
-  closing: { titleLines: 4, titleBox: OWN.closing, subtitle: 110, stats: 0, points: 3, pointChars: 100 },
-  'appendix (chart)': SIDE_CHART,
-  'appendix (table)': TABLE,
-  'appendix (text)': { stats: 4, statLabel: 90, points: 5, pointChars: 220, col: COL.wide, statsGrid: { base: 108, line: 34, cpl: cplFor(370, 26), gap: 40 } },
-  statement: { titleLines: 4, titleBox: OWN.statement, subtitle: 160, stats: 0, points: 3, pointChars: 120 },
-  two_column: { stats: 0, points: 5, pointChars: 150, colTitle: 70, col: COL.compact(744) },
-  custom_html: { stats: 0, points: 0 },
-};
-const CHART_CAP = { labels: 12, hbarLabels: 10, hbarLabelChars: 24, series: 5, legendRows: 3, legendChars: 60 };
-// charPx: 26px table text in the widest body face; fill: share of the row that single-line cells may use
-const TABLE_CAP = { cols: 6, header: 66, row: 70, wrap: 34, charPx: 26 * BODY_EM, fill: 0.88 };
-
-
-function formOf(s) {
-  const img = !!s.image;
-  switch (s.type) {
-    case 'problem': return img ? 'problem (image)' : 'problem';
-    case 'solution': return img ? 'solution (image)' : 'solution';
-    case 'product': return img ? 'product' : 'product (no image)';
-    case 'traction': return s.chart ? 'traction' : 'traction (no chart)';
-    case 'business_model': return s.rows.length ? 'business_model (table)' : 'business_model';
-    case 'financials': return s.chart ? 'financials' : (s.rows.length ? 'financials (table)' : 'financials');
-    case 'appendix': case 'case_study': return s.chart ? 'appendix (chart)' : (s.rows.length ? 'appendix (table)' : 'appendix (text)');
-    case 'ask': return s.use_of_funds.length || !s.stats.length ? 'ask' : 'ask (stats)';
-    default: return s.type;
-  }
-}
-
-// px the standard head takes beyond its two-line allowance (negative for a one-line title).
-function headExtra(s, v) {
-  const tl = Math.min(3, linesOf(s.title, TITLE_BOX[v]));
-  let px = (tl - 2) * pv(HEADG.line, v);
-  if (s.kicker) px += HEADG.kicker;
-  if (s.subtitle) px += HEADG.subtitle.base + linesOf(s.subtitle, HEADG.subtitle.cpl) * HEADG.subtitle.line;
-  if (s.body && v === 'read') px += HEADG.body.base + linesOf(s.body, HEADG.body.cpl) * HEADG.body.line;
-  return px;
-}
-// Height of a list of points in a column: the first has half the padding.
-function pointsPx(points, col, v) {
-  if (!points.length) return 0;
-  return points.reduce((a, p) => a + pv(col.pad, v) + linesOf(p, pv(col.cpl, v)) * pv(col.line, v), 0) - pv(col.pad, v) / 2;
-}
-// Longest point (characters) that still fits when n points share `px` of column height.
-function pointRoom(px, n, col, v) {
-  const lines = Math.floor(((px + pv(col.pad, v) / 2) / n - pv(col.pad, v)) / pv(col.line, v));
-  return Math.max(0, lines) * boxCpl(pv(col.cpl, v));
-}
-const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
-// Budgets stop 14px above the source caption, so a 2 percent overrun still clears it.
-const over = (need, room) => need > room * 1.02;
-const approx = (c) => c + ' characters (about ' + Math.round(c / 6) + ' words)';
-
-// Height of a table: header, rows, half a row for every extra wrapped line. Cells are
-// measured in the body face at 26px; columns share the row in proportion to their widest cell.
-function tablePx(s) {
-  const rows = s.rows.map((r) => (Array.isArray(r) ? r : (r.cells || [r.name].concat(asArray(r.values)))));
-  const cols = Math.max(s.columns.length, ...rows.map((r) => r.length));
-  const str = (c) => (c === true || c === false || c == null ? 'x' : String(c));
-  const cellPx = (c, weight) => textPx(str(c), faceOf(bbox(0, 26, weight)), 26);
-  const need = [];
-  for (let j = 0; j < cols; j++) need.push(Math.max(40, cellPx(s.columns[j], 600), ...rows.map((r) => cellPx(r[j]))));
-  const avail = (1680 - 48 * cols) * 0.99;
-  const sum = need.reduce((a, b) => a + b, 0);
-  const fits = sum <= avail;
-  const width = need.map((n) => (fits ? n : Math.max(60, (n * avail) / sum)));
-  // once a table wraps, the browser gives columns less than their share: 12 percent slack
-  const linesIn = (cells, weight) => Math.max(1, ...cells.map((c, j) => (fits ? 1 : wrapLines(str(c), (width[j] || 60) * 0.88, faceOf(bbox(0, 26, weight)), 26))));
-  const headerLines = linesIn(s.columns, 600);
-  let px = TABLE_CAP.header + (headerLines - 1) * TABLE_CAP.wrap;
-  let wrapped = 0;
-  rows.forEach((r) => { const l = linesIn(r); wrapped += l - 1; px += TABLE_CAP.row + (l - 1) * TABLE_CAP.wrap; });
-  let worst = 0;
-  need.forEach((n, j) => { if (n / width[j] > need[worst] / width[worst]) worst = j; });
-  const chPx = TABLE_CAP.charPx;
-  return { px, cols, rows: rows.length, wrapped, worstCol: worst + 1, worstLen: Math.max(len(s.columns[worst]), ...rows.map((r) => len(str(r[worst])))), fitLen: Math.floor(width[worst] / chPx) };
-}
-
-// One actionable line per violation. Returns an array of strings.
-function lintDeck(deck, theme, faces) {
-  const v = deck.meta.variant === 'read' ? 'read' : 'present';
-  FACES = faces || facesOf(theme || resolveTheme(deck.meta, loadThemesCss()));
-  const out = [];
-  deck.slides.forEach((s, i) => {
-    if (s.type === 'sources') return;
-    const form = formOf(s);
-    const cap = CAPACITY[form] || {};
-    const say = (msg) => out.push('slide ' + (i + 1) + ' (' + s.type + '): ' + msg);
-    const nStats = s.stats.length;
-    const nPts = s.points.length;
-
-    // ---- title, subtitle, body
-    // titles are wrapped in the deck's display face: three lines for a slide title, fewer or more at other sizes
-    const ownTitle = cap.titleLines || 0;
-    const askWords = String(s.title || '').split(/\s+/).length;
-    const tBox = s.type === 'cover' ? dbox(1560, nStats ? 128 : 148) : s.type === 'ask' ? (askWords > 6 ? OWN.askLong : askWords > 3 ? OWN.askMedium : dbox(1680, 128)) : (cap.titleBox || TITLE_BOX[v]);
-    const tFit = s.type === 'ask' ? (askWords > 6 ? 3 : askWords > 3 ? 2 : 1) : (ownTitle || 3);
-    const tLines = linesOf(s.title, tBox);
-    if (tLines > tFit) say('title is ' + len(s.title) + ' characters and wraps to ' + tLines + ' lines in this deck\'s display face; ' + plural(tFit, 'line') + ' fit (about ' + tFit * boxCpl(tBox) + ' characters). Shorten the headline and move the detail to the notes.');
-    const subMax = cap.subtitle || HEADG.subtitle.max;
-    if (s.subtitle && len(s.subtitle) > subMax) say('subtitle is ' + len(s.subtitle) + ' characters; ' + subMax + ' fit. Cut it to one sentence.');
-    if (s.body && v === 'read' && len(s.body) > HEADG.body.max) say('body is ' + len(s.body) + ' characters; ' + HEADG.body.max + ' fit (three lines). Trim it or move part to the notes.');
-    if (cap.kicker && len(s.kicker) > cap.kicker) say('kicker is ' + len(s.kicker) + ' characters; ' + cap.kicker + ' fit on one line.');
-
-    // ---- fields this layout does not draw
-    if (s.chart && !CHART_TYPES.includes(s.type)) say('`chart` is not drawn on a ' + s.type + ' slide. Use traction, financials or appendix for a chart.');
-    if (s.image && !['cover', 'problem', 'solution', 'product', 'appendix', 'case_study'].includes(s.type)) say('`image` is not shown on a ' + s.type + ' slide. Use product, solution, problem or appendix.');
-    if (form === 'problem (image)' && nStats) say('stats are not shown when a problem slide has an image. Drop the image or move the number into the headline.');
-    if (s.rows.length && !cap.table && !['team', 'roadmap'].includes(s.type)) say('`rows` is not drawn on this layout' + (s.chart ? ' when the slide has a chart' : '') + '. Put the table on its own appendix slide.');
-
-    // ---- counts
-    const maxStats = pv(cap.stats, v);
-    if (maxStats !== undefined && nStats > maxStats) {
-      say(maxStats === 0 ? 'stats are not shown on this layout. Move the ' + plural(nStats, 'figure') + ' into the points or the headline.'
-        : plural(nStats, 'stat') + '; ' + maxStats + ' fit' + (v === 'read' && pv(cap.stats, 'present') > maxStats ? ' in the read variant (each carries a source line)' : '') + '. Cut ' + (nStats - maxStats) + ' or move it to the notes.');
-    }
-    const maxPts = cap.points;
-    if (maxPts !== undefined && nPts > maxPts) {
-      say(maxPts === 0 ? 'points are not shown on this layout. Remove them or use another slide type.'
-        : plural(nPts, 'point') + '; ' + maxPts + ' fit. Cut ' + (nPts - maxPts) + ' or split the slide.');
-    }
-    const stats = s.stats.slice(0, maxStats === undefined ? MAX_STATS : maxStats);
-    const points = s.points.slice(0, maxPts === undefined ? MAX_POINTS : maxPts);
-
-    // ---- single items
-    stats.forEach((st, k) => {
-      if (cap.statLabel && len(st.label) > cap.statLabel) say('stat ' + (k + 1) + ' label is ' + len(st.label) + ' characters; ' + cap.statLabel + ' fit. Keep the unit and the period, move the rest to the notes.');
-      const vMax = cap.statValue || 14;
-      if (!isPlaceholder(st.value) && len(st.value) > vMax) say('stat ' + (k + 1) + ' value "' + st.value + '" is ' + len(st.value) + ' characters; ' + vMax + ' fit at display size. Put the unit in the label.');
-    });
-    points.forEach((p, k) => {
-      if (cap.pointChars && len(p) > cap.pointChars) say('point ' + (k + 1) + ' is ' + approx(len(p)) + '; ' + cap.pointChars + ' fit. Cut it to one claim.');
-    });
-
-    // ---- vertical budgets
-    const extra = ownTitle ? 0 : headExtra(s, v);
-    const budget = pv(BODY_PX, v) - extra;
-    const headNote = extra > 20 ? ' (a third title line, a kicker, a subtitle or a body paragraph each take space from it)' : '';
-
-    if (cap.table && s.rows.length) {
-      const t = tablePx(s);
-      if (t.cols > TABLE_CAP.cols) say('table has ' + t.cols + ' columns; ' + TABLE_CAP.cols + ' fit. Drop a column or split the table.');
-      const ptsPx = points.length ? 48 + pointsPx(points, COL.compact(1164), v) : 0;
-      const fitRows = Math.floor((budget - TABLE_CAP.header) / TABLE_CAP.row);
-      const fitRowsPts = Math.floor((budget - TABLE_CAP.header - ptsPx) / TABLE_CAP.row);
-      if (over(t.px + ptsPx, budget)) {
-        const parts = [plural(t.rows, 'row')];
-        if (t.wrapped) parts.push(plural(t.wrapped, 'wrapped cell line'));
-        if (points.length) parts.push(plural(points.length, 'point'));
-        say('table with ' + parts.join(', ') + ' is about ' + Math.round(((t.px + ptsPx) / budget - 1) * 100) + ' percent too tall' + headNote + '. Fits ' + plural(Math.max(0, fitRows), 'single-line row') +
-          (points.length ? ', or ' + Math.max(0, fitRowsPts) + ' with ' + (points.length === 1 ? 'the point' : 'these points') : '') + '. ' +
-          (t.wrapped ? 'Shorten column ' + t.worstCol + ' (longest cell ' + t.worstLen + ' characters, about ' + t.fitLen + ' fit with ' + t.cols + ' columns), cut rows' : 'Cut rows') + (points.length ? ', or move the point to the notes.' : '.'));
-      }
-    } else if (cap.share && cap.col) {
-      // stats and points stacked in one side column (beside a chart)
-      const sh = cap.share;
-      const statPx = (st) => pv(sh.base, v) + linesOf(st.label, sh.cpl) * sh.line;
-      const room = budget - (cap.sideLabel || 0);
-      const need = stats.reduce((a, st) => a + statPx(st), 0) + sh.gapStat * Math.max(0, stats.length - 1) + (stats.length && points.length ? sh.gap : 0) + pointsPx(points, cap.col, v);
-      if (over(need, room)) {
-        const one = pv(sh.base, v) + 2 * sh.line + sh.gapStat;       // a stat with a two-line label
-        const fits = [];
-        for (let k = Math.min(stats.length, Math.floor((room + sh.gapStat) / one)); k >= 0 && fits.length < 3; k--) {
-          const left = room - k * one + (k ? sh.gapStat - sh.gap : 0);
-          const np = Math.max(1, points.length);
-          const c = Math.min(cap.pointChars, pointRoom(left, np, cap.col, v));
-          if (!points.length) { fits.push(plural(k, 'stat')); break; }
-          if (c >= 30) fits.push((k ? plural(k, 'stat') + ' and ' : '') + plural(np, 'point') + ' up to ' + c + ' characters' + (np > 1 ? ' each' : ''));
-          else if (k === Math.min(stats.length, Math.floor((room + sh.gapStat) / one))) fits.push(plural(k, 'stat') + ' and no point');
-        }
-        say((stats.length ? plural(stats.length, 'stat') + ' and ' : '') + plural(points.length, 'point') + ' overfill the side column by about ' + Math.round((need / room - 1) * 100) + ' percent' + headNote + '. Fits ' + fits.join(', or ') + '. ' + (stats.length ? 'Cut a stat or move a point to the notes.' : 'Shorten the points or move one to the notes.'));
-      }
-    } else if (cap.col && points.length && s.type !== 'two_column') {
-      // a column of points with its own budget
-      let room = budget;
-      if (form === 'business_model') {
-        // the stats row above the points: value, label lines, margin
-        const n = Math.max(1, stats.length);
-        const labelCpl = cplFor((1680 - 72 * (n - 1)) / n, 26);
-        room -= 48 + 92 + Math.max(1, ...stats.map((st) => linesOf(st.label, labelCpl))) * 34 + (v === 'read' ? 32 : 0);
-      }
-      if (form === 'insight') room = 940 - 96 - Math.min(3, linesOf(s.title, OWN.insight)) * 78 - 64 - (s.kicker ? 51 : 0) - (s.subtitle ? 40 + linesOf(s.subtitle, bbox(1300, 34)) * 48 : 0) - (s.body && v === 'read' ? 28 + linesOf(s.body, HEADG.body.cpl) * 41 : 0);
-      const need = pointsPx(points, cap.col, v);
-      if (over(need, room)) {
-        const c = Math.min(cap.pointChars, pointRoom(room, points.length, cap.col, v));
-        say(plural(points.length, 'point') + ' (' + points.reduce((a, p) => a + len(p), 0) + ' characters in all) overfill the column by about ' + Math.round((need / room - 1) * 100) + ' percent' + headNote + '. Fits ' +
-          (c >= 30 ? plural(points.length, 'point') + ' up to ' + approx(c) + ' each' : plural(points.length - 1, 'point')) +
-          (points.length > 1 ? ', or ' + plural(points.length - 1, 'point') + ' up to ' + Math.min(cap.pointChars, pointRoom(room, points.length - 1, cap.col, v)) + ' characters each' : '') + '. Shorten the points or cut one.');
-      }
-    }
-
-    if (cap.statsCol && stats.length) {
-      // stats in a column of their own (traction without a chart)
-      const sc = cap.statsCol;
-      const need = stats.reduce((a, st) => a + pv(sc.base, v) + linesOf(st.label, sc.cpl) * sc.line, 0) + sc.gapStat * (stats.length - 1);
-      if (over(need, budget)) say(plural(stats.length, 'stat') + ' overfill the side column by about ' + Math.round((need / budget - 1) * 100) + ' percent' + headNote + '. Fits ' + Math.max(1, Math.floor((budget + sc.gapStat) / (pv(sc.base, v) + 2 * sc.line + sc.gapStat))) + ' stats with labels up to ' + 2 * boxCpl(sc.cpl) + ' characters. Cut a stat or shorten the labels.');
-    }
-    if (cap.statsGrid && stats.length && !s.image) {
-      // stats in a two-column grid beside the points (appendix, case study)
-      const g = cap.statsGrid;
-      const rowsN = Math.ceil(stats.length / 2);
-      const need = rowsN * (g.base + Math.max(...stats.map((st) => linesOf(st.label, g.cpl))) * g.line + (v === 'read' ? 32 : 0)) + g.gap * (rowsN - 1);
-      if (over(need, budget)) say(plural(stats.length, 'stat') + ' beside the points are about ' + Math.round((need / budget - 1) * 100) + ' percent too tall' + headNote + '. Fits 2 stats, or 4 with labels up to ' + 2 * boxCpl(g.cpl) + ' characters under a short head. Cut two stats or shorten the labels.');
-    }
-    if (s.type === 'closing') {
-      // bottom-anchored block under the logo: one-liner, the facts in columns, the contact line
-      const n = Math.min(3, Math.max(1, points.length));
-      const ptBox = bbox((1680 - 72 * (n - 1)) / n, 28);
-      const need = Math.min(4, tLines) * 102 + (points.length ? 136 + Math.max(...points.map((p) => linesOf(p, ptBox))) * 39.2 : 0) + (s.subtitle ? 64 + linesOf(s.subtitle, bbox(1680, 28)) * 42 : 0);
-      if (over(need, 712)) say('the closing line (' + plural(tLines, 'line') + '), the facts and the contact line are about ' + Math.round((need / 712 - 1) * 100) + ' percent too tall under the logo. Shorten the title to about ' + (tLines - 1) * boxCpl(OWN.closing) + ' characters or keep each fact to one line (about ' + boxCpl(ptBox) + ' characters).');
-    }
-    if (s.type === 'cover') {
-      const size = nStats ? 128 : 148;
-      const sub = s.subtitle || deck.meta.tagline;
-      const subLines = sub ? linesOf(sub, bbox(1240, 40)) : 0;
-      const need = (s.kicker ? 51 : 0) + Math.min(2, tLines) * size * 0.98 + (subLines ? 40 + subLines * 52 : 0) + (nStats ? 226 : 0);
-      const room = 1080 - (nStats ? 168 : 200) - 168 - 40;
-      if (subLines > 2) say('subtitle wraps to ' + subLines + ' lines on the cover; 2 fit (about ' + 2 * boxCpl(bbox(1240, 40)) + ' characters). Say what the company does in one sentence.');
-      else if (over(need, room)) say('the cover block (kicker, title, subtitle' + (nStats ? ', fast facts' : '') + ') is about ' + Math.round((need / room - 1) * 100) + ' percent too tall and would run into the logo. Keep the title to one line or drop the fast facts.');
-    }
-    if (s.type === 'statement') {
-      const need = (s.kicker ? 51 : 0) + linesOf(s.title, dcpl(OWN.statement)) * 100 + (s.subtitle ? 40 + linesOf(s.subtitle, cplFor(1300, 34)) * 48 : 0) + (s.body && v === 'read' ? 28 + linesOf(s.body, HEADG.body.cpl) * 41 : 0) + (points.length ? 48 + pointsPx(points, COL.compact(1164), v) : 0);
-      if (over(need, 820)) say('the statement, its subtitle and points are about ' + Math.round((need / 820 - 1) * 100) + ' percent too tall. A statement is one line: fits a title of about ' + 4 * boxCpl(OWN.statement) + ' characters alone, or about 70 with a subtitle and three short points. Cut the points first.');
-    }
-
-    // ---- per-type geometry
-    if (s.type === 'market' && stats.length) {
-      const colW = points.length ? 1064 : 1680;
-      const need = stats.reduce((a, st, k) => a + 106 + linesOf(st.label, cplFor(colW * [1, 0.72, 0.5][k] - 72, 22)) * 29 + (v === 'read' ? 26 : 0), 0) + 16 * (stats.length - 1);
-      if (over(need, budget)) say('the three market blocks are about ' + Math.round((need / budget - 1) * 100) + ' percent too tall' + headNote + '. Keep each label to two lines (about ' + 2 * boxCpl(cplFor((points.length ? 1064 : 1680) * 0.5 - 72, 22)) + ' characters in the narrowest block) and the method in it short.');
-    }
-    if (s.type === 'go_to_market' && points.length) {
-      const n = points.length;
-      const cpl = n > 3 ? cplFor(378, 26) : cplFor(n === 1 ? 1000 : (1680 - 56 * (n - 1)) / n, 28);     // step text width and size by count
-      const line = n > 3 ? 36.4 : 39.2;
-      const statsPx = stats.length ? 72 + 96 + 12 + Math.max(...stats.map((st) => linesOf(st.label, cplFor(514, 26)))) * 34 + (v === 'read' ? 32 : 0) : 0;
-      const need = 120 + Math.max(...points.map((p) => linesOf(p, cpl))) * line + statsPx;
-      if (over(need, budget)) say(plural(n, 'step') + (stats.length ? ' plus the stats row' : '') + ' are about ' + Math.round((need / budget - 1) * 100) + ' percent too tall' + headNote + '. Fits ' + n + ' steps up to ' +
-        Math.max(0, Math.floor((budget - 120 - statsPx) / line)) * boxCpl(cpl) + ' characters each' + (stats.length ? ', or longer steps without the stats' : '') + '. Shorten the longest step.');
-    }
-    if (s.type === 'team') {
-      if (s.team.length > cap.members) say(plural(s.team.length, 'person') + '; ' + cap.members + ' fit. Keep founders and key hires only.');
-      const people = s.team.slice(0, cap.members);
-      const n = Math.min(4, Math.max(2, people.length));
-      const w = { 2: 554, 3: 464, 4: 324 }[n];                     // text width of one person column
-      const bioPx = n > 3 ? 20 : 22;
-      const noteLen = len(s.points[0]);
-      const note = noteLen ? 56 + linesOf(s.points[0], cplFor(1680, 24)) * 34 : 0;
-      const tallest = (p) => 196 + linesOf(p.name, bbox(w, 34, 600)) * 41 + 8 + (p.role ? linesOf(p.role, cplFor(w, 24)) * 31 : 0) + 20 + (p.bio ? linesOf(p.bio, cplFor(w, bioPx)) * bioPx * 1.45 : 0);
-      people.forEach((m, k) => {
-        if (len(m.name) > cap.name) say('person ' + (k + 1) + ' name is ' + len(m.name) + ' characters; ' + cap.name + ' fit.');
-        if (len(m.role) > cap.role) say('person ' + (k + 1) + ' role is ' + len(m.role) + ' characters; ' + cap.role + ' fit.');
-        if (len(m.bio) > cap.bio) say('person ' + (k + 1) + ' proof line is ' + approx(len(m.bio)) + '; ' + cap.bio + ' fit. One accomplishment with a number.');
-        else if (over(tallest(m) + note, budget)) say('person ' + (k + 1) + ' (name, role and proof line) is about ' + Math.round(((tallest(m) + note) / budget - 1) * 100) + ' percent too tall for a ' + n + '-person row' + headNote + '. Keep the proof line near ' + (n > 3 ? 110 : 150) + ' characters and the role on one line' + (noteLen ? ', or drop the note under the team' : '') + '.');
-      });
-    }
-    if (s.type === 'roadmap') {
-      if (s.milestones.length > cap.milestones) say(plural(s.milestones.length, 'milestone') + '; ' + cap.milestones + ' fit on the timeline. Merge or cut.');
-      s.milestones.slice(0, cap.milestones).forEach((m, k) => {
-        const what = typeof m === 'string' ? m : m.what;
-        if (len(what) > cap.what) say('milestone ' + (k + 1) + ' is ' + len(what) + ' characters; ' + cap.what + ' fit.');
-        if (typeof m !== 'string' && len(m.proves) > cap.proves) say('milestone ' + (k + 1) + ' "proves" text is ' + len(m.proves) + ' characters; ' + cap.proves + ' fit.');
-        if (typeof m !== 'string' && len(m.when) > cap.when) say('milestone ' + (k + 1) + ' date is ' + len(m.when) + ' characters; ' + cap.when + ' fit ("Q2 2027").');
-      });
-    }
-    if (s.type === 'ask') {
-      if (s.use_of_funds.length > cap.funds) say(plural(s.use_of_funds.length, 'use-of-funds bucket') + '; ' + cap.funds + ' fit (the palette has five colours). Merge the small ones.');
-      s.use_of_funds.forEach((u, k) => { if (cap.fundLabel && len(u.label) > cap.fundLabel) say('use-of-funds label ' + (k + 1) + ' is ' + len(u.label) + ' characters; ' + cap.fundLabel + ' fit.'); });
-      const ms = s.milestones;
-      if (ms.length > cap.milestones) say(plural(ms.length, 'milestone') + '; ' + cap.milestones + ' are shown. Cut ' + (ms.length - cap.milestones) + '.');
-      const msText = ms.slice(0, cap.milestones).map((m) => (typeof m === 'string' ? m : (m.when || '') + ' ' + (m.what || '')));
-      // legend under the bar wraps: rows of labels across the 1040px funds column
-      let legendRows = s.use_of_funds.length ? 1 : 0;
-      let lx = 0;
-      s.use_of_funds.slice(0, cap.funds).forEach((u) => { const w = textPx(String(u.label || '') + ' 100%', FACES.body, 24) + 68; if (lx && lx + w > 1040) { legendRows += 1; lx = 0; } lx += w; });
-      const words = String(s.title || '').split(/\s+/).length;
-      const titlePx = words > 6 ? linesOf(s.title, dcpl(OWN.askLong)) * 69 : words > 3 ? linesOf(s.title, dcpl(OWN.askMedium)) * 96 : 128;
-      const room = 940 - 96 - (s.kicker ? 51 : 0) - titlePx - (s.subtitle ? 28 + linesOf(s.subtitle, HEADG.subtitle.cpl) * 42 : 0) - 72 - 49;
-      const msCol = { pad: 28, line: 36.4, cpl: bbox(504, 26) };     // 520px column less the gap after the date
-      const need = msText.reduce((a, m) => a + 28 + linesOf(m, msCol.cpl) * 36.4, 0);
-      if (msText.length && over(need, room)) say(plural(msText.length, 'milestone') + ' overfill their column by about ' + Math.round((need / room - 1) * 100) + ' percent. Fits ' + msText.length + ' up to ' + Math.min(cap.milestoneChars, pointRoom(room, msText.length, msCol, v)) + ' characters each, or ' + (msText.length - 1) + ' up to ' + Math.min(cap.milestoneChars, pointRoom(room, Math.max(1, msText.length - 1), msCol, v)) + '. Shorten them, or shorten the headline and subtitle above.');
-      msText.forEach((m, k) => { if (len(m) > cap.milestoneChars) say('milestone ' + (k + 1) + ' is ' + len(m) + ' characters; ' + cap.milestoneChars + ' fit.'); });
-      const fundsNeed = (s.use_of_funds.length ? 84 + 24 + legendRows * 31 + (legendRows - 1) * 20 : 0) +
-        (stats.length ? 16 + 84 + Math.max(...stats.map((st) => linesOf(st.label, cplFor((1040 - 72 * (stats.length - 1)) / stats.length, 26)))) * 34 + (v === 'read' ? 32 : 0) : 0) +
-        (points.length ? 48 + pointsPx(points, COL.compact(1004), v) : 0);
-      if (over(fundsNeed, room)) say('the use-of-funds column (bar, ' + (legendRows > 1 ? legendRows + ' legend rows' : 'legend') + (stats.length ? ', stats' : '') + (points.length ? ', point' : '') + ') is about ' + Math.round((fundsNeed / room - 1) * 100) + ' percent too tall. Shorten the bucket labels to a few words each' + (points.length ? ', or move the point to the notes' : '') + ', or shorten the headline and subtitle above.');
-    }
-    if (s.type === 'two_column') {
-      s.columns.slice(0, 2).forEach((c, k) => {
-        if (!c || typeof c !== 'object') return;
-        const pts = asArray(c.points);
-        if (len(c.title) > cap.colTitle) say('column ' + (k + 1) + ' heading is ' + len(c.title) + ' characters; ' + cap.colTitle + ' fit on one line.');
-        if (pts.length > cap.points) say('column ' + (k + 1) + ' has ' + plural(pts.length, 'point') + '; ' + cap.points + ' are shown.');
-        const room = budget - (c.title ? 28 + linesOf(c.title, dcpl(OWN.colHeading)) * 46 : 0) - (c.body ? 24 + linesOf(c.body, cplFor(780, 28)) * 41 : 0);
-        const need = pointsPx(pts.slice(0, cap.points), cap.col, v);
-        if (over(need, room)) say('column ' + (k + 1) + ' is about ' + Math.round((need / room - 1) * 100) + ' percent too tall' + headNote + '. Fits ' + plural(Math.min(pts.length, cap.points), 'point') + ' up to ' + Math.min(cap.pointChars, pointRoom(room, Math.min(pts.length, cap.points), cap.col, v)) + ' characters each. Shorten or cut one.');
-      });
-    }
-
-    // ---- chart
-    if (s.chart && CHART_TYPES.includes(s.type)) {
-      const c = s.chart;
-      const n = c.labels.length;
-      if (c.kind === 'horizontal_bar') {
-        if (n > CHART_CAP.hbarLabels) say('horizontal bar chart has ' + n + ' bars; ' + CHART_CAP.hbarLabels + ' fit. Group the smallest into "other".');
-        c.labels.forEach((l) => { if (len(l) > CHART_CAP.hbarLabelChars) say('bar label "' + l + '" is ' + len(l) + ' characters; ' + CHART_CAP.hbarLabelChars + ' fit beside the bar.'); });
-      } else {
-        if (n > CHART_CAP.labels) say('chart has ' + n + ' x labels; ' + CHART_CAP.labels + ' fit. Aggregate (months to quarters) or show the last ' + CHART_CAP.labels + '.');
-        // neighbouring labels are centred one slot apart: two of them must not touch
-        const slot = ((cap.chart || 1080) - 138) / Math.max(1, n);
-        const lw = c.labels.map((l) => textPx(l, FACES.body, 22));
-        let clash = -1;
-        for (let k = 0; k + 1 < lw.length; k++) if ((lw[k] + lw[k + 1]) / 2 + 6 > slot) { clash = k; break; }
-        if (n <= CHART_CAP.labels && clash >= 0) say('x labels "' + c.labels[clash] + '" and "' + c.labels[clash + 1] + '" would touch with ' + n + ' labels; about ' + Math.floor((slot - 6) / (22 * BODY_EM * 1.05)) + ' characters fit each. Shorten them ("Jan 26") or use fewer.');
-      }
-      // the chart scales down to whatever height the head and the legend leave
-      const natural = cap.chart === 1140 ? 600 : 560;
-      const scale = (budget + 20 - 42) / natural;
-      if (scale < 0.75) say('the chart is squeezed to about ' + Math.round(scale * 100) + ' percent of its size by the head above it' + headNote + '. Shorten the title to two lines or drop the subtitle.');
-      let legendRows = c.series.length > 1 ? 1 : 0;
-      let lx = 0;
-      c.series.forEach((se) => { const w = 72 + textPx(se.name, FACES.body, 22) * 1.02; if (lx && lx + w > (cap.chart || 1080) - 138 + 44) { legendRows += 1; lx = 0; } lx += w; });
-      if (legendRows > CHART_CAP.legendRows) say('the legend needs ' + legendRows + ' rows and leaves little room for the plot; ' + CHART_CAP.legendRows + ' rows fit. Shorten the series names (about ' + Math.floor((((cap.chart || 1080) - 138) / 2 - 72) / 11.44) + ' characters fit two to a row) and put the unit in y_label.');
-      if (c.series.length > CHART_CAP.series) say('chart has ' + c.series.length + ' series; ' + CHART_CAP.series + ' fit (five palette colours). Combine or cut.');
-      c.series.forEach((se) => { if (len(se.name) > CHART_CAP.legendChars) say('legend name "' + se.name.slice(0, 30) + '..." is ' + len(se.name) + ' characters; ' + CHART_CAP.legendChars + ' fit. Put the unit in y_label.'); });
-    }
-  });
-  return out;
-}
-
-// The capacity table as markdown (node build_deck.js --capacities).
-function capacityMarkdown() {
-  // reference faces for the printed numbers: the widest theme faces (midnight display, paper body)
-  FACES = { display: { family: 'theme:midnight:display', exact: true, weight: 600, tracking: -0.02 }, body: { family: 'theme:paper:body', exact: true, weight: 400, tracking: 0 } };
-  const both = (f) => { const p = f('present'); const r = f('read'); return p === r ? String(p) : p + ' / ' + r; };
-  const L = [];
-  L.push('Values are `present / read` where the two variants differ. Lengths are characters including spaces (6 characters is about one word).');
-  L.push('');
-  L.push('| Slide type (form) | Stats | Points | Longest point at that count | Shared column, what fits | Other limits |');
-  L.push('|---|---|---|---|---|---|');
-  Object.keys(CAPACITY).forEach((form) => {
-    const cap = CAPACITY[form];
-    const statsCell = cap.stats === undefined ? '' : both((v) => pv(cap.stats, v)) + (cap.statLabel ? ', label ' + cap.statLabel : '');
-    const ptsCell = cap.points === undefined ? '' : String(cap.points);
-    let longest = '';
-    let shared = '';
-    if (cap.table) { longest = cap.pointChars + ' (each line under the table costs half a row)'; }
-    else if (cap.share) {
-      const fitsFor = (v) => {
-        const room = pv(BODY_PX, v) - (cap.sideLabel || 0);
-        const sh = cap.share;
-        const one = pv(sh.base, v) + 2 * sh.line + sh.gapStat;
-        const kMax = Math.min(pv(cap.stats, v), Math.floor((room + sh.gapStat) / one));
-        const parts = [plural(kMax, 'stat')];
-        for (let k = kMax - 1; k >= Math.max(0, kMax - 2); k--) {
-          const c = Math.min(cap.pointChars, pointRoom(room - k * one + (k ? sh.gapStat - sh.gap : 0), 1, cap.col, v));
-          if (c >= 30) parts.push((k ? plural(k, 'stat') + ' + ' : '') + '1 point of ' + c);
-        }
-        return parts.join('; ');
-      };
-      shared = both(fitsFor);
-      longest = both((v) => Math.min(cap.pointChars, pointRoom(pv(BODY_PX, v) - (cap.sideLabel || 0), cap.points, cap.col, v))) + ' (no stats)';
-    } else if (cap.col && cap.points) {
-      const roomFor = (v) => (form === 'business_model' ? pv(BODY_PX, v) - 48 - 92 - 4 * 34 - (v === 'read' ? 32 : 0) : form === 'insight' ? 940 - 96 - 2 * 78 - 64 : form === 'two_column' ? pv(BODY_PX, v) - 74 : pv(BODY_PX, v));
-      longest = both((v) => Math.min(cap.pointChars, pointRoom(roomFor(v), cap.points, cap.col, v)));
-    } else if (cap.pointChars && cap.points) longest = String(cap.pointChars);
-    const other = [];
-    if (cap.titleLines) { const tb = cap.titleBox || dbox(1560, 148); other.push('title ' + plural(cap.titleLines, 'line') + ' (about ' + cap.titleLines * boxCpl(tb) + ' characters)'); }
-    if (cap.subtitle) other.push('subtitle ' + cap.subtitle);
-    if (cap.kicker) other.push('kicker ' + cap.kicker);
-    if (cap.statValue) other.push('stat value ' + cap.statValue);
-    if (cap.members) other.push(cap.members + ' people: name ' + cap.name + ', role ' + cap.role + ', proof line ' + cap.bio);
-    if (cap.funds) other.push(cap.funds + ' use-of-funds buckets, label ' + cap.fundLabel);
-    if (cap.milestones) other.push(cap.milestones + ' milestones' + (cap.milestoneChars ? ' of ' + cap.milestoneChars : '') + (cap.what ? ': date ' + cap.when + ', milestone ' + cap.what + ', proves ' + cap.proves : ''));
-    if (cap.colTitle) other.push('column heading ' + cap.colTitle + '; points per column');
-    if (cap.table) other.push('table, see below');
-    if (cap.chart) other.push('chart, see below');
-    if (form === 'go_to_market') other.push('points are numbered steps side by side; the 2-stat row fits underneath');
-    if (form === 'market') other.push('3 blocks, widest first; a label fits two lines in its block (about 80 characters in the narrowest when there are side points)');
-    L.push('| ' + form + ' | ' + statsCell + ' | ' + ptsCell + ' | ' + longest + ' | ' + shared + ' | ' + other.join('; ') + ' |');
-  });
-  L.push('');
-  L.push('Rules that apply to every type:');
-  L.push('');
-  L.push('- Text is measured, not counted: the lint wraps the actual words of each title, point and label in the deck\'s own fonts (the four theme faces and 50 Google Fonts families used as `font_display` or `font_body` are built in; an unknown family is treated as wide). The character figures in this table are a guide for the widest theme faces; narrower faces fit more.');
-  L.push('- Slide title, two lines / three lines (the maximum), in characters that every sample headline kept within: ' +
-    Object.keys(DISPLAY).map((t) => t + ' ' + 2 * DISPLAY[t].title.present + ' / ' + DISPLAY[t].max.present + ' (read ' + 2 * DISPLAY[t].title.read + ' / ' + DISPLAY[t].max.read + ')').join(', ') + '. Titles wrap balanced, so no line is left with a single word.');
-  L.push('- The budgets above assume a two-line title. A third title line, a `kicker`, a `subtitle` (max ' + HEADG.subtitle.max + ') or, in the read variant, a `body` paragraph (max ' + HEADG.body.max + ') each take about one row of space: one point, one stat or one table row less. A one-line title gives one row back. The lint does this arithmetic.');
-  L.push('- Stat value: up to 14 characters; long values are set smaller instead of wrapping. Put the unit in the label when you can.');
-  const rowsFit = (v, extra) => Math.floor((pv(BODY_PX, v) - extra - TABLE_CAP.header) / TABLE_CAP.row);
-  L.push('- Table: up to ' + TABLE_CAP.cols + ' columns. ' + both((v) => rowsFit(v, 0)) + ' single-line rows under a two-line title, ' + both((v) => rowsFit(v, HEADG.kicker)) + ' with a kicker ("Appendix"), ' + both((v) => rowsFit(v, 48 + 50)) + ' with one one-line point underneath. A cell that wraps costs half a row per extra line. Cells stay on one line when the longest cells of all columns add up to about ' +
-    [3, 4, 5, 6].map((c) => Math.floor(((1680 - 48 * c) * 0.99) / TABLE_CAP.charPx) + ' characters (' + c + ' columns)').join(', ') + '.');
-  L.push('- Chart: up to ' + CHART_CAP.labels + ' x labels (' + Math.floor(((1140 - 138) / 12 - 8) / 11.5) + ' characters each at 12 labels, ' + Math.floor(((1140 - 138) / 8 - 8) / 11.5) + ' at 8), ' + CHART_CAP.hbarLabels + ' bars of ' + CHART_CAP.hbarLabelChars + ' characters for `horizontal_bar`, up to ' + CHART_CAP.series + ' series. Legend names wrap onto extra rows and are never cut (max ' + CHART_CAP.legendChars + ' characters, ' + CHART_CAP.legendRows + ' rows); the chart shrinks to make room, so prefer short names and put the unit in `y_label`.');
-  L.push('- Source caption: one line per slide, at most three source files, then "and N more, see sources".');
-  return L.join('\n');
-}
-
 // --------------------------------------------------------------------------------------
 // 9. main
 // --------------------------------------------------------------------------------------
 
+function chromeAvailable() {
+  if (process.env.PITCH_NO_BROWSER) return false;      // for testing the fallback
+  try { require.resolve('playwright-core'); } catch (e) { return false; }
+  return !!findChrome();
+}
+
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
+  const themesCss = loadThemesCss();
+  if (opts.measure) {
+    const themes = themeNames(themesCss).map((n) => resolveTheme({ theme: n }, themesCss));
+    const got = await measureRoles(themes, true);
+    const want = []; themes.forEach((T) => Object.keys(T.roles).forEach((k) => { if (!want.includes(T.roles[k].css)) want.push(T.roles[k].css); }));
+    const missing = want.filter((c) => !got[c]);
+    if (missing.length) { console.error('Could not measure ' + missing.length + ' of ' + want.length + ' type roles (Chrome and network are needed). font-metrics.json left as it was.'); process.exit(1); }
+    fs.writeFileSync(METRICS_PATH, '{\n' + want.map((c) => JSON.stringify(c) + ': ' + JSON.stringify(got[c])).join(',\n') + '\n}\n');
+    log('Measured ' + want.length + ' type roles of ' + themes.length + ' themes into ' + rel(METRICS_PATH));
+    return;
+  }
+  if (opts.capacities) { console.log(capacityMarkdown()); return; }
+
   const inputPath = path.resolve(opts.input);
   if (!fs.existsSync(inputPath)) { console.error('deck.json not found: ' + inputPath); process.exit(1); }
   let raw;
@@ -2941,18 +4449,10 @@ async function main() {
 
   const ctx = { placeholders: [], missingFacts: [], kindMismatch: [] };
   const deck = normaliseDeck(raw, ctx);
-  const themesCss = loadThemesCss();
   const theme = resolveTheme(deck.meta, themesCss);
-  log('Building "' + deck.meta.company + '" with theme ' + theme.name + ', variant ' + deck.meta.variant + ' (' + deck.slides.length + ' slides)');
-
-  // Pre-flight: does the content fit the layouts? One line per violation, before rendering.
-  ctx.faces = await measureFaces(theme, facesOf(theme));
-  const lint = lintDeck(deck, theme, ctx.faces);
-  if (lint.length) {
-    log('  capacity: ' + lint.length + ' warning' + (lint.length === 1 ? '' : 's') + ' (what fits per slide type: node scripts/build_deck.js --capacities)');
-    lint.forEach((m) => log('    ' + m));
-    if (opts.strict) { console.error('  --strict: stopping because of capacity warnings. Fix deck.json and rebuild.'); process.exit(1); }
-  } else log('  capacity: all slides within their layout budgets');
+  let mode = String(opts.pptxMode || deck.meta.pptx || 'faithful').toLowerCase();
+  if (!['none', 'faithful', 'editable'].includes(mode)) { warn('meta.pptx "' + deck.meta.pptx + '" is not none, faithful or editable; using faithful'); mode = 'faithful'; }
+  if (!opts.pptx) mode = 'none';
 
   // Ledger: --facts, or pitch/facts.yaml next to the deck folder. Enriches the sources slide.
   const factsPath = opts.facts ? path.resolve(opts.facts) : path.join(inputDir, '..', 'facts.yaml');
@@ -2966,10 +4466,49 @@ async function main() {
       s.rich = s.items.some((it) => it.label);
       if (deck.meta.sources !== 'full') { s.groups = groupSourcesByFile(s.items); s.figures = s.items.length; s.fileCount = s.groups.length; }
     });
+  }
+  deck.slides = paginateSources(deck.slides);
+  prepareDeck(deck, theme, ctx);
+  log('Building "' + deck.meta.company + '" with theme ' + theme.name + ', variant ' + deck.meta.variant + ' (' + deck.slides.length + ' slides)');
+  if (ledger) {
     if (ctx.missingFacts.length) { warn(ctx.missingFacts.length + ' source id(s) not in ' + rel(factsPath) + ':'); ctx.missingFacts.forEach((m) => log('    ' + m)); }
     ctx.kindMismatch.forEach((m) => warn(m));
   }
-  deck.slides = paginateSources(deck.slides);
+
+  // Images: logo, slide images, team photos, logo files.
+  const logo = resolveImage(deck.meta.logo, inputDir, outDir, 'meta.logo');
+  ctx.logo = logo ? logo.html : null;
+  ctx.logoFile = logo;
+  const logoLight = resolveImage(deck.meta.logo_light, inputDir, outDir, 'meta.logo_light');
+  ctx.logoLight = logoLight ? logoLight.html : null;
+  ctx.rasters = {};
+  const imgFiles = deck.slides.map((s, i) => (s.images || []).map((im) => { const r = resolveImage(im.src, inputDir, outDir, 'slide ' + (i + 1)); return r ? { src: r.html, file: r, frame: im.frame } : null; }).filter(Boolean));
+  ctx.slideImages = imgFiles;
+  deck.slides.forEach((s, i) => { if (!imgFiles[i].length) { s.images = []; s.image = undefined; } (s.logos || []).forEach((l) => { const r = l.image ? resolveImage(l.image, inputDir, outDir, 'slide ' + (i + 1) + ' logo') : null; l.src = r ? r.html : null; }); });
+  const teamFiles = deck.slides.map((s, i) => s.team.map((m) => resolveImage(m && m.photo, inputDir, outDir, 'slide ' + (i + 1) + ' team')));
+  ctx.teamPhotos = teamFiles.map((arr) => arr.map((r) => (r ? r.html : null)));
+
+  // Faces the metrics file does not know (font overrides) are measured in Chrome when it is there.
+  const measured = await measureRoles([theme], false);
+  if (Object.keys(measured).length) log('  fonts: ' + Array.from(new Set(Object.keys(theme.roles).filter((k) => measured[theme.roles[k].css]).map((k) => theme.roles[k].family))).join(' and ') + ' measured in Chrome for the capacity lint');
+  else if (Object.keys(theme.roles).some((k) => !roleWidths(theme.roles[k]))) log('  fonts: no measurements for ' + Array.from(new Set(Object.keys(theme.roles).filter((k) => !roleWidths(theme.roles[k])).map((k) => theme.roles[k].family))).join(', ') + ' (no Chrome or offline); the capacity lint uses its family tables');
+
+  // Render once. The same pass is the pre-flight lint: one line per thing that does not fit.
+  const out = renderDeck(deck, theme, ctx);
+  if (out.issues.length) {
+    log('  capacity: ' + out.issues.length + ' warning' + (out.issues.length === 1 ? '' : 's') + ' (what fits per slide type: node scripts/build_deck.js --capacities)');
+    out.issues.forEach((m) => log('    ' + m));
+    if (opts.strict) { console.error('  --strict: stopping because of capacity warnings. Fix deck.json and rebuild.'); process.exit(1); }
+  } else log('  capacity: all slides within their layout budgets');
+  if (out.slack.length) {
+    log('  slack: ' + out.slack.length + ' slide area' + (out.slack.length === 1 ? '' : 's') + ' mostly empty (not an error; the deck will look thin there)');
+    out.slack.forEach((m) => log('    ' + m));
+  }
+  else log('  slack: none');
+  ctx.slack = out.slack;
+  if (out.unknownIcons.length) log('  icons: unknown name' + (out.unknownIcons.length === 1 ? '' : 's') + ' ' + out.unknownIcons.join(', ') + ' (drawn as a plain mark; the available names are in assets/deck-template/icons.json)');
+  log('  tones: ' + deck.slides.map((s) => s.tone.charAt(0).toUpperCase()).join(' ') + '  (L light, D dark, A accent)');
+
   const srcPages = deck.slides.filter((s) => s.type === 'sources' && s.items);
   if (srcPages.length) {
     const files = srcPages[0].groups ? srcPages[0].fileCount + (srcPages[0].fileCount === 1 ? ' file, ' : ' files, ') : '';
@@ -2977,38 +4516,41 @@ async function main() {
       (srcPages[0].groups ? '' : (ledger ? ' (meta.sources: "full")' : ' (no facts.yaml: reference list)')));
   } else if (ctx.sourceItems.length) log('  sources appendix: off (' + ctx.sourceItems.length + ' figures referenced)');
 
-  // Images: logo, per-slide image, team photos.
-  ctx.meta = deck.meta;
-  const logo = resolveImage(deck.meta.logo, inputDir, outDir, 'meta.logo');
-  ctx.logo = logo ? logo.html : null;
-  ctx.logoSmall = ctx.logo;
-  ctx.logoFile = logo;
-  ctx.rasters = {};
-  ctx.images = deck.slides.map((s, i) => { const r = resolveImage(s.image, inputDir, outDir, 'slide ' + (i + 1)); return r; });
-  ctx.teamPhotos = deck.slides.map((s, i) => s.team.map((m) => { const r = resolveImage(m && m.photo, inputDir, outDir, 'slide ' + (i + 1) + ' team'); return r; }));
-  const htmlCtx = Object.assign({}, ctx, {
-    images: ctx.images.map((r) => (r ? r.html : null)),
-    teamPhotos: ctx.teamPhotos.map((arr) => arr.map((r) => (r ? r.html : null))),
-  });
-
   if (ctx.placeholders.length) {
     log('  ' + ctx.placeholders.length + ' placeholder' + (ctx.placeholders.length === 1 ? '' : 's') + ' marked "[needs number]" or "[needs detail]":');
     ctx.placeholders.forEach((p) => log('    ' + p));
   }
 
   const htmlPath = path.join(outDir, base + '.html');
-  if (opts.html) {
-    fs.writeFileSync(htmlPath, buildHtml(deck, theme, themesCss, htmlCtx));
+  if (opts.html || mode === 'faithful' || mode === 'editable') {
+    fs.writeFileSync(htmlPath, buildHtml(deck, theme, ctx, out.html));
     log('  wrote ' + rel(htmlPath) + ' (' + Math.round(fs.statSync(htmlPath).size / 1024) + ' KB)');
   }
 
-  if (opts.pptx) {
+  if (mode !== 'none') {
     const pptxPath = path.join(outDir, base + '.pptx');
     try {
-      const allImages = [ctx.logoFile].concat(ctx.images, ctx.teamPhotos.reduce((a, b) => a.concat(b), []));
-      ctx.rasters = await rasteriseSvgs(allImages);
-      const ok = await buildPptx(deck, theme, pptxPath, ctx);
-      if (ok) { log('  wrote ' + rel(pptxPath)); checkPptx(pptxPath, deck.slides.length); }
+      let done = false;
+      if (chromeAvailable()) {
+        try {
+          if (mode === 'faithful') {
+            const r = await buildPptxFaithful(deck, theme, htmlPath, pptxPath);
+            log('  wrote ' + rel(pptxPath) + ' (faithful: ' + deck.slides.length + ' slides as 2x pictures' + (r.jpeg ? ', ' + r.jpeg + ' as JPEG' : '') + ', ' + (fs.statSync(pptxPath).size / 1048576).toFixed(1) + ' MB; text is not editable, use --pptx editable for that)');
+          } else {
+            await buildPptxEditable(deck, theme, htmlPath, pptxPath);
+            log('  wrote ' + rel(pptxPath) + ' (editable: native text and charts over a picture of each slide\'s ground, ' + (fs.statSync(pptxPath).size / 1048576).toFixed(1) + ' MB)');
+          }
+          done = true;
+        } catch (e) { warn('the ' + mode + ' PPTX could not be rendered in Chrome (' + String(e && e.message || e).split('\n')[0] + '); writing the native PPTX instead'); }
+      } else log('  pptx: Chrome or playwright-core is not available, so the ' + mode + ' PPTX cannot be rendered; writing the native PPTX instead (single tone, simpler layouts, fully editable). Install Chrome and run npm install in scripts/ for the designed version.');
+      if (!done) {
+        const nctx = Object.assign({}, ctx, { images: imgFiles.map((a) => (a[0] ? a[0].file : null)), teamPhotos: teamFiles });
+        const allImages = [ctx.logoFile].concat(nctx.images, teamFiles.reduce((a, b) => a.concat(b), []));
+        nctx.rasters = await rasteriseSvgs(allImages);
+        const ok = await buildPptxNative(nativeDeck(deck), theme, pptxPath, nctx);
+        if (ok) log('  wrote ' + rel(pptxPath) + ' (native)');
+      }
+      if (fs.existsSync(pptxPath)) checkPptx(pptxPath, deck.slides.length);
     } catch (e) {
       console.error('  PPTX failed: ' + (e && e.stack || e));
       process.exitCode = 1;
@@ -3016,10 +4558,26 @@ async function main() {
   }
 
   if (opts.check) {
-    if (!opts.html && !fs.existsSync(htmlPath)) log('  --check needs deck.html; build without --pptx-only first');
-    else await runCheck(htmlPath, outDir, deck.slides.length);
+    if (!fs.existsSync(htmlPath)) log('  --check needs deck.html; build without --pptx-only first');
+    else await runCheck(htmlPath, outDir, deck.slides.length, deck.meta.variant, ctx.slack);
   }
 }
 
+// The native renderer knows the older slide types: map the newer ones onto them.
+function nativeDeck(deck) {
+  return { meta: deck.meta, slides: deck.slides.map((s) => {
+    const o = Object.assign({}, s, { title: stripEm(s.title || '') });
+    if (s.type === 'section') o.type = 'statement';
+    if (s.diagram && !o.points.length) {
+      const d = s.diagram;
+      const line = (x) => (typeof x === 'string' ? x : [x.when, x.title || x.label || x.name || x.what, x.value, x.text || x.proves].filter(Boolean).join(': '));
+      o.points = asArray(d.steps || d.stages || d.items || d.nodes || d.layers || d.rings || [d.before, d.after].filter(Boolean)).slice(0, 5).map(line);
+    }
+    if (s.type === 'quote') { o.type = 'statement'; o.title = '“' + stripEm(s.quote || '') + '”'; o.subtitle = [s.by || s.name, s.role].filter(Boolean).join(', '); }
+    return o;
+  }) };
+}
+
+
 if (require.main === module) main().catch((e) => { console.error(e && e.stack || e); process.exit(1); });
-module.exports = { GLYPH_SET, textPx, wrapLines, facesOf, resolveTheme, loadThemesCss, CAPACITY, HEADG, BODY_PX, CHART_CAP, TABLE_CAP, DISPLAY, lintDeck, normaliseDeck, formOf, capacityMarkdown };
+module.exports = { FORMS, probe, formFields, formLimit, sampleText, sampleTitle, GLYPH_SET, textPx, tw, resolveTheme, loadThemesCss, themeNames, lintDeck, renderDeck, normaliseDeck, prepareDeck, capacityMarkdown, iconNames, DIAGRAM_KINDS, contrast };

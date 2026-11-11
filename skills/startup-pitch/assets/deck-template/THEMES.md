@@ -1,48 +1,67 @@
-# Deck themes
+# Deck themes: nine art directions
 
-Four named themes live in `themes.css` as CSS custom property sets. `build_deck.js` inlines the file into `deck.html` and parses the same tokens for the PPTX renderer, so the file is the only place colours and fonts are defined. Pick one with `meta.theme` in `deck.json`.
+What this file is for: choosing `meta.theme` for a deck and understanding what a theme controls. Tokens live in `themes.css`; `build_deck.js` parses that file, so a colour or font changed there changes every deck.
+Read it when you set `meta.theme`, when a founder asks for "our colours", or when a deck looks wrong on a projector.
 
-## Picking a theme
+## Pick one per company
 
-| Theme | Ground | Display face | Body face | Accent | Built for |
-|---|---|---|---|---|---|
-| `graphite` | near-black graphite `#23252B`, warm off-white type `#F2EDE4` | Newsreader (editorial serif, optical sizes) | Hanken Grotesk | periwinkle `#A9BBFF`, brass `#D5A54A` second | premium, deep tech, hardware, anything that should feel considered rather than loud |
-| `paper` | warm light `#F6F4EF`, dark ink `#1F2429` | Albert Sans 600 | Albert Sans 400 | one restrained green `#1F6F5B`, ochre second | B2B SaaS, services, anything sent as a read-ahead |
-| `signal` | white `#FFFFFF`, ink `#1C1E24` | Archivo 800 (wide, heavy) | Figtree | hot orange-red `#FF4A1C`, ink as second | consumer, marketplace, brands that want large numerals and energy |
-| `midnight` | deep navy `#0F1B33`, ice type `#E8F0FA` | Sora 600 (geometric) | IBM Plex Sans | sky blue `#6FB8FF`, amber `#FFC857` second | fintech, infrastructure, security, data |
+Choose by who the company sells to and what the room expects, not by taste or habit. `ledger` is a sound choice for most B2B companies; say why you chose what you chose.
 
-Rules of thumb: dark grounds (`graphite`, `midnight`) present well in a room and on a projector; light grounds (`paper`, `signal`) read better as PDFs and on laptops. If the company has a brand colour, keep the theme and set `meta.accent`.
+| Theme | Mood | Ground, type | Signature | Use it for |
+|---|---|---|---|---|
+| `ledger` | Swiss financial print: calm, exact | cool paper, navy ink, cobalt; Hanken Grotesk, IBM Plex Mono | hairline mosaic: cells share 1px borders, one ink cell and one cobalt cell per slide, tabular numerals | fintech, B2B SaaS, infrastructure, data, anything sold to a CFO |
+| `nocturne` | late-edition magazine: dark, warm | plum-black with a vignette, bone type, hot pink; Fraunces, Geist, DM Mono | light serif numerals in pink, italic emphasis, fine grain, chapter labels | consumer, creator economy, media, commerce, hospitality, music, fashion |
+| `poster` | risograph poster: loud, flat, physical | paper, ink, cobalt, tomato, yolk; Big Shoulders Display capitals, Albert Sans | colour blocks, condensed capitals, 3px ink outlines on diagrams, highlighter emphasis, grain | climate, hardware, marketplaces, food, mobility, consumer brands |
+| `blueprint` | engineering drawing: precise, technical | blueprint blue with a dot grid, white type, yellow marker; Archivo expanded, DM Mono | corner crosshairs, "Sheet 04 of 14", outlined cells, yellow on exactly one thing | robotics, deep tech, AI infrastructure, developer tools, space, energy, industrial |
+| `studio` | friendly product studio: bright, tactile | lavender, ink, violet, lime, orange; Bricolage Grotesque, Instrument Serif italic | white cards with 2px outlines and hard offset shadows, big flat shapes cropped by the edge, serif italic emphasis and monograms | consumer apps, health, education, community, future of work, family |
+| `graphite` | near-black editorial | graphite, warm off-white, periwinkle; Newsreader, Hanken Grotesk | serif display with italic emphasis, hair rules, vignette and grain | premium and deep-tech companies, research-heavy stories |
+| `paper` | warm paper, quiet and exact | off-white, dark ink, one green; Albert Sans | soft tinted cells with rounded corners | B2B SaaS and services when the deck should feel calm |
+| `signal` | white, heavy, one hot orange | white, near-black, orange; Archivo, Figtree | orange used as a block, highlighter emphasis | consumer and marketplace companies |
+| `midnight` | deep navy with a soft glow | navy, pale blue type, sky blue, amber; Sora, IBM Plex Sans | outlined rounded cells, a glow in one corner | fintech, security and infrastructure on a dark stage |
 
-## Token contract
+Older names still resolve: `signal-print` is `poster`, `soft-machine` is `studio`.
 
-Every theme defines all of these:
+## Tones and rhythm
 
-| Token | Used for |
-|---|---|
-| `--bg` | slide background |
-| `--ink` | primary type |
-| `--muted` | captions, axis labels, secondary type, footer |
-| `--accent` | the one hot colour: kicker, bullet marks, chart series 1, the focus block on the market slide |
-| `--accent-2` | second chart series, small marks |
-| `--surface` | tinted panels: image frames, market blocks, table row highlight, avatar circles |
-| `--rule` | hairlines, gridlines, separators |
-| `--font-display`, `--font-body` | web font stacks with local fallbacks |
-| `--chart-1` to `--chart-5` | categorical chart palette, in order; `--chart-1` equals the accent |
-| `--pptx-display`, `--pptx-body` | safe fonts written into the PPTX (Cambria for the serif theme, Calibri or Arial for sans) |
-| `--gfonts` | Google Fonts families to load, `Family:axes@values|Family2:...` |
-| `--display-weight`, `--display-tracking` | weight and letter spacing for display type, so a serif at 400 and a grotesk at 800 both look intended |
+Every theme has three tones, each a complete colour set: `light`, `dark` and `accent` (a full-bleed ground in the brand colour). `poster` and `studio` add a fourth colour block the builder uses for cells.
 
-Keep every colour as 6-digit `#RRGGBB`. The PPTX renderer strips the hash; pptxgenjs rejects 8-digit alpha hex.
+Every slide gets one tone. Leave `tone` out and the builder assigns it:
 
-## Overrides from deck.json
+- cover and closing take the theme's cover tone;
+- `section` and `statement` slides alternate through the theme's two bold tones;
+- data slides stay on the theme's base tone (light for most themes, dark for `nocturne`, `graphite` and `midnight`, blue for `blueprint`);
+- a fourth slide in a row never shares the tone of the three before it: the slide in the run that carries an inversion best (a quote, the insight, the ask, the team) flips to the contrast tone.
 
-- `meta.accent: "#2E6BE6"` replaces `--accent` and `--chart-1`. Check contrast against the theme ground; the builder does not.
-- `meta.font_display: "Fraunces"` and `meta.font_body: "Inter"` replace the first family in the stack and add the family to the Google Fonts request (weights 400 to 700). The PPTX keeps the safe font unless `meta.pptx_fonts: "web"` is set, in which case the web family name is written into the file and PowerPoint substitutes if it is not installed.
+Set `"tone": "light" | "dark" | "accent"` on a slide only to make a point (the ask on the accent ground, one dark slide for the product). The build log prints the sequence, for example `tones: D L L D L A L ...`. Inside a slide, filled cells and panels are nested tones, so type on them always takes the right ink.
 
-## Adding a theme
+## What a theme controls
 
-Copy one block in `themes.css`, rename the selector (`[data-theme="yourname"]`), fill every token, and add a `@font-face` fallback line for each new web family. Then set `meta.theme: "yourname"`. Avoid the generated-page defaults named in the frontend-design skill: cream plus terracotta plus serif, black plus acid green, identical rounded cards with the same soft shadow, all-caps eyebrow labels, middle-dot meta strings, arrows appended to text.
+- Type roles: `display` (headlines), `em` (the emphasised phrase), `num` (hero numerals), `body`, `mono` (running head, page count, labels, captions, axis labels). All faces are on Google Fonts and load from the one link in `deck.html`; offline, the fallback stacks apply.
+- Emphasis: one phrase per title between asterisks, `"Trucks wait *94 minutes* at the dock"`. It is drawn in the theme's way: accent colour (`ledger`, `paper`, `midnight`), serif italic (`nocturne`, `graphite`, `studio`) or a highlighter block (`poster`, `blueprint`, `signal`). On a ground where the accent would not show, the highlighter block is used.
+- Cells: how the mosaic is drawn (shared hairlines, colour blocks, outlines, cards with hard shadows, soft tinted panels).
+- Background per tone: layered radial gradients, a dot or line grid, a vignette, and grain as a small repeating PNG tile. No full-slide SVG filters and no backdrop blur, so the PDF stays small and prints exactly.
+- Marginalia: company and section at the top left, page count at the top right, the source caption at the bottom left, `meta.footer` at the bottom right, all in the mono role.
+- Contrast: text colours are checked against 4.5:1 on their ground when the theme is loaded. An accent that is too weak for text keeps its colour for fills and gets a darker or lighter version for type.
 
-## Offline
+## Overrides in deck.json
 
-Fonts load from Google Fonts with `display=swap`. Without network the `*-Fallback` faces (local Georgia, Iowan Old Style, Helvetica Neue, Avenir Next, Arial, size-adjusted) render instead, so line breaks move slightly but nothing overflows. For a fully offline deck, download the WOFF2 files and replace the `<link>` in `deck.html` with `@font-face` rules; the rebuild will overwrite that edit.
+```json
+"meta": { "theme": "ledger", "accent": "#0F4C5C", "font_display": "Space Grotesk", "font_body": "Inter", "logo_light": "assets/logo-white.svg" }
+```
+
+- `accent` (`#RRGGBB`) replaces the accent of the light and dark tones and becomes the ground of the accent tone. Type on it is set in whichever ink reads best.
+- `font_display` and `font_body` take any Google Fonts family. The builder measures the new faces in Chrome at build time so the capacity lint stays exact; offline it falls back to its family tables.
+- `logo_light` is a version of the logo for dark and coloured grounds. Without it the logo sits on a small white chip there.
+- Any slide can set `tone`.
+
+## Adding or changing a theme
+
+Copy a block in `themes.css`, rename it, change the tokens (the header of that file documents each one). Then run `node scripts/build_deck.js --measure-fonts` once (Chrome, online): it re-measures the glyph widths of every theme face into `font-metrics.json`, which the capacity lint uses. Build `example-deck.json` with `--check` and look at `qa/`; the check reports text below the size floor and contrast under 4.5:1.
+
+## Fonts and PowerPoint
+
+The faithful PPTX carries pictures of the slides, so the fonts are exactly those of the HTML and PDF. The editable PPTX sets native text in safe fonts (`--pptx-display`, `--pptx-body`: Calibri, Arial, Georgia, Cambria, Impact) because PowerPoint cannot embed web fonts; `"pptx_fonts": "web"` writes the web font names instead, for machines that have them installed.
+
+## Icons
+
+`icons.json` holds 74 icons from Lucide (lucide-static 1.71.0, ISC license, https://github.com/lucide-icons/lucide). Use them by name on points, cards and flow steps (`{"icon": "truck", "text": "..."}`). An unknown name is drawn as a plain mark and listed in the build log. Names: see `icons.json` or deck-structure.md section 3.

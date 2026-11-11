@@ -18,7 +18,7 @@ pitch/
 │   ├── deck.json           slide content, speaker notes, chart data, theme (the editable source)
 │   ├── deck.html           self-contained HTML deck (open in a browser, arrow keys to navigate)
 │   ├── deck.pdf            printed from deck.html
-│   ├── deck.pptx           native PowerPoint built from deck.json
+│   ├── deck.pptx           PowerPoint, if wanted: faithful (pictures) or editable (native)
 │   └── qa/                 slide screenshots and the overflow report
 └── run-log.md              what was read, what was asked, what changed, per run
 ```
@@ -198,7 +198,8 @@ directly for one-off tweaks), rebuild, done.
   "meta": {
     "company": "Meridian",
     "tagline": "Dock scheduling that carriers actually use",
-    "theme": "graphite",
+    "theme": "ledger",
+    "pptx": "faithful",
     "accent": "#2E6BE6",
     "font_display": "Fraunces",
     "font_body": "Inter",

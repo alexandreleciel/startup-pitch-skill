@@ -1,0 +1,274 @@
+{
+  "root": "cwd",
+  "root_note": "file paths below are relative to the startup folder; the absolute path is not stored so this file is safe to share",
+  "generated_at": "2026-11-10T22:37:02",
+  "file_count": 15,
+  "by_type": {
+    "markdown": 10,
+    "csv": 2,
+    "xlsx": 2,
+    "pdf": 1
+  },
+  "confidential": [
+    "hr/salaries.xlsx",
+    "legal/round-terms-draft.md"
+  ],
+  "sensitive": [
+    "deck/kestrel-seed-deck-2024.pdf",
+    "notes/investor-feedback-from-seed.md"
+  ],
+  "contains_sensitive_terms": [
+    "data/unit-economics.xlsx",
+    "docs/board-update-2026-Q3.md",
+    "notes/founder-perspective.md"
+  ],
+  "stale": [
+    "deck/kestrel-seed-deck-2024.pdf",
+    "docs/board-update-2026-Q2-draft.md"
+  ],
+  "skipped": [],
+  "files": [
+    {
+      "path": "assets/kestrel-brand.md",
+      "name": "kestrel-brand.md",
+      "size": 1216,
+      "type": "markdown",
+      "ext": ".md",
+      "modified": "2026-11-10T22:19:13",
+      "name_date": null,
+      "confidentiality": "normal",
+      "confidentiality_reasons": [],
+      "sensitive_terms": [],
+      "stale": false,
+      "stale_reason": null,
+      "superseded_by": null
+    },
+    {
+      "path": "data/cohort-retention.csv",
+      "name": "cohort-retention.csv",
+      "size": 674,
+      "type": "csv",
+      "ext": ".csv",
+      "modified": "2026-11-10T22:19:13",
+      "name_date": null,
+      "confidentiality": "normal",
+      "confidentiality_reasons": [],
+      "sensitive_terms": [],
+      "stale": false,
+      "stale_reason": null,
+      "superseded_by": null
+    },
+    {
+      "path": "data/kpis-weekly.csv",
+      "name": "kpis-weekly.csv",
+      "size": 1656,
+      "type": "csv",
+      "ext": ".csv",
+      "modified": "2026-11-10T22:19:13",
+      "name_date": null,
+      "confidentiality": "normal",
+      "confidentiality_reasons": [],
+      "sensitive_terms": [],
+      "stale": false,
+      "stale_reason": null,
+      "superseded_by": null
+    },
+    {
+      "path": "data/unit-economics.xlsx",
+      "name": "unit-economics.xlsx",
+      "size": 6110,
+      "type": "xlsx",
+      "ext": ".xlsx",
+      "modified": "2026-11-10T22:19:13",
+      "name_date": null,
+      "confidentiality": "normal",
+      "confidentiality_reasons": [],
+      "sensitive_terms": [
+        "salary"
+      ],
+      "stale": false,
+      "stale_reason": null,
+      "superseded_by": null
+    },
+    {
+      "path": "deck/kestrel-seed-deck-2024.pdf",
+      "name": "kestrel-seed-deck-2024.pdf",
+      "size": 77134,
+      "type": "pdf",
+      "ext": ".pdf",
+      "modified": "2026-11-10T22:19:13",
+      "name_date": "2024",
+      "confidentiality": "sensitive",
+      "confidentiality_reasons": [
+        "boilerplate confidential footer"
+      ],
+      "sensitive_terms": [],
+      "stale": true,
+      "stale_reason": "dated 2024 in name; newest dated material in the folder is 2026-09",
+      "superseded_by": null
+    },
+    {
+      "path": "docs/board-update-2026-Q2-draft.md",
+      "name": "board-update-2026-Q2-draft.md",
+      "size": 498,
+      "type": "markdown",
+      "ext": ".md",
+      "modified": "2026-11-10T22:19:13",
+      "name_date": "2026-06",
+      "confidentiality": "normal",
+      "confidentiality_reasons": [],
+      "sensitive_terms": [],
+      "stale": true,
+      "stale_reason": "dated 2026-06 in name, newer sibling dated 2026-09; draft while a non-draft sibling exists",
+      "superseded_by": "docs/board-update-2026-Q3.md"
+    },
+    {
+      "path": "docs/board-update-2026-Q3.md",
+      "name": "board-update-2026-Q3.md",
+      "size": 3287,
+      "type": "markdown",
+      "ext": ".md",
+      "modified": "2026-11-10T22:19:13",
+      "name_date": "2026-09",
+      "confidentiality": "normal",
+      "confidentiality_reasons": [],
+      "sensitive_terms": [
+        "pre-money"
+      ],
+      "stale": false,
+      "stale_reason": null,
+      "superseded_by": null
+    },
+    {
+      "path": "docs/clinical-outcomes-whitepaper.md",
+      "name": "clinical-outcomes-whitepaper.md",
+      "size": 2478,
+      "type": "markdown",
+      "ext": ".md",
+      "modified": "2026-11-10T22:19:13",
+      "name_date": null,
+      "confidentiality": "normal",
+      "confidentiality_reasons": [],
+      "sensitive_terms": [],
+      "stale": false,
+      "stale_reason": null,
+      "superseded_by": null
+    },
+    {
+      "path": "docs/competitive-landscape.md",
+      "name": "competitive-landscape.md",
+      "size": 2364,
+      "type": "markdown",
+      "ext": ".md",
+      "modified": "2026-11-10T22:19:13",
+      "name_date": null,
+      "confidentiality": "normal",
+      "confidentiality_reasons": [],
+      "sensitive_terms": [],
+      "stale": false,
+      "stale_reason": null,
+      "superseded_by": null
+    },
+    {
+      "path": "docs/market-sizing-2026.md",
+      "name": "market-sizing-2026.md",
+      "size": 2727,
+      "type": "markdown",
+      "ext": ".md",
+      "modified": "2026-11-10T22:19:13",
+      "name_date": "2026",
+      "confidentiality": "normal",
+      "confidentiality_reasons": [],
+      "sensitive_terms": [],
+      "stale": false,
+      "stale_reason": null,
+      "superseded_by": null
+    },
+    {
+      "path": "hr/salaries.xlsx",
+      "name": "salaries.xlsx",
+      "size": 6514,
+      "type": "xlsx",
+      "ext": ".xlsx",
+      "modified": "2026-11-10T22:19:13",
+      "name_date": null,
+      "confidentiality": "confidential",
+      "confidentiality_reasons": [
+        "salaries",
+        "hr/ folder"
+      ],
+      "sensitive_terms": [],
+      "stale": false,
+      "stale_reason": null,
+      "superseded_by": null
+    },
+    {
+      "path": "legal/round-terms-draft.md",
+      "name": "round-terms-draft.md",
+      "size": 1604,
+      "type": "markdown",
+      "ext": ".md",
+      "modified": "2026-11-10T22:19:13",
+      "name_date": null,
+      "confidentiality": "confidential",
+      "confidentiality_reasons": [
+        "legal/ folder",
+        "round terms"
+      ],
+      "sensitive_terms": [],
+      "stale": false,
+      "stale_reason": null,
+      "superseded_by": null
+    },
+    {
+      "path": "notes/founder-perspective.md",
+      "name": "founder-perspective.md",
+      "size": 3259,
+      "type": "markdown",
+      "ext": ".md",
+      "modified": "2026-11-10T22:19:13",
+      "name_date": null,
+      "confidentiality": "normal",
+      "confidentiality_reasons": [],
+      "sensitive_terms": [
+        "pre-money",
+        "salary"
+      ],
+      "stale": false,
+      "stale_reason": null,
+      "superseded_by": null
+    },
+    {
+      "path": "notes/investor-feedback-from-seed.md",
+      "name": "investor-feedback-from-seed.md",
+      "size": 2085,
+      "type": "markdown",
+      "ext": ".md",
+      "modified": "2026-11-10T22:19:13",
+      "name_date": null,
+      "confidentiality": "sensitive",
+      "confidentiality_reasons": [
+        "investor feedback"
+      ],
+      "sensitive_terms": [],
+      "stale": false,
+      "stale_reason": null,
+      "superseded_by": null
+    },
+    {
+      "path": "team/team.md",
+      "name": "team.md",
+      "size": 2352,
+      "type": "markdown",
+      "ext": ".md",
+      "modified": "2026-11-10T22:19:13",
+      "name_date": null,
+      "confidentiality": "normal",
+      "confidentiality_reasons": [],
+      "sensitive_terms": [],
+      "stale": false,
+      "stale_reason": null,
+      "superseded_by": null
+    }
+  ]
+}

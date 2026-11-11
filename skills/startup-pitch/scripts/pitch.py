@@ -211,6 +211,8 @@ def cmd_deck(args) -> int:
     build = [node, str(SCRIPTS / "build_deck.js"), str(deck_json)]
     if not args.no_qa:
         build.append("--check")
+    if args.pptx:
+        build += ["--pptx", args.pptx]
     say("== Build")
     code, out = run(build, env=env)
     html = deck_json.with_name("deck.html")
@@ -221,24 +223,32 @@ def cmd_deck(args) -> int:
         ext = re.search(r"validate\.py \(exit (\d+)\)", out)
         if (chk and chk.group(1) != "0") or (ext and ext.group(1) != "0"):
             results["deck.pptx"] = "CHECK FAILED (see the pptx_check or validate.py lines above)"
-        elif chk and ext:
-            results["deck.pptx"] = "ok, structure checked and validated"
         elif chk:
-            results["deck.pptx"] = "ok, structure checked"
+            meta_mode = re.search(r'"pptx"\s*:\s*"(\w+)"', deck_json.read_text(encoding="utf-8", errors="ignore"))
+            mode = args.pptx or (meta_mode.group(1) if meta_mode else "faithful")
+            if "writing the native PPTX instead" in out:
+                mode = "native"
+            kind = {"faithful": "faithful (looks identical to the PDF, text not editable)",
+                    "editable": "editable (text and charts editable, close to the PDF)",
+                    "native": "simple native version (Chrome was not available for the designed one)"}.get(mode, "")
+            results["deck.pptx"] = "ok, " + ("structure checked and validated" if ext else "structure checked") + (", " + kind if kind else "")
         else:
             results["deck.pptx"] = "ok, not checked (python3 not found)"
     else:
-        results["deck.pptx"] = "not written"
+        results["deck.pptx"] = "not written (pptx: none)" if args.pptx == "none" or re.search(r'"pptx"\s*:\s*"none"', deck_json.read_text(encoding="utf-8", errors="ignore")) else "not written"
     m = re.search(r"QA: (\d+) screenshots.*?(\d+) issues", out)
     if m:
         results["QA"] = f"{m.group(2)} issues, {m.group(1)} screenshots in pitch/deck/qa/"
     elif "--check skipped" in out:
         results["QA"] = "skipped (playwright-core or a browser is missing)"
     cap = re.search(r"capacity: (\d+) warning", out)
-    results["capacity"] = f"{cap.group(1)} slides over their layout budget (lines above say what fits)" if cap else "all slides within budget"
+    results["capacity"] = f"{cap.group(1)} warning(s): content over a layout budget (lines above say what fits)" if cap else "all slides within budget"
     src = re.search(r"sources appendix: (.+)", out)
     if src:
         results["sources"] = src.group(1).strip()
+    sl = re.search(r"(\d+) slack warning", out)
+    results["slack"] = (f"{sl.group(1)} cell(s) look empty (lines above say how to fill them)" if sl and sl.group(1) != "0"
+                        else "none")
     slots = re.search(r"(\d+) placeholders? marked", out)
     if slots:
         results["open slots"] = f"{slots.group(1)} x [needs number] or [needs detail] still on slides"
@@ -284,7 +294,7 @@ def cmd_deck(args) -> int:
     qa_issues = re.match(r"(\d+) issues", results.get("QA", ""))
     say("")
     say("== Deck summary")
-    for k in ("deck.html", "deck.pptx", "deck.pdf", "capacity", "QA", "sources", "open slots", "ledger"):
+    for k in ("deck.html", "deck.pptx", "deck.pdf", "capacity", "QA", "slack", "sources", "open slots", "ledger"):
         if k in results:
             say(f"  {k:<11} {results[k]}")
     if (qa_issues and int(qa_issues.group(1)) > 0) or cap:
@@ -334,6 +344,8 @@ def cmd_status(args) -> int:
 def cmd_open(args) -> int:
     root = folder_arg(args.folder)
     target = root / "pitch"
+    if getattr(args, "deck", False) and (target / "deck").is_dir():
+        target = target / "deck"
     if not target.exists():
         say("No pitch/ folder yet.")
         return 1
@@ -374,6 +386,8 @@ def main() -> int:
     p.add_argument("folder", nargs="?")
     p.add_argument("--no-pdf", action="store_true")
     p.add_argument("--no-qa", action="store_true")
+    p.add_argument("--pptx", choices=["none", "faithful", "editable"],
+                   help="PowerPoint output: none, faithful (pixel-identical pictures plus notes) or editable (native, plainer); default is meta.pptx or faithful")
     p.set_defaults(fn=cmd_deck)
     p = sub.add_parser("comparables", help="three real decks to study for structure")
     p.add_argument("--sector")
@@ -384,6 +398,7 @@ def main() -> int:
     p.set_defaults(fn=cmd_status)
     p = sub.add_parser("open", help="open the pitch/ folder")
     p.add_argument("folder", nargs="?")
+    p.add_argument("--deck", action="store_true", help="open pitch/deck/ instead")
     p.set_defaults(fn=cmd_open)
     sub.add_parser("doctor", help="what is installed and what is missing").set_defaults(fn=cmd_doctor)
     args = ap.parse_args()

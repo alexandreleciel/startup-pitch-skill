@@ -3,11 +3,10 @@
     "company": "Meridian",
     "tagline": "Dock scheduling that carriers actually use",
     "variant": "present",
-    "theme": "graphite",
+    "theme": "ledger",
     "logo": "assets/meridian-logo.svg",
     "footer": "Meridian GmbH, confidential, November 2026",
-    "aspect": "16:9",
-    "show_sources": true
+    "pptx": "faithful"
   },
   "slides": [
     {
@@ -15,134 +14,172 @@
       "title": "Meridian",
       "subtitle": "Dock scheduling that carriers actually use",
       "kicker": "Seed round, November 2026",
+      "stats": [
+        { "value": "EUR 41k", "label": "MRR, October 2026", "source": "fact:mrr_current" },
+        { "value": "61", "label": "sites live at 32 operators", "source": "fact:customers_current" },
+        { "value": "EUR 3M", "label": "raising, one close", "source": "fact:raise_amount" }
+      ],
       "question": "What is this, in plain words?",
-      "notes": "Say: Meridian is the booking screen a truck driver uses to get a dock slot. 32 logistics operators pay us for it today.\nContext: do not explain the product yet.\nTransition: here is why they pay.\nTime: 30"
+      "notes": "Say: Meridian is dock scheduling that carriers actually use.\nTime: 20"
     },
     {
       "type": "problem",
-      "title": "Trucks wait 94 minutes at the average mid-size dock, and nobody is paid for that time",
+      "title": "Trucks wait *94 minutes* at the average mid-size dock, and nobody is paid for that time",
       "points": [
-        "Mid-size operators run 6 to 20 docks on phone calls, fax and a gatehouse clipboard",
-        "Carriers charge waiting fees from the 61st minute; operators absorb them",
-        "Incumbent scheduling modules require carrier accounts; under 20 percent of carriers ever log in"
+        { "icon": "clock", "text": "Mid-size operators run 6 to 20 docks on phone calls, fax and a gatehouse clipboard" },
+        { "icon": "banknote", "text": "Carriers charge waiting fees from the 61st minute; operators absorb them" },
+        { "icon": "lock", "text": "Incumbent scheduling modules require carrier accounts; under 20 percent of carriers ever log in" }
       ],
-      "stats": [ { "value": "94 min", "label": "median truck wait, 140 sites, 2025", "source": "fact:dock_wait_minutes" } ],
+      "stats": [{ "value": "94 min", "label": "median truck wait, 140 sites, 2025", "source": "fact:dock_wait_minutes" }],
       "source": "fact:dock_wait_minutes",
       "question": "Who hurts, how much, and what do they do about it now?",
-      "notes": "Say: 94 minutes is the median in our 2025 sample of 140 sites; at one Nordfracht site it was 3 hours.\nContext: the 20 percent login figure is from the founder's prior employer, labelled assumption in the ledger.\nTransition: the fix has to work for the driver, not the planner.\nTime: 75"
+      "notes": "Say: the wait is the cost; the workaround is a phone.\nContext: 140 sites surveyed in 2025.\nTransition: so we removed the account.\nTime: 60"
     },
     {
       "type": "solution",
-      "title": "Carriers book a dock slot in 40 seconds from their phone, no account needed",
+      "title": "Carriers book a dock slot in *40 seconds* from their phone, no account needed",
+      "diagram": {
+        "kind": "before_after",
+        "before": { "label": "Before, phone and fax", "value": "94 min", "text": "Median wait at the dock" },
+        "after": { "label": "After, Meridian link", "value": "31 min", "text": "At live sites within 8 weeks" }
+      },
       "points": [
-        "Driver opens a link, picks a slot, done; the operator's board updates live",
-        "Operators set rules once: dock types, cut-offs, priority lanes",
-        "Waiting time at live sites fell from 94 to 31 minutes within 8 weeks"
+        { "icon": "link", "text": "Driver opens a link, picks a slot, done; the operator's board updates live" },
+        { "icon": "settings", "text": "Operators set rules once: dock types, cut-offs, priority lanes" }
       ],
       "source": "fact:wait_reduction",
       "question": "What do you do about it, and for whom?",
-      "notes": "Say: no app store, no password; that is the whole trick.\nContext: 31 minutes is the 12-site median, not the best site.\nTransition: this is what the driver sees.\nTime: 75"
+      "notes": "Say: a link, a slot, done.\nTransition: here is the product.\nTime: 60"
     },
     {
       "type": "product",
       "title": "One screen replaces the phone, the fax and the gatehouse clipboard",
-      "image": "assets/meridian-booking.svg",
+      "images": [
+        { "src": "assets/meridian-board.svg", "frame": "browser" },
+        { "src": "assets/meridian-booking.svg", "frame": "phone" }
+      ],
       "points": [
-        "Live at 32 operators and 61 sites since March 2025",
-        "48,000 slots booked by 2,900 distinct carriers",
-        "Median booking time 40 seconds, measured server-side"
+        { "icon": "warehouse", "text": "Live at 32 operators and 61 sites since March 2025" },
+        { "icon": "truck", "text": "48,000 slots booked by 2,900 distinct carriers" },
+        { "icon": "gauge", "text": "Median booking time 40 seconds, measured server-side" }
       ],
       "source": "fact:bookings_total",
       "question": "Does it exist, and does it do what you say?",
-      "notes": "Say: this is the real booking screen, not a mock; the three numbers are from our production database.\nContext: the planner board is in the appendix.\nTransition: does it work as a business?\nTime: 60"
-    },
-    {
-      "type": "traction",
-      "title": "MRR grew from 4k to 41k EUR in 21 months with 2 logos lost",
-      "chart": {
-        "kind": "bar",
-        "labels": ["Jan 25", "Apr 25", "Jul 25", "Oct 25", "Jan 26", "Apr 26", "Jul 26", "Oct 26"],
-        "series": [ { "name": "MRR (EUR k)", "values": [4, 7, 12, 18, 25, 33, 37, 41] } ],
-        "y_label": "EUR k per month",
-        "show_values": true,
-        "source": "fact:mrr_series"
-      },
-      "stats": [
-        { "value": "EUR 41k", "label": "MRR, Oct 2026", "source": "fact:mrr_current" },
-        { "value": "32", "label": "paying operators", "source": "fact:customers_current" },
-        { "value": "118%", "label": "net revenue retention, trailing 12 months", "source": "fact:nrr_ttm" }
-      ],
-      "question": "Is this working, and how fast?",
-      "notes": "Say: 10x in 21 months; the step in April 2026 is the multi-site plan.\nContext: both lost logos were single-dock sites below our current minimum; name them if asked.\nTransition: the reason carriers adopt it is the part incumbents cannot copy quickly.\nTime: 120"
+      "notes": "Say: the operator board on the left, the driver's phone on the right.\nTime: 60"
     },
     {
       "type": "insight",
-      "title": "Carriers self-serve when booking takes under a minute and needs no account; incumbents require both",
-      "points": [
-        "Incumbent modules are sold to planners and built for planners; the driver is an afterthought",
-        "Smartphone penetration among EU truck drivers passed 90 percent in 2024, so a link is enough",
-        "Every carrier that books once is a referral into the next operator"
-      ],
-      "stats": [ { "value": "9 of 32", "label": "customers via carrier referral", "source": "fact:referral_share" } ],
+      "title": "Carriers self-serve when booking takes under a minute and needs *no account*; incumbents require both",
+      "diagram": {
+        "kind": "loop",
+        "center": "Every booking recruits the next operator",
+        "nodes": [
+          { "title": "A carrier books", "text": "by link, in 40 seconds" },
+          { "title": "The driver returns", "text": "2,900 carriers so far" },
+          { "title": "Carriers ask for it", "text": "at their other docks" },
+          { "title": "A new operator signs", "text": "9 of 32 came this way" }
+        ]
+      },
+      "stats": [{ "value": "9 of 32", "label": "customers via carrier referral", "source": "fact:referral_share" }],
       "source": "assumption:driver_smartphone_share",
-      "question": "Why does this work now, and why you?",
-      "notes": "Say: the incumbents' buyer is the planner; ours is the driver, who then sells us to the next operator.\nContext: the 90 percent figure is an industry survey, kind assumption, year 2024.\nTransition: who pays and how much.\nTime: 75"
+      "question": "Why does this work now, and why will you be the one to build it?",
+      "notes": "Say: the driver is the channel.\nContext: smartphone penetration among EU truck drivers passed 90 percent in 2024.\nTime: 75"
+    },
+    { "type": "section", "title": "Proof: it is *working*", "subtitle": "Revenue, retention and what customers say", "notes": "Time: 5" },
+    {
+      "type": "traction",
+      "title": "MRR grew from 4k to *41k EUR* in 21 months with 2 logos lost",
+      "chart": {
+        "kind": "bar",
+        "labels": ["Jan 25", "Apr 25", "Jul 25", "Oct 25", "Jan 26", "Apr 26", "Jul 26", "Oct 26"],
+        "series": [{ "name": "MRR (EUR k)", "values": [4, 7, 12, 18, 25, 33, 37, 41] }],
+        "y_label": "MRR, EUR k per month",
+        "annotation": { "at": "Apr 26", "text": "Multi-site plan ships" },
+        "source": "fact:mrr_series"
+      },
+      "stats": [
+        { "value": "118%", "label": "net revenue retention, trailing 12 months", "source": "fact:nrr_ttm" },
+        { "value": "32", "label": "paying operators", "trend": [3, 6, 10, 14, 19, 25, 29, 32], "source": "fact:customers_current" },
+        { "value": "61", "label": "sites live", "source": "fact:customers_current" }
+      ],
+      "logos": ["Nordfracht", "Elbe Trans", "Benelux Cargo", "Hansa Freight", "Rhein Kurier"],
+      "question": "Is this working, and how fast?",
+      "notes": "Say: 10x in 21 months; the step in April 2026 is the multi-site plan.\nContext: both lost logos were single-dock sites below our current minimum.\nTime: 120"
+    },
+    {
+      "type": "quote",
+      "quote": "We stopped answering the phone. The drivers book themselves and the yard is *calm by seven*.",
+      "by": "Site manager",
+      "role": "Mid-size operator, Hamburg, 14 docks",
+      "stat": { "value": "31 min", "label": "median wait at this site, down from 96", "source": "fact:wait_reduction" },
+      "question": "Does a real customer get the value you claim?",
+      "notes": "Say: this is what an operator notices first.\nTime: 30"
+    },
+    {
+      "type": "market",
+      "title": "*185M EUR* serviceable today: 12,000 EU mid-size operators x our 15.4k EUR contract",
+      "stats": [
+        { "value": "EUR 1.8B", "label": "TAM: EU operators' yard and dock software spend, 12,000 x 150k EUR (assumption)", "source": "assumption:tam_bottom_up" },
+        { "value": "EUR 185M", "label": "SAM: 12,000 operators x 15.4k EUR current contract (assumption)", "source": "assumption:sam_bottom_up" },
+        { "value": "EUR 6.2M", "label": "SOM 2029: 400 operators x 15.4k EUR (projection)", "source": "projection:som_2029" }
+      ],
+      "points": ["Operator count from Eurostat NACE H52 size classes, 2024; contract value from our own 32 contracts"],
+      "question": "How big can this get, and how do you know?",
+      "notes": "Say: the SAM is our price times the operators that exist.\nTime: 60"
     },
     {
       "type": "business_model",
-      "title": "Operators pay 1,280 EUR per site per month; 81 percent gross margin, 9-month payback",
+      "title": "Operators pay *1,280 EUR* per site per month; 81 percent gross margin, 9-month payback",
       "stats": [
         { "value": "EUR 1,281", "label": "average MRR per customer", "source": "fact:mrr_per_customer" },
         { "value": "EUR 15.4k", "label": "average annual contract", "source": "fact:acv_current" },
         { "value": "81%", "label": "gross margin, Q3 2026", "source": "fact:gross_margin" },
         { "value": "9 months", "label": "CAC payback, gross-margin adjusted, 2026 cohort", "source": "fact:cac_payback" }
       ],
-      "points": [ "Priced per site per month; carriers never pay" ],
+      "points": [{ "icon": "credit-card", "text": "Priced per site per month; carriers never pay" }],
       "question": "Who pays, how much, and does a euro in produce more than a euro out?",
-      "notes": "Say: one price, one buyer, carriers free; that keeps the referral loop open.\nContext: payback uses 2026 cohort CAC of 9.8k EUR; the 2025 cohort was 14k EUR.\nTransition: how big that can get.\nTime: 75"
-    },
-    {
-      "type": "market",
-      "title": "185M EUR serviceable today: 12,000 EU mid-size operators x our 15.4k EUR contract",
-      "stats": [
-        { "value": "EUR 1.8B", "label": "TAM: EU operators' yard and dock software spend, 12,000 x 150k EUR (assumption)", "source": "assumption:tam_bottom_up" },
-        { "value": "EUR 185M", "label": "SAM: 12,000 operators x 15.4k EUR current contract (assumption)", "source": "assumption:sam_bottom_up" },
-        { "value": "EUR 6.2M", "label": "SOM 2029: 400 operators x 15.4k EUR (projection)", "source": "projection:som_2029" }
-      ],
-      "points": [ "Operator count from Eurostat NACE H52 size classes, 2024; contract value from our own 32 contracts" ],
-      "question": "How big can this get, and how do you know?",
-      "notes": "Say: we size on our own price, not the incumbents'.\nContext: TAM uses a 150k EUR total software spend assumption; SOM is a projection.\nTransition: and how we get there, one motion.\nTime: 60"
+      "notes": "Say: one price, per site, per month.\nTime: 60"
     },
     {
       "type": "go_to_market",
-      "title": "Founder-led sales closes a 15k EUR contract in 34 days; 9 of 32 customers came from carrier referrals",
-      "points": [
-        "Beachhead: German and Benelux operators with 6 to 20 docks",
-        "Motion: a 20-minute demo on the operator's own carrier list, pilot on one dock, expand",
-        "Next: two account executives from Q1 2027, each targeting 2 sites per month"
-      ],
+      "title": "Founder-led sales closes a 15k EUR contract in *34 days*; 9 of 32 customers came from carrier referrals",
+      "diagram": {
+        "kind": "funnel",
+        "stages": [
+          { "label": "Operators contacted, 2026", "value": "410" },
+          { "label": "Demos on their own carrier list", "value": "96" },
+          { "label": "One-dock pilots", "value": "31" },
+          { "label": "Contracts signed", "value": "18" }
+        ]
+      },
       "stats": [
         { "value": "34 days", "label": "median sales cycle, 2026", "source": "fact:sales_cycle_days" },
         { "value": "[needs number]", "label": "CAC, 2026 cohort", "source": "fact:cac_2026" }
       ],
+      "points": [
+        "Beachhead: German and Benelux operators with 6 to 20 docks",
+        "Next: two account executives from Q1 2027, each targeting 2 sites per month"
+      ],
+      "source": "fact:sales_cycle_days",
       "question": "How do you get customers repeatably, and what does one cost?",
-      "notes": "Say: the pilot is on one dock; expansion to the site is where the contract value comes from.\nContext: AE productivity of 2 sites per month is a plan, not yet observed.\nTransition: who else the operator could buy from.\nTime: 60"
+      "notes": "Say: a 20-minute demo on the operator's own carrier list, then a pilot on one dock.\nTime: 75"
     },
     {
       "type": "competition",
-      "title": "Only Meridian lets a carrier book without an account; the two incumbents require one",
-      "columns": [ "", "Meridian", "Incumbent TMS module", "Point-solution startups", "Phone, fax, spreadsheet" ],
+      "title": "Only Meridian lets a carrier book *without an account*; the two incumbents require one",
+      "columns": ["", "Meridian", "Incumbent TMS module", "Point-solution startups", "Phone, fax, spreadsheet"],
       "rows": [
-        [ "Carrier books without account", true, false, false, "n/a" ],
-        [ "Time to book a slot", "40 s", "4 to 6 min", "2 min", "a phone call" ],
-        [ "Setup time per site", "2 days", "6 to 12 weeks", "1 to 2 weeks", "none" ],
-        [ "Price per site per month", "1,280 EUR", "bundled in TMS", "600 to 900 EUR", "0 EUR" ],
-        [ "Yard management, ERP integrations", "partial", "full", "partial", "none" ]
+        ["Carrier books without account", true, false, false, "n/a"],
+        ["Time to book a slot", "40 s", "4 to 6 min", "2 min", "a phone call"],
+        ["Setup time per site", "2 days", "6 to 12 weeks", "1 to 2 weeks", "none"],
+        ["Price per site per month", "1,280 EUR", "bundled in TMS", "600 to 900 EUR", "0 EUR"],
+        ["Yard management, ERP integrations", "partial", "full", "partial", "none"]
       ],
       "source": "assumption:competitor_grid",
-      "question": "Why will you win against the obvious alternatives?",
-      "notes": "Say: the incumbent wins on integrations; we win on adoption, and adoption is what the operator actually pays for.\nContext: competitor figures from public pricing and 11 customer interviews, labelled assumption.\nTransition: the people doing this.\nTime: 60"
+      "question": "Why will you win against the obvious alternatives, and why won't the incumbent copy you?",
+      "notes": "Say: the incumbents are ahead on integrations and we say so.\nTime: 60"
     },
+    { "type": "section", "title": "The round: *3M EUR* to 150 sites", "subtitle": "Team, plan and what the money buys", "notes": "Time: 5" },
     {
       "type": "team",
       "title": "We ran 40 docks and built the scheduling engine at a 2B EUR carrier",
@@ -151,22 +188,22 @@
         { "name": "Tomas Varga", "role": "CTO, writes the code", "bio": "Built carrier-facing scheduling at a 2B EUR revenue carrier, team of 9" },
         { "name": "Priya Nair", "role": "Head of sales", "bio": "Closed 20 of the 32 customers; previously 6 years selling TMS software" }
       ],
-      "points": [ "Lena and Tomas worked together for 4 years before founding Meridian" ],
+      "points": ["Lena and Tomas worked together for 4 years before founding Meridian"],
       "question": "Why these people, and who writes the code?",
-      "notes": "Say: 1.1M EUR spent to reach 492k EUR ARR run-rate.\nContext: no advisors on the slide by design.\nTransition: what the next 24 months look like.\nTime: 60"
+      "notes": "Say: operator, engineer, seller.\nTime: 45"
     },
     {
       "type": "financials",
-      "title": "Projection: 200k EUR MRR by October 2028, driven by 4 AEs closing 2 sites each per month",
+      "title": "Projection: *200k EUR MRR* by October 2028, driven by 4 AEs closing 2 sites each per month",
       "chart": {
         "kind": "line",
         "labels": ["Oct 26", "Apr 27", "Oct 27", "Apr 28", "Oct 28"],
         "series": [
-          { "name": "MRR projection (EUR k)", "values": [41, 62, 98, 145, 200] },
-          { "name": "Sensitivity: 1 site per AE (EUR k)", "values": [41, 52, 71, 98, 128] }
+          { "name": "Plan", "values": [41, 62, 98, 145, 200] },
+          { "name": "1 site per AE", "values": [41, 52, 71, 98, 128] }
         ],
-        "y_label": "EUR k per month",
-        "show_values": true,
+        "y_label": "MRR projection, EUR k per month",
+        "annotation": { "at": "Oct 27", "text": "4 AEs ramped" },
         "source": "projection:mrr_2028_projection"
       },
       "points": [
@@ -175,13 +212,13 @@
         "NRR held at 110 percent, below the observed 118",
         "Logo churn 6 percent a year"
       ],
-      "question": "What does the next 24 months look like, and what drives it?",
-      "notes": "Say: this is a projection; the levers are AE count and sites per AE.\nContext: NRR assumed below the observed 118 percent on purpose.\nTransition: which is what the round pays for.\nTime: 60"
+      "question": "What does the next 24 to 36 months look like, and what drives it?",
+      "notes": "Say: the drivers are hires and sites per hire.\nContext: the sensitivity line halves sites per AE.\nTime: 75"
     },
     {
       "type": "ask",
-      "title": "Raising EUR 3M",
-      "subtitle": "To reach 200k EUR MRR and 150 sites in 24 months, one close, runway to month 24",
+      "title": "Raising *EUR 3M* to reach 200k EUR MRR and 150 sites in 24 months",
+      "subtitle": "One close, runway to month 24",
       "use_of_funds": [
         { "label": "Product and engineering", "pct": 50, "source": "assumption:use_of_funds" },
         { "label": "Go-to-market", "pct": 35 },
@@ -192,79 +229,103 @@
         { "when": "Q4 2027", "what": "Yard-management module shipped, first 3 ERP integrations" },
         { "when": "Q4 2028", "what": "200k EUR MRR, 150 sites, NRR above 110 percent" }
       ],
-      "points": [ "Non-capital asks: intros to 5 Benelux operators and one TMS partner" ],
       "source": "fact:raise_amount",
       "question": "How much, for what, and what will be true when it is spent?",
-      "notes": "Say: one number, three buckets, three dated milestones.\nContext: 15 percent buffer is inside operations; valuation is for the conversation, not the slide.\nTransition: closing summary.\nTime: 90"
+      "notes": "Say: three million euros, two years, 150 sites.\nTime: 60"
     },
     {
       "type": "closing",
-      "title": "Dock scheduling that carriers actually use",
+      "title": "Dock scheduling that carriers *actually use*",
       "points": [
-        "EUR 41k MRR, up 10x in 21 months, 2 logos lost",
-        "9 of 32 customers arrived through carrier referrals",
-        "Raising EUR 3M to reach 200k EUR MRR in 24 months"
+        { "icon": "trending-up", "text": "EUR 41k MRR, up 10x in 21 months, 2 logos lost" },
+        { "icon": "handshake", "text": "9 of 32 customers arrived through carrier referrals" },
+        { "icon": "rocket", "text": "Raising EUR 3M to reach 200k EUR MRR in 24 months" }
       ],
       "subtitle": "lena@meridian.example, +49 30 000 000, meridian.example",
-      "question": "What should I remember, and how do I reach you?",
-      "notes": "Say: three facts, then stop talking and take questions.\nTime: 30"
+      "notes": "Say: the one-liner again, then stop.\nTime: 20"
     },
     {
       "type": "roadmap",
       "kicker": "Appendix",
       "title": "Four milestones from pilot to repeatable sale by Q4 2028",
       "milestones": [
+        { "when": "Q3 2026", "what": "Multi-site plan live", "proves": "Operators expand without a sales call", "done": true },
         { "when": "Q1 2027", "what": "Two AEs hired and ramped", "proves": "Sales works without a founder in the room" },
-        { "when": "Q2 2027", "what": "60 sites live", "proves": "Onboarding holds at 2 days per site" },
-        { "when": "Q4 2027", "what": "Yard-management module and 3 ERP integrations", "proves": "The incumbents' integration edge closes" },
+        { "when": "Q4 2027", "what": "Yard module and 3 ERP integrations", "proves": "The incumbents' integration edge closes" },
         { "when": "Q4 2028", "what": "200k EUR MRR, 150 sites", "proves": "Series A metrics with NRR above 110 percent" }
       ],
       "question": "What happens, in which order, and what does each step prove?",
-      "notes": "Appendix. Each milestone names the risk it retires."
+      "notes": "Time: 45"
     },
     {
       "type": "appendix",
       "kicker": "Appendix",
       "title": "Unit economics by cohort: payback shortened from 14 to 9 months",
-      "columns": [ "", "2025 cohort", "2026 cohort" ],
+      "columns": ["", "2025 cohort", "2026 cohort"],
       "rows": [
-        [ "Customers", "14", "18" ],
-        [ "CAC, EUR", "14,000", "9,800" ],
-        [ "Average MRR per customer, EUR", "1,150", "1,281" ],
-        [ "Gross margin", "78%", "81%" ],
-        [ "Payback, months", "14", "9" ]
+        ["Customers", "14", "18"],
+        ["CAC, EUR", "14,000", "9,800"],
+        ["Average MRR per customer, EUR", "1,150", "1,281"],
+        ["Gross margin", "78%", "81%"],
+        ["Payback, months", "14", "9"]
       ],
-      "points": [ "Data window: contracts signed Jan 2025 to Oct 2026; CAC includes founder time at cost" ],
+      "points": ["Data window: contracts signed Jan 2025 to Oct 2026; CAC includes founder time at cost"],
       "source": "fact:cac_payback",
-      "question": "Show me the unit economics",
-      "notes": "Appendix. Answer to the unit economics objection."
+      "notes": "Time: 45"
     },
     {
-      "type": "two_column",
-      "kicker": "Appendix",
-      "title": "What is live today and what the round builds",
-      "columns": [
-        { "title": "Live today", "points": [ "Carrier booking link, no account", "Operator board with rules and cut-offs", "Waiting-time analytics per site" ] },
-        { "title": "Built with this round", "points": [ "Yard-management module", "ERP integrations: SAP, Dynamics, Odoo", "Multi-site capacity planning" ] }
-      ],
-      "question": "How does it work, and what is still missing?",
-      "notes": "Appendix. Keep the planned items clearly labelled as planned."
-    },
-    {
-      "type": "custom_html",
+      "type": "appendix",
       "kicker": "Appendix",
       "title": "How a booking flows through the system",
-      "html": "<style>.flowmap{display:grid;grid-template-columns:repeat(4,1fr);gap:40px;margin-top:16px}.flowmap .node{background:var(--surface);border-radius:8px;padding:36px 40px;min-height:300px}.flowmap .node b{display:block;font-family:var(--font-display);font-weight:var(--display-weight);font-size:40px;line-height:1.1;margin-bottom:20px}.flowmap .node span{font-size:24px;line-height:1.4;color:var(--muted)}</style><div class='flowmap'><div class='node'><b>Carrier link</b><span>Driver opens the operator's link on a phone. No account, no app.</span></div><div class='node'><b>Rules engine</b><span>Dock types, cut-offs and priority lanes decide which slots are offered.</span></div><div class='node'><b>Operator board</b><span>Updates live; the planner intervenes only on exceptions.</span></div><div class='node'><b>Analytics</b><span>Waiting time per site and carrier, exported monthly.</span></div></div>",
-      "source": ["fact:bookings_total"],
-      "question": "How does it work?",
-      "notes": "Appendix. Architecture in four boxes; security and compliance on request."
+      "diagram": {
+        "kind": "flow",
+        "steps": [
+          { "icon": "link", "title": "Carrier link", "text": "Driver opens the operator's link on a phone. No account, no app." },
+          { "icon": "settings", "title": "Rules engine", "text": "Dock types, cut-offs and priority lanes decide which slots are offered." },
+          { "icon": "monitor", "title": "Operator board", "text": "Updates live; the planner intervenes only on exceptions." },
+          { "icon": "chart-column", "title": "Analytics", "text": "Waiting time per site and carrier, exported monthly." }
+        ],
+        "loop": "Waiting-time data tunes the rules"
+      },
+      "source": "fact:bookings_total",
+      "notes": "Time: 45"
     },
     {
-      "type": "statement",
+      "type": "appendix",
       "kicker": "Appendix",
-      "title": "Every number in this deck has a line in the fact ledger",
-      "subtitle": "Ask for facts.yaml with the data room; the sources slide lists each id.",
-      "notes": "Appendix. Close the appendix with the audit trail."
+      "title": "The platform in three layers; the round builds the top one",
+      "diagram": {
+        "kind": "layers",
+        "layers": [
+          { "title": "Yard and ERP layer", "text": "Planned: yard management, SAP, Dynamics and Odoo connectors" },
+          { "title": "Operator layer", "text": "Live: dock board, rules, waiting-time analytics" },
+          { "title": "Carrier layer", "text": "Live: booking link, no account, 2,900 carriers" }
+        ]
+      },
+      "points": ["Each layer ships on its own; an operator can start with the booking link alone"],
+      "notes": "Time: 45"
+    },
+    {
+      "type": "competition",
+      "kicker": "Appendix",
+      "title": "Where the alternatives sit: fast for the carrier, or complete for the planner",
+      "diagram": {
+        "kind": "matrix",
+        "x": { "label": "Depth for the planner", "low": "Booking only", "high": "Full yard suite" },
+        "y": { "label": "Effort for the carrier", "low": "Account and training", "high": "A link, 40 seconds" },
+        "items": [
+          { "name": "Meridian", "x": 0.55, "y": 0.88, "us": true },
+          { "name": "Incumbent TMS modules", "x": 0.86, "y": 0.2 },
+          { "name": "Point-solution startups", "x": 0.3, "y": 0.52 },
+          { "name": "Phone, fax, spreadsheet", "x": 0.12, "y": 0.3 }
+        ]
+      },
+      "points": [
+        "Incumbents are ahead on depth today; the yard module in this round closes half of that gap",
+        "No alternative removes the carrier account"
+      ],
+      "source": "assumption:competitor_grid",
+      "notes": "Time: 45"
     }
   ]
 }

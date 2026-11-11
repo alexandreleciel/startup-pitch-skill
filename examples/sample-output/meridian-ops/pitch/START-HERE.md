@@ -1,19 +1,19 @@
 # Meridian: pitch start page
 
-Generated 2026-11-10, updated after your answers and the deck build. Numbers as of 2026-10-31. Every figure traces to pitch/facts.yaml.
+Generated 2026-11-10, updated 2026-11-11 with the deck for German seed funds. Numbers as of 2026-10-31. Every figure traces to pitch/facts.yaml.
 
 ## 1. Answer these first
 
 1. **How small is the smallest target customer?** README.md says 50 truck movements a day `[fact:icp_min_movements_readme]`; your memo says 150 `[fact:icp_min_movements_memo]`. Was the 14,000 count `[assumption:market_companies]` filtered on either?
    *Used until you answer:* 150.
 2. **How many target companies are there across Europe, and where is the count behind 14,000?** A seed fund asks for the bottom-up. The folder has neither the research file nor a Europe figure.
-   *Used until you answer:* `[needs number]` for TAM on deck slide 7.
+   *Used until you answer:* `[needs number]` for TAM on deck slide 10.
 3. **What ARR does the revised model reach when the round is spent, around mid 2028?** The round lasts 18.9 months `[projection:runway_post_raise_pnl]`; the EUR 2.5M target is dated end 2028 `[projection:arr_target_2028]`.
-   *Used until you answer:* `[needs number]` on deck slide 11.
+   *Used until you answer:* `[needs number]` on deck slide 16, in the last milestone.
 4. **What is gross margin in the accounts?** The only figure is a model input, 82% `[assumption:gross_margin_model]`.
-   *Used until you answer:* 82%, labelled as an assumption on deck slide 6.
+   *Used until you answer:* 82%, labelled as an assumption on deck slide 11.
 5. **Can you add a product screenshot?** The folder has none, so the deck shows no product image.
-   *Used until you answer:* `[needs detail]`; slide 3 is text only.
+   *Used until you answer:* slide 4 explains the product with a four-step diagram instead of a screenshot.
 
 More open items are in [gaps.md](gaps.md).
 
@@ -44,11 +44,11 @@ More open items are in [gaps.md](gaps.md).
 
 **"What is your net revenue retention and CAC payback?"** Why they ask: at seed, a missing retention figure is itself information. Your strongest honest answer: We have not measured either yet. What we have measured is logo churn: 3 customers lost in 22 months `[fact:logo_churn_count]`, with 32 paying today `[fact:customers_current]`. The cohort view lands on (give the date). Have ready: MRR per customer per month.
 
-**"Who other than Lena has closed a deal?"** Why they ask: they test whether the sale repeats outside the founders. Your strongest honest answer: Nobody yet. We add 1.5 customers a month `[fact:new_customers_actual]` and all 18 open deals are owned by a founder `[fact:pipeline_open_deals]`. The model assumes 4 a month in 2027 `[assumption:new_customers_2027_model]`; this round pays to prove it. Have ready: pipeline by owner, deck slide 8.
+**"Who other than Lena has closed a deal?"** Why they ask: they test whether the sale repeats outside the founders. Your strongest honest answer: Nobody yet. We add 1.5 customers a month `[fact:new_customers_actual]` and all 18 open deals are owned by a founder `[fact:pipeline_open_deals]`. The model assumes 4 a month in 2027 `[assumption:new_customers_2027_model]`; this round pays to prove it. Have ready: pipeline by owner, deck slide 12.
 
 **"Does EUR 3M reach EUR 2.5M ARR?"** Why they ask: time is not a milestone. Your strongest honest answer: Not on the current model. The round lasts about 18.9 months `[projection:runway_post_raise_pnl]`, to mid 2028, and the EUR 2.5M target is dated end 2028 `[projection:arr_target_2028]`. I am revising the model. Today we hold EUR 380,000 `[fact:cash]`, 7.1 months `[fact:runway_months]`. Have ready: monthly cash flow.
 
-**"Is growth slowing?"** Why they ask: the MRR chart is a straight line, not a curve. Your strongest honest answer: In percentage terms, yes. MRR grew 2.15x in twelve months `[fact:mrr_yoy_multiple]` and 10.05x in 21 `[fact:mrr_growth_multiple]`, because we add a steady 1.5 customers a month `[fact:new_customers_actual]`. Growth is capped by two founders selling. Have ready: deck slide 4.
+**"Is growth slowing?"** Why they ask: the MRR chart is a straight line, not a curve. Your strongest honest answer: In percentage terms, yes. MRR grew 2.15x in twelve months `[fact:mrr_yoy_multiple]` and 10.05x in 21 `[fact:mrr_growth_multiple]`, because we add a steady 1.5 customers a month `[fact:new_customers_actual]`. Growth is capped by two founders selling. Have ready: deck slide 6.
 
 **"How does a EUR 216M market make a venture-scale company?"** Why they ask: a seed fund needs a large outcome. Your strongest honest answer: We estimate 14,000 companies in DACH and Benelux from 2025 desk research `[assumption:market_companies]`, about EUR 216M a year at today's revenue per customer `[assumption:sam_bottom_up]`. We have no sourced Europe count yet. Have ready: the count by country.
 
@@ -65,16 +65,16 @@ More open items are in [gaps.md](gaps.md).
 - `CONFIDENTIAL-do-not-share.md`: not read. Data room only.
 - `legal/cap-table-summary.md` (read): shareholder names and stakes, earlier round and SAFE terms, option pool, advisor equity. None of it is in the deck or its notes.
 - `data/financial-model-v3.xlsx`: the salary line and cost per role.
-- `docs/customer-interviews-notes.md`, `data/pipeline.csv`: customer and prospect names. The slide text names no customer. The source captions on slides 2, 3 and 5 show the published case study's file name, which includes Nordfracht.
+- `docs/customer-interviews-notes.md`, `data/pipeline.csv`: customer and prospect names. The slide text names no customer, and the source captions read "published customer case study, June 2025" instead of the file name. The two customer quotes (slides 7 and 13) are attributed by role only.
 - No valuation, no terms and no investor names in any output.
 
 ## 7. Next
 
-Ask for any of: the full narrative, the full investor Q&A, the presenting variant of the deck, preparation for a specific German seed fund.
+Ask for any of: the full narrative, the full investor Q&A, the presenting variant of the deck, a PowerPoint export, preparation for a specific German seed fund.
 
 ## Files
 
-- [START-HERE.md](START-HERE.md), [facts.yaml](facts.yaml) (31 entries), [gaps.md](gaps.md), [run-log.md](run-log.md)
-- [deck/deck.html](deck/deck.html), [deck/deck.pdf](deck/deck.pdf), [deck/deck.pptx](deck/deck.pptx): 12 slides plus sources, reading variant
+- [START-HERE.md](START-HERE.md), [facts.yaml](facts.yaml) (33 entries), [gaps.md](gaps.md), [run-log.md](run-log.md)
+- [deck/deck.html](deck/deck.html) (web version, arrow keys, n for notes), [deck/deck.pdf](deck/deck.pdf): 17 slides plus one sources page, reading variant, no PowerPoint
 - [deck/deck.json](deck/deck.json): the editable source; [deck/qa/](deck/qa/): slide screenshots
 - [intake/corpus/INDEX.md](intake/corpus/INDEX.md), [intake/inventory.json](intake/inventory.json)

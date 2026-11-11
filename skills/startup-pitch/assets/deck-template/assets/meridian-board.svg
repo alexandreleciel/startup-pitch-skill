@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" font-family="Helvetica, Arial, sans-serif">
+  <rect width="1600" height="1000" fill="#F7F8FA"/>
+  <rect width="250" height="1000" fill="#111827"/>
+  <text x="34" y="64" font-size="30" font-weight="700" fill="#FFFFFF">Meridian</text>
+  <g font-size="22" fill="#9CA3AF"><text x="34" y="150" fill="#FFFFFF">Dock board</text><text x="34" y="200">Carriers</text><text x="34" y="250">Rules</text><text x="34" y="300">Waiting time</text><text x="34" y="350">Sites</text></g>
+  <rect x="18" y="122" width="6" height="40" fill="#3B82F6"/>
+  <text x="290" y="70" font-size="34" font-weight="700" fill="#111827">Hamburg North, Tuesday 14 Nov</text>
+  <g font-size="20" fill="#6B7280"><text x="290" y="108">12 docks, 46 slots booked, 3 open</text></g>
+  <g>
+    <rect x="290" y="140" width="300" height="130" rx="10" fill="#FFFFFF" stroke="#E5E7EB"/><text x="314" y="182" font-size="20" fill="#6B7280">Median wait today</text><text x="314" y="242" font-size="52" font-weight="700" fill="#111827">29 min</text>
+    <rect x="610" y="140" width="300" height="130" rx="10" fill="#FFFFFF" stroke="#E5E7EB"/><text x="634" y="182" font-size="20" fill="#6B7280">Booked by carriers</text><text x="634" y="242" font-size="52" font-weight="700" fill="#111827">91%</text>
+    <rect x="930" y="140" width="300" height="130" rx="10" fill="#FFFFFF" stroke="#E5E7EB"/><text x="954" y="182" font-size="20" fill="#6B7280">On time</text><text x="954" y="242" font-size="52" font-weight="700" fill="#111827">84%</text>
+    <rect x="1250" y="140" width="310" height="130" rx="10" fill="#111827"/><text x="1274" y="182" font-size="20" fill="#9CA3AF">Next arrival</text><text x="1274" y="242" font-size="52" font-weight="700" fill="#FFFFFF">09:30</text>
+  </g>
+  <g font-size="20" fill="#6B7280"><text x="290" y="330">Dock</text><text x="430" y="330">08:00</text><text x="650" y="330">09:00</text><text x="870" y="330">10:00</text><text x="1090" y="330">11:00</text><text x="1310" y="330">12:00</text></g>
+  <g stroke="#E5E7EB"><line x1="290" y1="346" x2="1560" y2="346"/><line x1="290" y1="446" x2="1560" y2="446"/><line x1="290" y1="546" x2="1560" y2="546"/><line x1="290" y1="646" x2="1560" y2="646"/><line x1="290" y1="746" x2="1560" y2="746"/><line x1="290" y1="846" x2="1560" y2="846"/><line x1="290" y1="946" x2="1560" y2="946"/></g>
+  <g font-size="24" font-weight="700" fill="#111827"><text x="290" y="406">D1</text><text x="290" y="506">D2</text><text x="290" y="606">D3</text><text x="290" y="706">D4</text><text x="290" y="806">D5</text><text x="290" y="906">D6</text></g>
+  <g font-size="19" fill="#FFFFFF">
+    <rect x="430" y="366" width="200" height="60" rx="8" fill="#3B82F6"/><text x="446" y="403">Nordfracht</text>
+    <rect x="650" y="366" width="330" height="60" rx="8" fill="#111827"/><text x="666" y="403">Benelux Cargo</text>
+    <rect x="1090" y="366" width="200" height="60" rx="8" fill="#3B82F6"/><text x="1106" y="403">HH-MR 4821</text>
+    <rect x="540" y="466" width="220" height="60" rx="8" fill="#3B82F6"/><text x="556" y="503">Elbe Trans</text>
+    <rect x="870" y="466" width="420" height="60" rx="8" fill="#9CA3AF"/><text x="886" y="503">Reserved, priority lane</text>
+    <rect x="430" y="566" width="310" height="60" rx="8" fill="#111827"/><text x="446" y="603">Kuehl Logistik</text>
+    <rect x="980" y="566" width="200" height="60" rx="8" fill="#3B82F6"/><text x="996" y="603">Varga and Sons</text>
+    <rect x="650" y="666" width="200" height="60" rx="8" fill="#3B82F6"/><text x="666" y="703">Rhein Kurier</text>
+    <rect x="1200" y="666" width="330" height="60" rx="8" fill="#111827"/><text x="1216" y="703">Nordfracht</text>
+    <rect x="430" y="766" width="200" height="60" rx="8" fill="#3B82F6"/><text x="446" y="803">Dutch Line</text>
+    <rect x="760" y="766" width="420" height="60" rx="8" fill="#3B82F6"/><text x="776" y="803">Hansa Freight, 2 trailers</text>
+    <rect x="540" y="866" width="310" height="60" rx="8" fill="#111827"/><text x="556" y="903">Baltic Road</text>
+    <rect x="1090" y="866" width="200" height="60" rx="8" fill="#9CA3AF"/><text x="1106" y="903">Open slot</text>
+  </g>
+</svg>

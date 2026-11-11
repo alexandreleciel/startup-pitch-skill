@@ -1,24 +1,25 @@
 # Deck pipeline
 
 `pitch/deck/deck.json` is the single editable source. One Node script turns it into a
-self-contained `deck.html` and a native `deck.pptx`; one shell script prints the HTML to a
-PDF. Everything else (themes, fonts, charts, speaker notes, the sources slide) is derived.
+self-contained `deck.html` and a `deck.pptx`; one shell script prints the HTML to a PDF.
+Everything else (art direction, tones, layouts, charts, diagrams, icons, speaker notes,
+the sources slide) is derived.
 
 ```
 deck.json  --build_deck.js-->  deck.html  (present in any browser; arrows, click, swipe; n = notes)
-                          \->  deck.pptx  (pptxgenjs, native charts and tables, notes, structural check)
+                          \->  deck.pptx  (faithful: every slide a 2x picture; or editable; or none)
 deck.html  --export_pdf.sh-->  deck.pdf   (Chrome headless print, one page per slide, vector text)
-deck.html  --build_deck.js --check-->  qa/slide-NN.png + qa/report.json  (overflow and overlap report)
+deck.html  --build_deck.js --check-->  qa/slide-NN.png + qa/report.json  (render checks)
 ```
 
-Preview of the example deck in the `graphite` theme (`example-deck.json`):
+Preview of the example deck in the `ledger` theme (`example-deck.json`):
 
 | | | |
 |---|---|---|
 | ![cover](preview/slide-01.jpg) | ![problem](preview/slide-02.jpg) | ![solution](preview/slide-03.jpg) |
-| ![product](preview/slide-04.jpg) | ![traction](preview/slide-05.jpg) | ![insight](preview/slide-06.jpg) |
-| ![business model](preview/slide-07.jpg) | ![market](preview/slide-08.jpg) | ![go to market](preview/slide-09.jpg) |
-| ![competition](preview/slide-10.jpg) | ![team](preview/slide-11.jpg) | ![financials](preview/slide-12.jpg) |
+| ![product](preview/slide-04.jpg) | ![insight](preview/slide-05.jpg) | ![section](preview/slide-06.jpg) |
+| ![traction](preview/slide-07.jpg) | ![quote](preview/slide-08.jpg) | ![market](preview/slide-09.jpg) |
+| ![business model](preview/slide-10.jpg) | ![go to market](preview/slide-11.jpg) | ![ask](preview/slide-12.jpg) |
 
 ## Commands
 
@@ -32,7 +33,7 @@ npm install --prefix scripts                           # pptxgenjs 4.0.1 and pla
 # per deck
 node scripts/build_deck.js pitch/deck/deck.json              # deck.html + deck.pptx next to the JSON
 node scripts/build_deck.js pitch/deck/deck.json --html-only
-node scripts/build_deck.js pitch/deck/deck.json --pptx-only
+node scripts/build_deck.js pitch/deck/deck.json --pptx editable   # native text and charts instead of pictures (also: faithful, none)
 node scripts/build_deck.js pitch/deck/deck.json --out build/ # write elsewhere
 node scripts/build_deck.js pitch/deck/deck.json --check      # also screenshot every slide to deck/qa/
 node scripts/build_deck.js pitch/deck/deck.json --strict     # fail the build on any capacity warning
@@ -46,21 +47,47 @@ scratch directory as `deck.json`, then run the three commands above.
 
 ## Capacity lint
 
-Before rendering, the builder checks deck.json against one capacity table (in the code,
-printed by `--capacities`, documented in `references/deck-structure.md` section 4): how
-many stats and points each layout holds, table rows and columns, chart labels and legend
-names, in both variants. Text is measured, not counted: the lint wraps the actual words of
-every title, point and label in the deck's own fonts. The four theme faces and 50 Google
-Fonts families are built in as glyph-width tables; a deck that sets `font_display` or
-`font_body` is measured in the installed Chrome (about a second) when it is available.
-It prints one actionable line per violation, for example "slide 5 (traction): 4 stats and
-1 point overfill the side column by about 17 percent. Fits 4 stats and no point, or 3
-stats and 1 point up to 93 characters...". Warnings do not stop the build unless `--strict`
-is set. The model was calibrated with the web fonts loaded and verified by rendering decks
-at the limit in both variants and all four themes with `--check` (0 issues), so a deck with
-no warnings should not need a second build.
+The renderer and the lint are one pass. Every slide is composed of cells of known size, and
+every text is wrapped in the deck's own fonts before any HTML is written: headlines, points
+and numerals step down a size ladder until they fit, and whatever still does not fit is
+reported with the slide number and what to do, for example "slide 7 (traction): a stat cell
+is overfull by about 16 percent. Shorten the stat label." Warnings do not stop the build
+unless `--strict` is set. The ladders also run upward: tables, lists, diagram labels and
+milestone rows grow to use their cell, and a list, table or diagram cell that still stays
+under 55 percent filled is listed under `slack:` (and in `qa/report.json`), so a thin slide
+is named instead of shipped. Glyph widths of every theme face are in `font-metrics.json`
+(regenerate with `--measure-fonts` after changing a theme); a deck that sets `font_display`
+or `font_body` is measured in the installed Chrome at build time. `--capacities` prints the
+table of what fits per slide type (`references/deck-structure.md` section 4); it is found
+by rendering each form with one field growing until the lint objects. Decks at those limits
+render with 0 QA issues in all nine themes and both variants, so a deck with no warnings
+should not need a second build.
 
-## PPTX checks
+`--check` screenshots every slide and reports what the browser shows: text that leaves the
+stage, the content frame or its cell, clipped or overlapping text, type below the size
+floor (24 px for running text on the 1920 px stage, 22 px in the read variant, 16 px for
+labels and captions), and text contrast under 4.5:1 against the ground it sits on.
+
+## PPTX modes and checks
+
+`meta.pptx` (or `--pptx`) picks the PowerPoint output; the file is always `deck.pptx`.
+
+- `faithful` (default): every slide is a full-bleed picture rendered by Chrome at twice the
+  stage size, with the speaker notes and a title per slide for the outline. It is
+  the PDF as pictures and the text is not editable. Flat slides are stored as PNG, slides
+  with gradients as JPEG. The grain texture is left out of these pictures because noise at
+  3840 px would triple the file size (`PITCH_PPTX_GRAIN=1` keeps it).
+- `editable`: one picture per slide of the ground, cells, diagrams, icons and images, with
+  every text as a native text box at its measured position and charts as native charts.
+  Bar, line and area charts are native; donuts, diagrams and icons are part of the picture.
+  Fonts fall back to safe ones (Georgia for headlines when the display face is a serif;
+  `meta.pptx_font_display` and `meta.pptx_font_body` name others), so lines can break
+  differently: look at it once.
+- `none`: no PPTX.
+
+Both need Chrome and playwright-core. Without them the build says so and writes the native
+PPTX instead (shapes, charts and tables drawn by pptxgenjs in the theme's base tone,
+simpler layouts, fully editable).
 
 After writing `deck.pptx` the builder always runs `scripts/pptx_check.py`, a structural
 check that needs only the Python standard library: the archive is intact, every XML part
@@ -76,60 +103,41 @@ A failing check sets the build's exit code to 1.
 
 ## Editing
 
-**deck.json** is the normal path. Field reference: `references/deck-structure.md` (what each
-slide type must contain) and `references/file-formats.md` (the file contract). Rebuild after
-every edit; the build is under a second.
+**deck.json** is the normal path. `references/deck-structure.md` is the field reference
+(section 3: every field, the diagram kinds, the icon names; section 4: what fits) and
+`references/file-formats.md` the file contract. Rebuild after every edit.
 
-- `meta`: `company`, `tagline`, `theme` (`graphite`, `paper`, `signal`, `midnight`),
-  `accent` (6-digit hex, overrides the theme accent), `font_display`, `font_body` (Google
-  Fonts family names), `logo` (path relative to deck.json; SVG or PNG), `footer`,
-  `variant` (`present`, the default, or `read` for a send-ahead: draws `body` paragraphs and
-  a source file under each stat), `sources` (`compact`, the default: a sources appendix with
-  one row per source file, at most two slides; `full`: one row per ledger id; `none`: no
-  appendix; `show_sources: false` still works), `pptx_fonts: "web"` (write the web font names into the PPTX instead of
-  the safe fonts).
 - Slide types: `cover`, `problem`, `solution`, `product`, `insight`, `market`, `traction`,
   `business_model`, `go_to_market`, `competition`, `team`, `financials`, `ask`, `roadmap`,
-  `closing`, `appendix`, `sources`, `custom_html`, `statement`, `two_column`. Hyphenated
-  spellings (`go-to-market`) are accepted. An unknown type renders as a statement with a
-  visible amber badge.
-- Fields: `title`, `subtitle`, `kicker`, `body` (read variant only), `points[]` (max 5),
-  `stats[{value,label,source}]` (max 4), `chart{kind, labels[], series[{name, values[]}],
-  y_label, source, show_values}` with `kind` one of `bar`, `line`, `stacked_bar`, `area`,
-  `horizontal_bar` (`null` values leave a gap, which is how an actual series and a
-  projection series share one chart), `image`, `columns[]` and `rows[]` for tables,
-  `team[]` or `rows[]` of `[name, role, proof]`, `use_of_funds[{label, pct}]`,
-  `milestones[]` or `rows[]` of `[date, milestone, proves]`, `notes`, `question` (not
-  rendered; shown in the notes overlay and written into the PPTX notes), `source`.
+  `closing`, `appendix`, `case_study`, `quote`, `section`, `statement`, `two_column`,
+  `custom_html`, and the generated `sources`.
+- Layouts follow the content: stats make a mosaic with the first stat in the accent cell;
+  problem, solution and ask are colour-block splits; cover, section, statement, quote and
+  closing are full-bleed. Each slide has a tone (`light`, `dark`, `accent`), assigned
+  automatically so no more than three in a row share one.
+- Visual vocabulary, all from deck.json: `diagram` (`flow`, `funnel`, `timeline`, `market`,
+  `matrix`, `power_grid`, `loop`, `layers`, `before_after`), `icon` on points and steps,
+  `frame` around images (`browser`, `phone`), `logos[]`, `sparklines[]`, charts with a
+  highlighted latest value, direct labels and one `annotation`, `donut` for use of funds,
+  one emphasised phrase per title between asterisks.
 - `[needs number]`, as a whole value or inside a sentence, renders as a dashed amber slot
-  in both outputs and is listed in the build log. It never looks final.
-- Table headers (`columns`) may include or omit the leading empty cell for the row labels.
-- A product slide without an `image` sets its points across the full width.
-- Content slides never show a raw ledger id. A chart or slide caption reads
-  "Source: notes/bom-estimate.md" (the ledger entry's source file, or its label when the
-  value is derived); without a `facts.yaml` it shows a superscript reference number that
-  resolves on the sources slide. Stat-level captions appear only in the `read` variant.
-- The sources appendix is generated from every `source` reference. With a `facts.yaml`
-  the default is compact: one row per source file with its figure count, kinds and slides
-  (the build prints "sources appendix: N files, M figures, P pages"); `meta.sources: "full"`
-  prints id, label, value, kind, as-of date and file per ledger id. Without a ledger it is
-  a numbered reference list. The build warns about ids that are not in the ledger.
+  and is listed in the build log. It never looks final.
+- Content slides never show a raw ledger id. A caption reads "Source: data/metrics.csv"
+  (the ledger entry's source file); without a `facts.yaml` it shows a reference number
+  that resolves on the sources slide. Stat-level sources appear only in the `read` variant.
+- The sources appendix is generated from every `source` reference: compact by default (one
+  row per source file), `meta.sources: "full"` for one row per ledger id, `"none"` for no
+  appendix.
 
 **deck.html** can be hand-edited for a one-off tweak, but the next build overwrites it.
-For a layout none of the types covers, use a `custom_html` slide: its `html` is inserted
-verbatim inside the 1920x1080 stage and survives rebuilds. Theme tokens are available as
-CSS variables (`var(--accent)`, `var(--font-display)`, see THEMES.md).
+For a layout none of the types or diagrams covers, use a `custom_html` slide.
 
-## Themes and fonts
+## Themes, fonts and icons
 
-Four themes live in `themes.css`; `THEMES.md` documents the tokens and when to pick which.
-The builder inlines the CSS into `deck.html` and reads the same tokens for the PPTX, so
-colours never drift between outputs. `meta.accent` overrides the accent and the first chart
-colour; `meta.font_display` and `meta.font_body` swap the web fonts.
-
-Web fonts load from Google Fonts with `display=swap` and fall back to size-adjusted local
-faces when offline. The PPTX uses safe fonts (Cambria for the serif theme, Calibri or Arial
-for the sans themes) because web fonts are not embedded in PowerPoint files.
+Nine art directions live in `themes.css`; `THEMES.md` says when to pick which and what a
+theme controls. Web fonts load from Google Fonts with `display=swap` and fall back to
+local faces offline. `icons.json` is a subset of 74 Lucide icons (lucide-static 1.71.0,
+ISC license), inlined as SVG where a slide uses one.
 
 ## Presenting
 
@@ -142,27 +150,23 @@ viewer interactive at 1:1 (what `--check` screenshots).
 
 ## Known limitations
 
-- PPTX fonts substitute. The safe fonts are metric-compatible in PowerPoint and LibreOffice,
-  but a PPTX never looks identical to the HTML. Open it once in PowerPoint before sending.
+- The faithful PPTX is pictures: nobody can edit a typo in PowerPoint. Rebuild from
+  deck.json, or use `--pptx editable`.
+- The editable PPTX sets text in safe fonts at the positions measured in the browser. It
+  is close, not identical: a line can break differently, gradient fills under lines are not carried over, and diagrams, icons and the grain are part of the
+  picture, not shapes. Open it once in PowerPoint before sending.
+- `custom_html` is not measured by the lint and stays a picture in both PPTX modes.
 - Hand edits to `deck.html` are lost on rebuild unless they live in a `custom_html` slide.
-- `custom_html` slides appear in the PPTX as their plain text with a note pointing to
-  `deck.html`; the PPTX renderer cannot lay out arbitrary HTML.
-- SVG images are embedded in the PPTX by rasterising them with Chrome through playwright-core
-  (a `.svg.png` is written next to the SVG). Without Chrome the SVG is left out of the PPTX
-  with a note; supply a PNG to avoid that.
-- The capacity lint models the HTML layouts. The PPTX follows the same limits but its text is
-  not measured, so look at the PPTX once before sending it.
-- Offline, the fallback fonts change line breaks slightly. Nothing overflows in the four
-  themes with the example content, but check `--check` after large text changes.
-- Chart text in the SVG is set in the theme body font. Axis ticks use 1-2-5 steps (whole
-  numbers when the data are whole numbers) and data labels keep the decimals the data have
-  (`1.18`, `41.2`, `1.265M`). Supply values in the unit named by `y_label`.
-- The builder does not read the ledger to verify numbers; it only decorates the sources
-  slide and warns about unknown ids. `scripts/ledger_check.py` is the authority.
+- Offline, the fallback fonts change line breaks. `--check` says when it measured fallback
+  fonts; trust a clean result only when the log shows the web fonts loaded.
+- Photos are not processed: team photos are shown in greyscale through CSS, logo files as
+  given (a strip of logos reads best with single-colour SVGs).
+- A matrix places labels beside their dots without resolving collisions between two
+  competitors that sit close together; move one of them slightly.
+- The builder does not read the ledger to verify numbers; it only decorates captions and
+  the sources slide and warns about unknown ids. `scripts/ledger_check.py` is the authority.
 - No PowerPoint or Keynote is used in the test loop; PPTX QA relies on the structural
   check, Anthropic's validator where it is installed, and a LibreOffice render.
-- `--check` measures what the browser shows. Offline it measures the fallback fonts, which
-  are narrower, and says so; trust a clean result only when the log shows the web fonts loaded.
 
 ## Dependencies and versions tested
 
@@ -170,8 +174,8 @@ viewer interactive at 1:1 (what `--check` screenshots).
 |---|---|---|
 | Node | 26.13.0 (18 or newer works) | build_deck.js |
 | pptxgenjs | 4.0.1 | deck.pptx |
-| playwright-core | 1.65.0 | `--check` screenshots, SVG rasterising, PDF fallback route |
-| Google Chrome | 157.0.8103.50 | PDF print, screenshots (Edge or Chromium also work) |
+| playwright-core | 1.65.0 | faithful and editable PPTX, `--check`, font measurement, PDF fallback route |
+| Google Chrome | 157.0.8103.50 | PDF print, PPTX pictures, screenshots (Edge or Chromium also work) |
 | Python | 3.14 and 3.15 | pptx_check.py (standard library only) |
 | lxml, defusedxml | 6.1.3, 0.7.1 | only for Anthropic's validator, when their pptx skill is installed |
 | LibreOffice | 26.8.2.2 | PPTX preview render, PDF fallback from PPTX |

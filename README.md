@@ -9,6 +9,10 @@ deck as HTML, PDF and PowerPoint.
 
 ![Example deck built by the skill (fictional company)](docs/demo-deck.gif)
 
+A deck written by the skill for one of the fictional test startups, from its folder alone:
+
+![Deck built for a fictional Series A company](docs/evidence/visual/after-kestrel.jpg)
+
 ## Install
 
 ```bash
@@ -43,9 +47,13 @@ Details in [docs/USAGE.md](docs/USAGE.md).
   that are not in your folder. Missing figures are visible `[needs number]` slots.
 - **Confidential material stays out.** Term sheets, cap tables with names, salaries and
   contracts are not read; deal terms mentioned elsewhere are held back from investor text.
-- **A real deck pipeline.** One `deck.json` becomes a self-contained HTML deck, a vector
-  PDF and a structure-checked PowerPoint with native charts. Content is checked against each
-  layout's capacity before rendering, and every number on a slide is traced to the ledger.
+- **Decks that look designed.** One `deck.json` becomes a self-contained HTML deck and a
+  vector PDF in one of nine art directions: tone rhythm, section slides, hero numerals,
+  native diagrams (flow, funnel, timeline, market, competition grid, loop, layers), icons,
+  device frames, pull quotes, annotated charts. Content is measured against each layout
+  before rendering, and every number on a slide is traced to the ledger.
+- **PowerPoint when you need it.** Pixel-faithful (identical to the PDF) or editable (native
+  text and charts), or none at all.
 - **440 real pitch decks as reference**, each with round, year, amount, sector and a
   verified link; 25 studied slide by slide (Airbnb 2008 among them). Decks that are not
   public (Higgsfield, for example) are listed as unavailable, not fabricated.
@@ -62,7 +70,7 @@ pitch/
     ├── deck.json       editable source
     ├── deck.html       present in a browser (arrow keys; n for speaker notes)
     ├── deck.pdf        one page per slide
-    └── deck.pptx       native PowerPoint, editable text and charts
+    └── deck.pptx       optional: pixel-faithful or editable PowerPoint
 ```
 
 A complete example for a fictional company is in
@@ -96,7 +104,7 @@ available and what each missing piece unlocks.
 [docs/PROMISES.md](docs/PROMISES.md) says, claim by claim, what the evidence supports.
 In short: three fictional startups with planted traps, compared against a plain prompt;
 quick runs of five to nine minutes passing every trap check; a founder-answers-then-deck
-round; live Codex CLI runs including automatic triggering from a plain request. Not tested:
+round; a visual round where fresh agents built designed decks in 8 and 11 minutes; live Codex CLI runs including automatic triggering from a plain request. Not tested:
 PowerPoint or Keynote rendering of the PPTX (LibreOffice only), Windows and Linux,
 claude.ai upload, automatic triggering in Claude Code, and any real fundraising outcome.
 

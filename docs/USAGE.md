@@ -34,7 +34,7 @@ to new. Then ask for what you need:
 |---|---|
 | "Write the full narrative" | `pitch/narrative.md`: purpose sentence, long form, two-sentence, 60-second and 3-minute versions |
 | "Prepare the investor Q&A" | `pitch/investor-qa.md`: the least-ready five, a 10-question rapid-fire drill, up to 15 themed questions with honest answers, red-flag records |
-| "Build the deck" | `pitch/deck/`: `deck.json` (editable source), `deck.html` (present in a browser), `deck.pdf`, `deck.pptx` |
+| "Build the deck" | `pitch/deck/`: a designed deck with section slides, diagrams, hero numbers and charts. `deck.json` (editable source), `deck.html` (present in a browser), `deck.pdf`, and `deck.pptx` if you want PowerPoint |
 | "Prepare me for a meeting with a corporate VC" | Q&A and ask tuned to that investor type |
 | "Review my deck" (with a PDF or PPTX in the folder) | A red-flag review and the start page, with an offer to rebuild |
 | "Update the numbers, the October export is in data/" | Ledger and outputs rebuilt, changed values listed |
@@ -55,9 +55,19 @@ python3 ~/.claude/skills/startup-pitch/scripts/pitch.py deck
 PowerPoint, prints the PDF, screenshots every slide, checks for overflow and traces every
 number on the slides back to the ledger. The summary at the end tells you what to fix.
 
-Themes: `graphite`, `paper`, `signal`, `midnight`. Set `meta.theme`; override the accent
-with `meta.accent` and fonts with `meta.font_display` / `meta.font_body`. Put a logo and a
-brand file with hex colours in your folder and the deck picks them up.
+Nine art directions: `ledger`, `nocturne`, `poster`, `blueprint`, `studio`, `graphite`,
+`paper`, `signal`, `midnight` (see `assets/deck-template/THEMES.md`). Set `meta.theme`;
+override the accent with `meta.accent` and fonts with `meta.font_display` /
+`meta.font_body`. Put a logo and a brand file with hex colours in your folder and the deck
+picks them up.
+
+PowerPoint is your choice, and you are asked once: none (PDF and web deck only), faithful
+(looks identical to the PDF, text not editable) or editable (text and charts editable, a
+little plainer). Change it later with `"pptx"` in `meta` or on the command line:
+
+```bash
+python3 ~/.claude/skills/startup-pitch/scripts/pitch.py deck --pptx editable
+```
 
 Present from `deck.html`: arrow keys to move, `n` for speaker notes.
 

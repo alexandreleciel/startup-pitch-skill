@@ -1,0 +1,796 @@
+{
+ "meta": {
+  "company": "Kestrel Health",
+  "tagline": "Fast physiotherapy for employees, in clinics' empty weekday slots",
+  "theme": "ledger",
+  "accent": "#E8735A",
+  "font_display": "Fraunces",
+  "font_body": "Inter",
+  "variant": "read",
+  "pptx": "editable",
+  "sources": "compact",
+  "footer": "Kestrel Health, confidential, November 2026"
+ },
+ "slides": [
+  {
+   "type": "cover",
+   "title": "Kestrel Health",
+   "subtitle": "Fast physiotherapy for employees, booked into independent clinics' empty weekday slots",
+   "kicker": "Series A, November 2026",
+   "stats": [
+    {
+     "value": "£1.9M",
+     "label": "GMV, Q3 2026, finance figure",
+     "source": "fact:gmv_current"
+    },
+    {
+     "value": "41",
+     "label": "employers and 312 clinics active, end of September 2026",
+     "source": "fact:active_employers"
+    },
+    {
+     "value": "£9.5M",
+     "label": "Series A round",
+     "source": "fact:ask"
+    }
+   ],
+   "question": "What is this, in plain words?",
+   "notes": "Say: Kestrel Health sells employers fast physiotherapy for their staff, booked into the empty weekday slots of independent clinics. We keep 22% of each booking.\nContext: GMV is the gross value of bookings before the clinics' share.\nTransition: Here is how fast it is growing.\nTime: 30"
+  },
+  {
+   "type": "traction",
+   "title": "Bookings reached *£1.9M* in Q3 2026, up 31% on Q2",
+   "chart": {
+    "kind": "bar",
+    "labels": [
+     "Q1 2026",
+     "Q2 2026",
+     "Q3 2026"
+    ],
+    "series": [
+     {
+      "name": "GMV (£k)",
+      "values": [
+       1180,
+       1450,
+       1900
+      ]
+     }
+    ],
+    "y_label": "GMV, £ thousand per quarter, finance figures",
+    "show_values": true,
+    "source": "fact:gmv_quarterly_series"
+   },
+   "stats": [
+    {
+     "value": "31%",
+     "label": "growth, Q2 to Q3 2026; the Q2 base is being reconciled",
+     "source": "fact:gmv_qoq_growth"
+    },
+    {
+     "value": "£7.6M",
+     "label": "GMV run-rate, Q3 2026 annualised",
+     "source": "fact:gmv_run_rate"
+    }
+   ],
+   "points": [
+    {
+     "icon": "file-text",
+     "text": "Finance is the system of record. The weekly booking export shows £1.73M for Q3 because it leaves out manually invoiced enterprise bookings."
+    }
+   ],
+   "source": [
+    "fact:gmv_current",
+    "fact:gmv_q3_export"
+   ],
+   "question": "Is this working, and how fast?",
+   "notes": "Say: Bookings were £1.9M in the third quarter, up 31% on the second. Net revenue was £418k.\nContext: GMV is bookings paid through Kestrel before the clinics' share. Q2 grew 23% on Q1, so we do not claim 30% a quarter as a trend. The Q1 and Q2 export figures run above finance and are being reconciled.\nTransition: The growth comes from a wait nobody else has fixed.\nTime: 90"
+  },
+  {
+   "type": "problem",
+   "title": "An employee in pain waits about *14 weeks* for NHS physiotherapy, by our estimate",
+   "points": [
+    {
+     "icon": "clock",
+     "title": "The wait",
+     "text": "About 14 weeks on the NHS in most areas; 10 days or more through an insurer's pathway (our estimates)"
+    },
+    {
+     "icon": "building-2",
+     "title": "Who pays",
+     "text": "The employer carries the absence either way, most of all in logistics, care, manufacturing and retail"
+    },
+    {
+     "icon": "calendar",
+     "title": "Meanwhile",
+     "text": "Independent clinics have empty slots on weekday mornings and afternoons"
+    }
+   ],
+   "stats": [
+    {
+     "value": "14 weeks",
+     "label": "NHS physiotherapy wait, our estimate; public source to be added",
+     "source": "assumption:nhs_wait_weeks"
+    },
+    {
+     "value": "19 days",
+     "label": "to a first appointment through one employer's previous occupational health route, January to June 2025, n=212",
+     "source": "fact:days_to_first_appointment_before"
+    }
+   ],
+   "source": [
+    "assumption:nhs_wait_weeks",
+    "assumption:insurer_wait_days"
+   ],
+   "question": "Who hurts, how much, and what do they do about it now?",
+   "notes": "Say: An employee with a back injury waits about 14 weeks for NHS physiotherapy, by our estimate, and the employer pays for the absence either way. Priya's own team waited while the insurer's fast track took days, not hours.\nContext: The 14 weeks and the insurer figure are our estimates; the public source and year are still to be added. The 19 days is measured at one employer.\nTransition: Kestrel closes that gap to days.\nTime: 75"
+  },
+  {
+   "type": "solution",
+   "title": "With Kestrel, the first appointment came in *2.3 days*, not 19",
+   "subtitle": "One logistics employer, 212 employees, January to June 2026",
+   "diagram": {
+    "kind": "before_after",
+    "before": {
+     "label": "Before: occupational health route",
+     "value": "19 days",
+     "text": "Average wait for a first appointment, January to June 2025"
+    },
+    "after": {
+     "label": "With Kestrel",
+     "value": "2.3 days",
+     "text": "The same 212 employees, January to June 2026"
+    }
+   },
+   "points": [
+    {
+     "icon": "smartphone",
+     "text": "Digital triage first, then a physiotherapist in person when the case needs hands"
+    },
+    {
+     "icon": "map-pin",
+     "text": "312 partner clinics, booked into slots that would otherwise sit empty"
+    },
+    {
+     "icon": "chart-column",
+     "text": "The employer sees sick days and return to work for its own people"
+    }
+   ],
+   "source": [
+    "fact:days_to_first_appointment",
+    "fact:days_to_first_appointment_before",
+    "fact:active_clinics"
+   ],
+   "question": "What do you do about it, and for whom?",
+   "notes": "Say: At one logistics employer the wait for a first appointment fell from 19 days to 2.3 days, across 212 employees.\nContext: This is one employer and two sites. A network-wide figure needs a booking export we have not produced yet.\nTransition: Here is what happens between the employee's message and the treatment room.\nTime: 75"
+  },
+  {
+   "type": "product",
+   "title": "One booking connects the employee, a clinic's *empty slot* and the employer's absence data",
+   "diagram": {
+    "kind": "flow",
+    "steps": [
+     {
+      "icon": "smartphone",
+      "title": "Triage",
+      "text": "The employee describes the problem online and gets an exercise programme"
+     },
+     {
+      "icon": "calendar",
+      "title": "Booking",
+      "text": "Into a partner clinic's empty weekday slot"
+     },
+     {
+      "icon": "heart-pulse",
+      "title": "Treatment",
+      "text": "In person when needed: 40% of cases get hands-on treatment"
+     },
+     {
+      "icon": "chart-column",
+      "title": "Outcomes",
+      "text": "The employer sees sick days and return to work"
+     }
+    ],
+    "loop": "Outcomes data is why employers renew"
+   },
+   "points": [
+    {
+     "icon": "circle-check",
+     "text": "Live today: booking engine, clinic app and employer dashboard, sold on annual contracts"
+    },
+    {
+     "icon": "activity",
+     "text": "30,100 bookings in Q3 2026 across 312 active clinics"
+    },
+    {
+     "icon": "wrench",
+     "text": "Planned with this round: outcomes tracking, clinician tooling, HR system integrations"
+    }
+   ],
+   "source": [
+    "fact:hands_on_share",
+    "fact:bookings_q3",
+    "fact:active_clinics"
+   ],
+   "question": "Does it exist, and does it do what you say?",
+   "notes": "Say: Everything in this flow is live. We handled 30,100 bookings in the third quarter. 40% of our cases get hands-on treatment, and those are the expensive absences.\nContext: The 40% is our own figure and needs a case export behind it. We have no product screenshot in this deck yet.\nTransition: The reason clinics say yes is simple.\nTime: 60"
+  },
+  {
+   "type": "insight",
+   "title": "Clinics take a 22% cut gladly: the alternative is an *empty 11am Tuesday*",
+   "diagram": {
+    "kind": "loop",
+    "center": "Filled slots",
+    "nodes": [
+     {
+      "title": "Employers add staff",
+      "text": "71,400 employees covered"
+     },
+     {
+      "title": "Off-peak bookings",
+      "text": "Slots clinics could not fill"
+     },
+     {
+      "title": "Clinics prioritise us",
+      "text": "312 active clinics"
+     },
+     {
+      "title": "Faster appointments",
+      "text": "2.3 days at one employer"
+     }
+    ]
+   },
+   "stats": [
+    {
+     "value": "22%",
+     "label": "of each booking kept by Kestrel, Q3 2026",
+     "source": "fact:take_rate"
+    }
+   ],
+   "source": [
+    "fact:take_rate",
+    "fact:covered_employees",
+    "fact:active_clinics",
+    "fact:days_to_first_appointment"
+   ],
+   "question": "Why does this work now, and why will you be the one to build it?",
+   "notes": "Say: Private physiotherapy is thousands of small clinics with empty weekday slots and no aggregator. We fill slots they could not fill otherwise, so they accept 22%.\nContext: The network is not exclusive and never will be. We win only while we are a clinic's best channel.\nTransition: Now the proof.\nTime: 60"
+  },
+  {
+   "type": "section",
+   "title": "Proof: employers stay, and *spend more*",
+   "subtitle": "Network growth, one employer's outcomes, unit economics and retention",
+   "notes": "Time: 5"
+  },
+  {
+   "type": "traction",
+   "title": "*41 employers* and 312 clinics were active at the end of September 2026",
+   "chart": {
+    "kind": "bar",
+    "labels": [
+     "Nov 25",
+     "Dec 25",
+     "Jan 26",
+     "Feb 26",
+     "Mar 26",
+     "Apr 26",
+     "May 26",
+     "Jun 26",
+     "Jul 26",
+     "Aug 26",
+     "Sep 26",
+     "Oct 26"
+    ],
+    "series": [
+     {
+      "name": "Active employers",
+      "values": [
+       25,
+       26,
+       28,
+       29,
+       31,
+       33,
+       34,
+       36,
+       37,
+       39,
+       41,
+       42
+      ]
+     }
+    ],
+    "y_label": "Active employers, last week of each month, weekly export",
+    "highlight": "Sep 26",
+    "source": "fact:active_employers_series"
+   },
+   "stats": [
+    {
+     "value": "41",
+     "label": "active employers, end of September 2026",
+     "source": "fact:active_employers"
+    },
+    {
+     "value": "312",
+     "label": "active partner clinics, end of September 2026",
+     "source": "fact:active_clinics"
+    }
+   ],
+   "points": [
+    {
+     "icon": "file-text",
+     "text": "Counts come from the weekly export. The board update's March and June counts are two lower; the two are being reconciled."
+    }
+   ],
+   "question": "Is the network growing on both sides?",
+   "notes": "Say: We added 16 employers in eleven months and ended September with 41 employers, 312 clinics and 71,400 covered employees.\nContext: Active means at least one booking in the period. Clinic supply is no longer the constraint in the big cities; it is still thin in the South West and Scotland.\nTransition: What does an employer get for it?\nTime: 60"
+  },
+  {
+   "type": "case_study",
+   "title": "At one logistics employer, MSK sick days fell *34%* among 212 employees",
+   "chart": {
+    "kind": "bar",
+    "labels": [
+     "Jan to Jun 2025, before",
+     "Jan to Jun 2026, with Kestrel"
+    ],
+    "series": [
+     {
+      "name": "MSK sick days",
+      "values": [
+       1418,
+       936
+      ]
+     }
+    ],
+    "y_label": "MSK sick days, the same 212 employees",
+    "show_values": true,
+    "source": "fact:sick_days_series"
+   },
+   "stats": [
+    {
+     "value": "34%",
+     "label": "fewer MSK sick days, n=212, no control group",
+     "source": "fact:sick_days_reduction"
+    },
+    {
+     "value": "2.3 days",
+     "label": "to a first appointment, down from 19",
+     "source": "fact:days_to_first_appointment"
+    }
+   ],
+   "points": [
+    "One employer, two sites; the same employees a year apart",
+    "No control group; employees chose the pathway; shifts changed in March 2026",
+    "Controlled evaluation across 4 employers planned for 2027"
+   ],
+   "source": [
+    "fact:sick_days_reduction",
+    "fact:days_to_first_appointment_before"
+   ],
+   "question": "Does a real customer get the value you claim?",
+   "notes": "Say: At one logistics employer, the 212 employees who used Kestrel recorded 936 MSK sick days in six months, against 1,418 in the same months a year earlier.\nContext: Single employer, no control group, self-selected participants, and the employer changed shift patterns in March 2026. Regression to the mean is likely. We do not present this as a general result.\nTransition: That difference in what the buyer wants is the heart of the company.\nTime: 75"
+  },
+  {
+   "type": "statement",
+   "title": "Insurers optimise for claims cost. Employers optimise for *people being at work*.",
+   "subtitle": "Those are different products. Kestrel sells to the employer.",
+   "notes": "Say: Insurers optimise for claims cost. Employers optimise for people being at work. Those are different products, and in the UK the employer is the right buyer.\nTime: 20"
+  },
+  {
+   "type": "business_model",
+   "title": "Kestrel keeps *22%* of each booking, at a 61% gross margin",
+   "stats": [
+    {
+     "value": "22%",
+     "label": "take rate: Kestrel's share of each booking, Q3 2026",
+     "source": "fact:take_rate"
+    },
+    {
+     "value": "61%",
+     "label": "gross margin on net revenue, Q3 2026",
+     "source": "fact:gross_margin"
+    },
+    {
+     "value": "118%",
+     "label": "net revenue retention, all employers, 12 months to September 2026",
+     "source": "fact:nrr_ttm"
+    },
+    {
+     "value": "9 months",
+     "label": "CAC payback, blended, median employer; our target was 6",
+     "source": "fact:cac_payback_blended_months"
+    }
+   ],
+   "points": [
+    {
+     "icon": "banknote",
+     "text": "Employers pay for each booking through Kestrel and the clinic receives the rest: £418k of net revenue on £1.9M of bookings in Q3 2026"
+    },
+    {
+     "icon": "target",
+     "text": "Enterprise employers repay their acquisition cost in 1.9 months (n=14); the table is in the appendix"
+    }
+   ],
+   "source": [
+    "fact:net_revenue",
+    "fact:gmv_current",
+    "fact:cac_payback_enterprise_months"
+   ],
+   "question": "Who pays, how much, and does a pound in produce more than a pound out?",
+   "notes": "Say: We keep 22% of each booking. Gross margin on that is 61% after clinical operations, payment processing and the triage team. Net revenue annualises to £1.67M.\nContext: Blended payback is 9 months against a target of 6; it crept up as enterprise cycles lengthened and two new sales hires ramped. Gross retention is not measured yet.\nTransition: Retention depends on who the employer is.\nTime: 75"
+  },
+  {
+   "type": "insight",
+   "title": "Employers who own absence as a metric stay: *none of 14* enterprise employers has left",
+   "stats": [
+    {
+     "value": "0 of 14",
+     "label": "enterprise employers lost in two years (small sample, short record)",
+     "source": "fact:enterprise_logo_churn"
+    }
+   ],
+   "points": [
+    {
+     "icon": "users",
+     "title": "Where we lost",
+     "text": "7 employers left in 12 months, every one with fewer than 200 employees"
+    },
+    {
+     "icon": "eye",
+     "title": "Why",
+     "text": "Too few employees book, so finance cancels at renewal"
+    },
+    {
+     "icon": "flag",
+     "title": "What we changed",
+     "text": "From Q4 2026 we sell only to employers with 250 or more staff"
+    }
+   ],
+   "source": [
+    "fact:enterprise_logo_churn",
+    "fact:enterprise_accounts",
+    "fact:employers_lost_12m"
+   ],
+   "question": "Is it one kind of customer or many, and do they stay?",
+   "notes": "Say: We lost 7 employers in 12 months, all under 200 employees. None of our 14 enterprise employers has left in two years, and employers as a group spent 118% of the year before.\nContext: 14 accounts over two years is a small sample. Enterprise means 250 or more staff on an annual contract. Gross retention is not measured yet.\nTransition: So how many such employers are there?\nTime: 60"
+  },
+  {
+   "type": "section",
+   "title": "The market, and why Kestrel *wins it*",
+   "subtitle": "The serviceable market, how we sell, and the alternatives an employer has",
+   "notes": "Time: 5"
+  },
+  {
+   "type": "market",
+   "title": "We estimate *£1.1B* of serviceable bookings a year: 15.6M employees x 18% x £403",
+   "stats": [
+    {
+     "value": "£1.1B",
+     "label": "Serviceable bookings: 15.6M employees x 18% x £403 (assumption)",
+     "source": "assumption:sam"
+    },
+    {
+     "value": "£242M",
+     "label": "Net revenue pool: serviceable bookings x our 22% take rate (assumption)",
+     "source": "assumption:sam_net_revenue"
+    },
+    {
+     "value": "£1.7M",
+     "label": "Kestrel today: net revenue run-rate, Q3 2026 annualised (fact)",
+     "source": "fact:net_revenue_run_rate"
+    }
+   ],
+   "points": [
+    "Employees at 250+ employers in the UK, Netherlands and Ireland. 18% report an MSK problem in a year; fewer seek treatment, so the real figure is lower.",
+    "£403 is the market average spend per case, at 6.2 sessions. Booking value, not Kestrel revenue. Public sources for the three inputs are being added."
+   ],
+   "source": [
+    "assumption:sam_employees",
+    "assumption:msk_incidence",
+    "assumption:spend_per_case",
+    "fact:take_rate"
+   ],
+   "question": "How big can this get, and how do you know?",
+   "notes": "Say: Employees at large employers in three countries, times the share with an MSK problem, times the spend per case: £1.1B of bookings a year, of which our 22% would be £242M.\nContext: Physiotherapy pathway only, no prevention or occupational health layers. Our own cases average slightly less than the market spend per case.\nTransition: Here is how we reach those employers.\nTime: 60"
+  },
+  {
+   "type": "go_to_market",
+   "title": "Enterprise sales wins a 250+ employer for *£11,400*, repaid in 1.9 months",
+   "stats": [
+    {
+     "value": "£11,400",
+     "label": "CAC per enterprise employer, 12 months to September 2026",
+     "source": "fact:cac_enterprise"
+    },
+    {
+     "value": "5 months",
+     "label": "average enterprise sales cycle, Q3 2026",
+     "source": "fact:sales_cycle_enterprise_months"
+    }
+   ],
+   "points": [
+    {
+     "icon": "target",
+     "title": "Beachhead",
+     "text": "UK employers with 250 or more staff in logistics, care, manufacturing and retail, where someone owns absence"
+    },
+    {
+     "icon": "handshake",
+     "title": "Motion",
+     "text": "An enterprise sales team led by a VP Sales with 10 years in employee benefits; the outcomes whitepaper opens the conversation"
+    },
+    {
+     "icon": "globe",
+     "title": "Next",
+     "text": "First market outside the UK with this round: the Netherlands or Ireland"
+    }
+   ],
+   "source": [
+    "fact:cac_enterprise",
+    "fact:cac_payback_enterprise_months",
+    "fact:net_revenue_enterprise_employer",
+    "fact:sales_cycle_enterprise_months"
+   ],
+   "question": "How do you get customers repeatably, and what does one cost?",
+   "notes": "Say: An enterprise employer costs £11,400 to win and brings £9,900 of net revenue a month on average, so the cost is repaid in 1.9 months.\nContext: The sales cycle is 5 months and got longer this year; that is the weak number here. 14 enterprise employers is a small base.\nTransition: What else could that employer buy?\nTime: 60"
+  },
+  {
+   "type": "competition",
+   "title": "Only Kestrel pairs *in-person treatment in days* with absence data for the employer",
+   "columns": [
+    "",
+    "Kestrel Health",
+    "Insurer MSK pathways",
+    "US digital MSK providers",
+    "NHS"
+   ],
+   "rows": [
+    [
+     "Wait for a first appointment",
+     "2.3 days (one employer, n=212)",
+     "10+ days",
+     "no clinic visit",
+     "about 14 weeks"
+    ],
+    [
+     "Hands-on treatment in a clinic",
+     true,
+     true,
+     false,
+     true
+    ],
+    [
+     "Outcomes data for the employer",
+     true,
+     false,
+     true,
+     false
+    ],
+    [
+     "Already in the employer's benefits",
+     false,
+     true,
+     false,
+     "free to all"
+    ],
+    [
+     "Brand and scale of evidence",
+     "one employer so far",
+     "established",
+     "ahead of us",
+     "n/a"
+    ]
+   ],
+   "points": [
+    "Risks we name: our clinic network is not exclusive, and an insurer has talked about 48-hour access."
+   ],
+   "source": [
+    "assumption:competitor_grid",
+    "fact:days_to_first_appointment",
+    "assumption:insurer_wait_days",
+    "assumption:nhs_wait_weeks"
+   ],
+   "question": "Why will you win against the obvious alternatives, and why won't the incumbent copy you?",
+   "notes": "Say: The employee's real default is waiting for the NHS. Insurers are already in the benefits stack but slow; the US digital providers have the brand and the evidence but no UK clinics, and 40% of our cases get hands-on treatment.\nContext: The grid is our own August 2026 reading of public information and customer conversations. The insurer and NHS waits are our estimates.\nTransition: The people doing this.\nTime: 60"
+  },
+  {
+   "type": "section",
+   "title": "The team and *the round*",
+   "subtitle": "Who builds Kestrel, what £9.5M buys, and what will be true at the end of 2027",
+   "notes": "Time: 5"
+  },
+  {
+   "type": "team",
+   "title": "We sold health benefits to employers, ran physiotherapy clinics and built *payments infrastructure*",
+   "team": [
+    {
+     "name": "Priya Raghunathan",
+     "role": "CEO and co-founder",
+     "bio": "6 years at a UK health insurer selling benefits to large employers; owned a £120M book"
+    },
+    {
+     "name": "Callum Fairbairn",
+     "role": "COO and co-founder",
+     "bio": "Chartered physiotherapist, 12 years clinical; ran and sold a 4-site physiotherapy group"
+    },
+    {
+     "name": "Mateusz Kowal",
+     "role": "CTO and co-founder",
+     "bio": "Staff engineer in payments at a UK fintech; built the booking engine, clinic app and employer dashboard"
+    },
+    {
+     "name": "Grace Ndlovu",
+     "role": "VP Sales, Enterprise",
+     "bio": "10 years selling employee benefits at two insurers and a benefits platform; joined September 2025"
+    }
+   ],
+   "points": [
+    "24 people: 9 in engineering and product, 6 in sales and employer success, 5 in clinical and clinic partnerships"
+   ],
+   "source": "fact:ceo_book_size",
+   "question": "Why these people, and who writes the code?",
+   "notes": "Say: Priya sold this to employers from the insurer's side. Callum is a physiotherapist who ran clinics and knows why they distrust marketplaces. Mateusz built the product.\nContext: The independent board seat is vacant.\nTransition: What we are asking for.\nTime: 60"
+  },
+  {
+   "type": "ask",
+   "title": "Raising *£9.5M* to reach a £10M GMV run-rate and 120 employers by end of 2027",
+   "subtitle": "Runway after the round: [needs number] months",
+   "use_of_funds": [
+    {
+     "label": "Go-to-market: enterprise sales and employer success",
+     "pct": 45,
+     "source": "assumption:use_of_funds_gtm_pct"
+    },
+    {
+     "label": "Product: outcomes tracking, clinician tooling, HR system integrations",
+     "pct": 30,
+     "source": "assumption:use_of_funds_product_pct"
+    },
+    {
+     "label": "Clinical team and supply operations",
+     "pct": 15,
+     "source": "assumption:use_of_funds_clinical_pct"
+    },
+    {
+     "label": "Buffer",
+     "pct": 10,
+     "source": "assumption:use_of_funds_buffer_pct"
+    }
+   ],
+   "milestones": [
+    {
+     "when": "End of 2027",
+     "what": "£10M GMV run-rate (projection; £7.6M today)"
+    },
+    {
+     "when": "End of 2027",
+     "what": "120 active employers (projection; 41 today)"
+    },
+    {
+     "when": "Date to be set",
+     "what": "First market outside the UK live: the Netherlands or Ireland"
+    }
+   ],
+   "source": [
+    "fact:ask",
+    "projection:milestone_gmv_run_rate",
+    "projection:milestone_employers",
+    "fact:gmv_run_rate",
+    "fact:active_employers"
+   ],
+   "question": "How much, for what, and what will be true when it is spent?",
+   "notes": "Say: We are raising £9.5M. 45% goes to enterprise sales and employer success, 30% to product, 15% to the clinical team and supply, 10% is buffer.\nContext: The milestones are targets, not a model; the financial model and the runway figure are still to come. The run-rate today is £7.6M, so expect the question of why only £10M.\nTransition: In one line.\nTime: 90"
+  },
+  {
+   "type": "closing",
+   "title": "Fast physiotherapy for employees, in clinics' *empty weekday slots*",
+   "points": [
+    {
+     "icon": "trending-up",
+     "title": "£1.9M",
+     "text": "of bookings in Q3 2026, up 31% on Q2"
+    },
+    {
+     "icon": "repeat",
+     "title": "118%",
+     "text": "net revenue retention; none of 14 enterprise employers has left"
+    },
+    {
+     "icon": "rocket",
+     "title": "£9.5M",
+     "text": "to reach a £10M GMV run-rate and 120 employers by end of 2027"
+    }
+   ],
+   "subtitle": "Priya Raghunathan, CEO. Contact: [needs detail]",
+   "notes": "Say: Kestrel is the fastest way to get an employee in pain in front of a physiotherapist in the UK, with the outcomes data to show it mattered.\nTime: 20"
+  },
+  {
+   "type": "appendix",
+   "kicker": "Appendix",
+   "title": "Unit economics: enterprise employers repay acquisition cost in *1.9 months*",
+   "columns": [
+    "12 months to September 2026",
+    "Median employer, blended",
+    "Enterprise employer (n=14)"
+   ],
+   "rows": [
+    [
+     "Acquisition cost per employer",
+     "£6,800",
+     "£11,400"
+    ],
+    [
+     "Monthly net revenue per employer",
+     "£1,241 (median)",
+     "£9,900 (mean)"
+    ],
+    [
+     "Gross margin on net revenue",
+     "61%",
+     "61%"
+    ],
+    [
+     "CAC payback",
+     "9 months (target 6)",
+     "1.9 months"
+    ]
+   ],
+   "points": [
+    "Acquisition cost is fully loaded sales and marketing spend over new employers won. Payback divides it by monthly net revenue after gross margin."
+   ],
+   "source": [
+    "fact:cac_blended",
+    "fact:cac_enterprise",
+    "fact:net_revenue_median_employer",
+    "fact:net_revenue_enterprise_employer",
+    "fact:gross_margin",
+    "fact:cac_payback_blended_months",
+    "fact:cac_payback_enterprise_months"
+   ],
+   "question": "Show me the unit economics.",
+   "notes": "Say: Two columns because the two kinds of employer behave differently. The median employer brings £1,241 a month; the mean enterprise employer £9,900.\nContext: Enterprise is 14 accounts. Lifetime value is not shown: two years of enterprise history is too short to state one.\nTime: 45"
+  },
+  {
+   "type": "appendix",
+   "kicker": "Appendix",
+   "title": "The risks we *name ourselves*, and what we are doing about each",
+   "stats": [
+    {
+     "value": "58%",
+     "label": "of GMV from the five largest employers, Q3 2026; none of 14 enterprise employers has left in two years",
+     "source": "fact:top5_gmv_share"
+    },
+    {
+     "value": "8.8 months",
+     "label": "of cash at Q3 net burn, end of September 2026",
+     "source": "fact:runway_months"
+    }
+   ],
+   "points": [
+    {
+     "icon": "scale",
+     "title": "Evidence",
+     "text": "One employer, no control group; controlled evaluation planned for 2027"
+    },
+    {
+     "icon": "link",
+     "title": "Supply",
+     "text": "Clinics are not exclusive; we fill slots they could not fill otherwise"
+    },
+    {
+     "icon": "database",
+     "title": "Data",
+     "text": "Finance and the booking export differ by quarter; being reconciled"
+    }
+   ],
+   "source": [
+    "fact:top5_gmv_share",
+    "fact:runway_months",
+    "fact:enterprise_logo_churn"
+   ],
+   "question": "What could go wrong, and do you know it?",
+   "notes": "Say: These are the four things we would ask about in your seat.\nContext: Cash was £1.9M at the end of September at £215k monthly net burn.\nTime: 45"
+  }
+ ]
+}

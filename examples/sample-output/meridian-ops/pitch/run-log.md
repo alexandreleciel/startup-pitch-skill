@@ -81,3 +81,31 @@
 **Not done:** the presenting variant (`meta.variant: "present"`) is not built. The QA screenshots rendered with fallback fonts, so the brand fonts were not checked by eye.
 
 **Outputs written:** pitch/deck/deck.json, deck.html, deck.pdf, deck.pptx, pitch/deck/qa/; pitch/START-HERE.md, pitch/facts.yaml, pitch/gaps.md updated.
+
+## 2026-11-11: deck for German seed funds (PDF and web version)
+
+**Request:** "Build me the deck for German seed funds. I only need a PDF and the web version, no PowerPoint. Make it look great."
+
+**Format:** `meta.pptx: none` (the founder said so; the format question was skipped). Reading variant, because a German seed fund reads the PDF before the meeting.
+
+**References opened:** SKILL.md, core.md, file-formats.md, deck-structure.md, design.md, assets/deck-template/THEMES.md, investor-types.md, investor-types-detail.md (seed fund block and the Germany column only).
+
+**Comparables:** `pitch.py comparables --sector saas --round seed` returned Buffer (2011), Intercom (2011) and Almanac (2020). Used for structure only: traction early, a number with unit and date in each headline, competition as a table. No numbers copied.
+
+**Theme:** ledger. Meridian sells to heads of operations and the readers are German seed funds who look for evidence first; a calm, exact, light print look suits both and prints well as a PDF. Accent is the brand's signal orange (#E36414) against the theme's navy ink, as in the logo (dark ring, orange dot); the brand teal is too close to the navy to work as a second cell colour. Brand fonts Space Grotesk and Inter. A light version of the logo was drawn for the dark cover and closing (pitch/deck/assets/meridian-logo-light.svg). The previous deck used paper; this one was chosen fresh.
+
+**Ledger changes:** 31 to 33 entries. Added case_morning_peak_pct (60 percent, case study) and pipeline_open_acv (EUR 487,200, sum of the 18 open deals in data/pipeline.csv). The four case-study entries now carry `cite_as: published customer case study, June 2025`, so captions do not show the customer's name. round_profile note updated. No existing value changed. `pitch.py check`: PASS, 0 FAIL, 0 WARN.
+
+**Slides (17 plus sources):** cover; problem; solution (before and after); product (flow); section; traction (bar chart); quote; insight (loop); section; market (rings); business model; go to market (funnel); statement; competition (power grid); team; ask (donut, milestones); closing.
+
+**Read-alone test on the titles:** passes. One site paid EUR 38,000 in waiting fees; carriers book by link and the wait fell to 65 minutes; every truck knows where to go; customers pay and stay; MRR 2.15x in twelve months; the customer's sentence; we build for the driver; mid-market is the segment; EUR 216M estimate; EUR 1,288 a month per customer; two founders close 1.5 customers a month; "we are not DHL"; enterprise serves the shipper, Meridian the forwarder; the founders; EUR 3M to build a sales team; the one-liner.
+
+**Deck builds:** four runs of `pitch.py deck`.
+1. Capacity 1 warning (slide 10, TAM label too long beside the placeholder), QA 0 issues, no slack lines, ledger PASS, 2 open slots.
+2. Capacity clean, QA 0, ledger PASS, 2 open slots. Changes after looking at the screenshots: light logo instead of a white chip; product flow cut from five uneven steps to four of equal length; third traction stat changed from customers lost to the 21-month multiple; loop labels shortened; section 2 title shortened; competition cell shortened; ask set to the dark tone.
+3. Same summary. The donut slices could not be told apart on the orange panel, so the ask moved to the accent tone (donut on navy); closing fixed to dark; a non-breaking hyphen keeps "mid-size" on one line in the closing headline.
+4. Same summary: capacity within budget, QA 0 issues, PDF 18 pages for 18 slides, ledger PASS (0 FAIL, 0 WARN), 2 open slots. One loop label reworded.
+
+**Open slots left visible:** slide 10 TAM (Europe-wide company count), slide 16 ARR when the round is spent (revised model).
+
+**Outputs written:** pitch/deck/deck.json, deck.html, deck.pdf, pitch/deck/assets/meridian-logo-light.svg, pitch/deck/qa/; pitch/facts.yaml, pitch/START-HERE.md, pitch/gaps.md, pitch/run-log.md updated.

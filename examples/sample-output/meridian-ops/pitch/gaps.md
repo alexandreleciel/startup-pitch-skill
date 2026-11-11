@@ -1,6 +1,6 @@
 # Meridian: open items beyond the start page
 
-Updated 2026-11-10 after the founder's answers. The five most urgent questions are in [START-HERE.md](START-HERE.md) section 1. These come next. Figures cite pitch/facts.yaml; items that live only here point at the file and cell.
+Updated 2026-11-11 with the deck build. The five most urgent questions are in [START-HERE.md](START-HERE.md) section 1. These come next. Figures cite pitch/facts.yaml; items that live only here point at the file and cell.
 
 ## 1. Contradictions between files
 
@@ -19,7 +19,7 @@ Updated 2026-11-10 after the founder's answers. The five most urgent questions a
 4. **Revenue by customer.** The memo says per-site pricing undercharges the two biggest customers. A table of MRR by customer answers the concentration question and is the input for retention.
 5. **Sales cycle data.** The memo says the cycle lengthened as deals grew. The pipeline file has expected close months but no created dates, so it cannot be checked or put on the go-to-market slide.
 6. **Competitor facts checked against public pages.** The competition slide rests on what prospects said `[assumption:competitor_grid]`; two cells read "not known".
-7. **Written permission to name customers.** The slide text names none; only the published case study's file name appears, in source captions. Logos need permission before they go on a slide.
+7. **Written permission to name customers.** The deck names none: both quotes are attributed by role and the captions say "published customer case study, June 2025". With permission, the names and logos go on slides 6, 7 and 13.
 8. **A lead, or the statement that the round is open to one.** Seed funds ask on the first call. Nothing in the folder says either way, so the deck says neither.
 
 ## 3. Confidential material found

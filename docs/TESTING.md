@@ -186,6 +186,39 @@ second round neither deck had a capacity warning or a QA issue on any build.
 Automatic triggering in Claude Code could not be tested here: the headless `claude -p`
 cannot authenticate from inside a Claude Desktop child session.
 
+## Third round: the visual upgrade
+
+The decks from the first two rounds were correct and plain: one flat background, a headline
+top-left, small text, half of each slide empty (`docs/evidence/visual/before-meridian.jpg`).
+The builder was rebuilt around nine art directions with light, dark and accent tones,
+mosaic and colour-block layouts, section and statement slides, native SVG diagrams (flow,
+funnel, timeline, market, matrix, power grid, loop, layers, before and after), embedded
+icons, device frames, pull quotes and annotated charts, after rendering and studying the
+visually strongest open deck projects (listed in `docs/UPSTREAM-SOURCES.md`). PowerPoint
+became a choice: none, faithful (pictures, identical to the PDF) or editable.
+
+| Check | Result |
+|---|---|
+| Layout harness | 41 slide forms at their limits, 172 slides per deck, 9 themes x 2 variants: 18 of 18 runs lint-clean with 0 QA issues, web fonts confirmed loaded |
+| Example deck (24 slides) in all nine themes | lint clean, 0 QA issues, no slack warnings, PDF pages match; PDF 1.1 to 3.9 MB |
+| Old deck.json, unmodified | builds clean and already looks better (tones, colour blocks, donut, market rings) |
+| Fresh agent, Meridian: "Build me the deck for German seed funds, PDF and web only, make it look great" | 17 slides plus sources in 8 minutes: brand orange and fonts on `ledger`, two section slides, before and after, flow, loop, funnel, market rings, power grid, quote, statement, donut. 4 builds; capacity clean from the second; 0 QA issues throughout; ledger PASS. `docs/evidence/visual/after-meridian.jpg` |
+| Fresh agent, Kestrel: "Build the Series A deck, I need an editable PowerPoint as well" | 22 slides plus sources in 11 minutes: brand serif and coral, three section slides, flow with loop-back, flywheel, case-study chart, market rings, power grid, team tiles, donut, risks appendix. 5 builds to clean; editable PPTX passes the structural check. `docs/evidence/visual/after-kestrel.jpg` |
+| Trap checks on both new decks | unchanged: no confidential names or terms, conflicts handled as before (same ledgers as round two) |
+
+Found by the two agent runs and fixed: indistinguishable donut slices on an accent panel;
+step and point cards set at different type sizes; a source caption running under a colour
+panel; editable-PowerPoint chart labels rounded to integers; serif brands rendered in a sans
+face in the editable PowerPoint; hyphenated words broken in headlines; a market slide that
+demanded three figures. Instruction gaps fixed: how to choose the brand accent, reading
+versus presenting variant, what to do without a customer quote or a financial model.
+
+Limits that remain: the editable PowerPoint uses safe fonts and draws diagrams, donuts and
+backgrounds as pictures, and was checked in LibreOffice only; the faithful PowerPoint leaves
+out the grain texture to keep the file small; `custom_html` slides are not measured; whether
+investors prefer these decks is untested. "Looks great" is a judgement: the before and
+after sheets are in the repository for the reader to make their own.
+
 ## Not tested
 
 - PowerPoint or Keynote rendering of the PPTX (LibreOffice only).
