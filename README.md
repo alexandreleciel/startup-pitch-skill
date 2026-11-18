@@ -1,17 +1,15 @@
 # startup-pitch
 
-An Agent Skill that turns your startup's working folder into an investor pitch you can
-defend. Open Claude Code or Codex in the folder, say "help me with my investor pitch", and
-in about five minutes you get one page: the questions you must answer first, your pitch in
-two sentences and in 60 seconds, the numbers that matter, the five investor questions you
-are least ready for, and your top red flags. Then ask for the narrative, the full Q&A, or a
-deck as HTML, PDF and PowerPoint.
+Give Claude Code or Codex your startup folder and say **“Build my startup pitch.”**
+This free skill turns your notes, numbers and existing slides into a pitch you can defend.
+Start with a two-sentence pitch, a 60-second version, sourced numbers and the questions
+investors are most likely to ask. Then ask for the full Q&A or a deck in HTML, PDF or PowerPoint.
 
-![Example deck built by the skill (fictional company)](docs/demo-deck.gif)
+![Animated clip from the Reel showing the plain Framewise cover beside the polished blue and orange cover](docs/reel/framewise-before-after.gif)
 
-A deck written by the skill for one of the fictional test startups, from its folder alone:
+Framewise is the fictional startup used in the Reel to illustrate the workflow.
 
-![Deck built for a fictional Series A company](docs/evidence/visual/after-kestrel.jpg)
+![Claude prompt from the Reel showing the startup-pitch skill and “Build my startup pitch.”](docs/reel/claude-pitch-prompt.png)
 
 ## Install
 
@@ -28,7 +26,7 @@ routes, including the Claude Code plugin marketplace and claude.ai upload, are i
 
 In your startup's folder:
 
-> Help me with my investor pitch. Everything is in this folder.
+> Build my startup pitch. Everything you need is in this folder.
 
 Answer the questions it asks, then say what you want next: "write the full narrative",
 "prepare the investor Q&A", "build the deck", "prepare me for a corporate VC meeting".
@@ -73,8 +71,10 @@ pitch/
     └── deck.pptx       optional: pixel-faithful or editable PowerPoint
 ```
 
-A complete example for a fictional company is in
-[examples/sample-output](examples/sample-output).
+See the [complete sample outputs](examples/sample-output) from fictional company folders.
+The deck below is a rendered sample from the skill.
+
+![Animated deck preview from a fictional test startup](docs/demo-deck.gif)
 
 ## Requirements
 
